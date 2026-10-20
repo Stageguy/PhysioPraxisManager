@@ -123,6 +123,12 @@ export class GraphClient {
     return (await (await this.#request('POST', pathOrUrl, body, kopfzeilen)).json()) as T;
   }
 
+  /** POST ohne Antwortkörper – etwa sendMail, das mit 202 und leerem Körper antwortet */
+  async postOhneAntwort(pathOrUrl: string, body: unknown): Promise<void> {
+    const res = await this.#request('POST', pathOrUrl, body);
+    await res.body?.cancel().catch(() => {});
+  }
+
   /** Binärdaten hochladen (bis 4 MB; größere Dateien brauchen eine Upload-Sitzung) */
   async putBytes<T>(pathOrUrl: string, bytes: Uint8Array): Promise<T> {
     return (await (await this.#request('PUT', pathOrUrl, bytes)).json()) as T;

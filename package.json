@@ -10,7 +10,12 @@
   "scripts": {
     "login": "node --env-file-if-exists=.env src/cli/login.ts",
     "pruefen": "node --env-file-if-exists=.env src/cli/verbindung-pruefen.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "anhaenge": "node --env-file-if-exists=.env src/cli/anhaenge.ts",
+    "senden": "node --env-file-if-exists=.env src/cli/senden.ts",
+    "termin": "node --env-file-if-exists=.env src/cli/termin.ts",
+    "serve": "node --env-file-if-exists=.env src/cli/serve.ts",
+    "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "@azure/msal-node": "^6.0.1"

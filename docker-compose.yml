@@ -1,0 +1,59 @@
+# Praxis Lilli Nebel – eigener Tailscale-Verbund, keine Verbindung zu mondre.
+#
+#   docker compose up -d --build
+#
+# Der Knoten "praxis" tritt mit TS_AUTHKEY dem Praxis-Tailnet bei und reicht
+# https://praxis.<tailnet>.ts.net an den Dienst weiter (tailscale/serve.json). Der Dienst teilt
+# das Netz des Knotens und hört nur auf 127.0.0.1 – es gibt keinen Port auf dem Rechner und
+# keinen im Internet.
+services:
+  tailscale:
+    # Fassung festlegen, sobald der Betrieb steht (z. B. tailscale/tailscale:v1.xx.x)
+    image: tailscale/tailscale:stable
+    container_name: praxis-tailscale
+    hostname: praxis
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?TS_AUTHKEY fehlt – Schlüssel aus dem Praxis-Tailnet in .env eintragen}
+      TS_HOSTNAME: praxis
+      TS_STATE_DIR: /var/lib/tailscale
+      # Kernel-Modus statt Userspace: im Userspace-Modus würde Tailscale Verbindungen aus dem
+      # Tailnet auch an 127.0.0.1:3300 durchreichen – am serve vorbei, das die Anmeldung prüft
+      TS_USERSPACE: "false"
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./tailscale/serve.json:/config/serve.json:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  praxis:
+    build: .
+    image: physio-praxis-manager:latest
+    container_name: praxis-dienst
+    restart: unless-stopped
+    init: true
+    depends_on:
+      - tailscale
+    network_mode: service:tailscale
+    # Mit der Benutzer-ID des Rechners, damit die Anmeldung in DATA_PFAD lesbar bleibt
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      PORT: "3300"
+    volumes:
+      # Hier liegt token-cache.json aus `npm run login` – die Anmeldung als praxis@lilli-nebel.de
+      - ${DATA_PFAD:-./.data}:/data
+      - ./config:/app/config:ro
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "5" }
+
+volumes:
+  tailscale-state:
