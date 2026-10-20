@@ -26,7 +26,19 @@ const token = createTokenProvider(env, ALLE_SCOPES, { interaktiv: false });
 const graph = new GraphClient(token, { timeoutMs: 15_000, tokenTimeoutMs: 15_000, maxRetries: 1, maxWaitMs: 5_000 });
 
 const db = process.env.DATABASE_URL ? verbinde() : undefined;
-if (db) console.log(`Datenbank: ${(await migriere(db)).join(', ') || 'Schema aktuell'}`);
+if (db) {
+  // Beim gemeinsamen Start (k3s) ist die Datenbank oft noch nicht bereit – warten statt abstürzen
+  for (let versuch = 1; ; versuch++) {
+    try {
+      console.log(`Datenbank: ${(await migriere(db)).join(', ') || 'Schema aktuell'}`);
+      break;
+    } catch (err) {
+      if (versuch >= 24) throw err;
+      console.warn(`Datenbank noch nicht erreichbar (${(err as { code?: string }).code ?? (err as Error).message}) – neuer Versuch in 5 s`);
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
+}
 const lokalerZugang = process.env.LOKALER_ZUGANG || undefined;
 if (lokalerZugang) {
   console.warn(`⚠ LOKALER_ZUGANG gesetzt: Anfragen von 127.0.0.1 ohne Tailscale gelten als ${lokalerZugang} – nur für die Bauphase`);

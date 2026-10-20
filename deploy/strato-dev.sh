@@ -4,7 +4,7 @@
 #
 #   deploy/strato-dev.sh
 #
-# 1. Arbeitskopie (ohne .env, .data, node_modules) zum Server, Bild dort bauen, in k3s laden
+# 1. Arbeitskopie (ohne .env, .data, node_modules) zum Server, Bild dort bauen (k3s nutzt Docker)
 # 2. Namespace, Secrets (aus .env; DB-Passwort einmalig erzeugt; Microsoft-Anmeldung nur beim
 #    ersten Mal aus .data/token-cache.json), Datenbank, Dienst
 # 3. tailscale serve des Servers: http://<server>.<tailnet>.ts.net:10000 → 127.0.0.1:3300
@@ -33,9 +33,9 @@ git ls-files --cached --others --exclude-standard -z \
   | grep -zv -E '^(konzept/|deploy/|test/)' \
   | rsync -az --delete-after --from0 --files-from=- ./ "$HOST:$ZIEL/"
 
-echo "→ Bild $BILD bauen und in k3s laden"
-ssh "$HOST" "cd '$ZIEL' && docker build -q -t '$BILD' . >/dev/null && docker save '$BILD' | k3s ctr images import - >/dev/null \
-  && (k3s ctr images ls -q | grep -q 'postgres:16-alpine' || docker save postgres:16-alpine | k3s ctr images import - >/dev/null)"
+echo "→ Bild $BILD bauen"
+# k3s läuft auf strato-dev mit Docker als Laufzeit (--docker): gebaute Bilder sind sofort verfügbar
+ssh "$HOST" "cd '$ZIEL' && docker build -q -t '$BILD' . >/dev/null"
 
 echo "→ Namespace und Secrets"
 ssh "$HOST" kubectl apply -f - < deploy/k8s/namespace.yaml >/dev/null
