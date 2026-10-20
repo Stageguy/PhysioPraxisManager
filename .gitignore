@@ -1,0 +1,4 @@
+node_modules/
+.env
+# Token-Cache: enthält die Anmeldung von praxis@lilli-nebel.de – nie einchecken
+.data/
