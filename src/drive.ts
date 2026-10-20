@@ -13,31 +13,49 @@ interface Ordner {
   folder?: { childCount: number };
 }
 
+/**
+ * Welches Laufwerk: das eigene OneDrive ('/me/drive') oder ein geteiltes ('/drives/<id>') –
+ * die Praxisablage „Projekte/Praxis Lilli Nebel“ liegt in einem geteilten (requirements N23).
+ */
+export const laufwerkPfad = (driveId?: string): string => (driveId ? `/drives/${driveId}` : '/me/drive');
+
 /** Kennung eines OneDrive-Ordners, oder undefined, wenn es ihn nicht gibt. Verändert nichts. */
-export async function ordnerFinden(graph: Pick<GraphClient, 'find'>, pfad: string): Promise<string | undefined> {
-  const item = await graph.find<Ordner>(`/me/drive/root:/${encodeDrivePath(pfad)}:?$select=id,name,folder`);
+export async function ordnerFinden(
+  graph: Pick<GraphClient, 'find'>,
+  pfad: string,
+  laufwerk = '/me/drive',
+): Promise<string | undefined> {
+  const item = await graph.find<Ordner>(`${laufwerk}/root:/${encodeDrivePath(pfad)}:?$select=id,name,folder`);
   if (item && !item.folder) throw new Error(`„${pfad}“ ist in OneDrive eine Datei, kein Ordner`);
   return item?.id;
 }
 
-/** Legt einen Ordnerpfad an, soweit er fehlt, und gibt die Kennung des letzten Ordners zurück. */
-export async function ordnerSicherstellen(graph: Pick<GraphClient, 'find' | 'post'>, pfad: string): Promise<string> {
+/**
+ * Legt einen Ordnerpfad an, soweit er fehlt, und gibt die Kennung des letzten Ordners zurück.
+ * Sucht vom tiefsten vorhandenen Ordner aus: in einem geteilten Laufwerk sieht praxis@ oft nur
+ * den geteilten Ordner, nicht die Ordner darüber („Projekte“ ist dann unsichtbar, aber vorhanden).
+ */
+export async function ordnerSicherstellen(
+  graph: Pick<GraphClient, 'find' | 'post'>,
+  pfad: string,
+  laufwerk = '/me/drive',
+): Promise<string> {
   const teile = pfad.split('/').filter(Boolean);
   if (!teile.length) throw new Error('Leerer Ordnerpfad');
+  let vorhanden = teile.length;
   let elternId: string | undefined;
-  for (let i = 0; i < teile.length; i++) {
-    const bisHier = teile.slice(0, i + 1).join('/');
-    let id = await ordnerFinden(graph, bisHier);
-    if (!id) {
-      const ziel = elternId ? `/me/drive/items/${elternId}/children` : '/me/drive/root/children';
-      const neu = await graph.post<Ordner>(ziel, {
-        name: teile[i],
-        folder: {},
-        '@microsoft.graph.conflictBehavior': 'fail',
-      });
-      id = neu.id;
-    }
-    elternId = id;
+  for (; vorhanden > 0; vorhanden--) {
+    elternId = await ordnerFinden(graph, teile.slice(0, vorhanden).join('/'), laufwerk);
+    if (elternId) break;
+  }
+  for (let i = vorhanden; i < teile.length; i++) {
+    const ziel = elternId ? `${laufwerk}/items/${elternId}/children` : `${laufwerk}/root/children`;
+    const neu = await graph.post<Ordner>(ziel, {
+      name: teile[i],
+      folder: {},
+      '@microsoft.graph.conflictBehavior': 'fail',
+    });
+    elternId = neu.id;
   }
   return elternId!;
 }
@@ -60,8 +78,9 @@ export async function uploadFile(
   folderId: string,
   name: string,
   bytes: Uint8Array,
+  laufwerk = '/me/drive',
 ): Promise<UploadedItem> {
-  const itemPath = `/me/drive/items/${folderId}:/${encodeURIComponent(name)}:`;
+  const itemPath = `${laufwerk}/items/${folderId}:/${encodeURIComponent(name)}:`;
   if (bytes.length <= SIMPLE_UPLOAD_LIMIT) {
     return graph.putBytes<UploadedItem>(`${itemPath}/content?@microsoft.graph.conflictBehavior=rename`, bytes);
   }

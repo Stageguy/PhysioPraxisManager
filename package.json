@@ -8,20 +8,33 @@
     "node": ">=24"
   },
   "scripts": {
+    "db:migrieren": "node --env-file-if-exists=.env src/cli/db-migrieren.ts",
+    "entwurf": "node --env-file-if-exists=.env src/cli/entwurf.ts",
+    "finanzjahr": "node --env-file-if-exists=.env src/cli/finanzjahr.ts",
+    "hilfe:vorschau": "node src/cli/hilfe-vorschau.ts",
+    "kategorien": "node --env-file-if-exists=.env src/cli/kategorien.ts",
     "login": "node --env-file-if-exists=.env src/cli/login.ts",
+    "onedrive:ordner": "node --env-file-if-exists=.env src/cli/onedrive-ordner.ts",
     "pruefen": "node --env-file-if-exists=.env src/cli/verbindung-pruefen.ts",
-    "typecheck": "tsc --noEmit",
-    "anhaenge": "node --env-file-if-exists=.env src/cli/anhaenge.ts",
-    "senden": "node --env-file-if-exists=.env src/cli/senden.ts",
-    "termin": "node --env-file-if-exists=.env src/cli/termin.ts",
+    "rechnungen": "node --env-file-if-exists=.env src/cli/rechnungen.ts",
+    "rechnungen:uebernahme": "node --env-file-if-exists=.env src/cli/rechnungen-uebernahme.ts",
+    "rechnungen:zaehlen": "node --env-file-if-exists=.env src/cli/rechnungen-zaehlen.ts",
     "serve": "node --env-file-if-exists=.env src/cli/serve.ts",
-    "test": "node --test test/*.test.ts"
+    "termin": "node --env-file-if-exists=.env src/cli/termin.ts",
+    "test": "node --test test/*.test.ts",
+    "testordner": "node --env-file-if-exists=.env src/cli/testordner.ts",
+    "typecheck": "tsc --noEmit",
+    "zahlungen": "node --env-file-if-exists=.env src/cli/zahlungen.ts"
   },
   "dependencies": {
-    "@azure/msal-node": "^6.0.1"
+    "@azure/msal-node": "^6.0.1",
+    "pg": "^8.23.1",
+    "unpdf": "^1.9.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@types/node": "^24.13.5",
+    "@types/pg": "^8.23.1",
     "typescript": "^7.0.2"
   }
 }

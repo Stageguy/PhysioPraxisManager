@@ -35,7 +35,15 @@ function fileCachePlugin(file: string): ICachePlugin {
 }
 
 /** Alle Berechtigungen, denen der Mandant zugestimmt hat – angefordert wird alles auf einmal */
-export const ALLE_SCOPES = ['Mail.ReadWrite', 'Mail.Send', 'Files.ReadWrite', 'Calendars.ReadWrite'];
+export const ALLE_SCOPES = [
+  'Mail.ReadWrite',
+  'Mail.Send',
+  'Files.ReadWrite',
+  'Calendars.ReadWrite',
+  'MailboxSettings.ReadWrite',
+  'Sites.Read.All',
+  'Files.ReadWrite.All',
+];
 
 /** Ohne Anmeldung (oder mit dem falschen Konto im Cache) – `npm run login` hilft */
 export class NichtAngemeldet extends Error {

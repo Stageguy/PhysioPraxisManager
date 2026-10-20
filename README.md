@@ -5,6 +5,11 @@ und OneDrive von **praxis@lilli-nebel.de**. Das Muster ist dasselbe wie in
 `mdr-Infrastruktur/graphapi`: öffentlicher Client, Gerätecode-Anmeldung, nur delegierte Rechte,
 kein Client-Secret. Die App handelt ausschließlich im Namen des Praxiskontos.
 
+## Konzept und Aufgaben
+
+In [konzept/](konzept/): [requirements.md](konzept/requirements.md) (Wünsche, Abgleich, Aufgaben,
+offene Entscheidungen), die Prompt-Sammlung und die beiden PDFs für Lilli.
+
 ## Wie es zusammenhängt
 
 - **Mandant:** lilli-nebel.de liegt im selben Microsoft-365-Mandanten wie mondre
@@ -52,16 +57,26 @@ Jeder Befehl, der etwas verändert, ist ohne `--ausfuehren` nur ein Probelauf.
 | Befehl | Was er tut |
 |---|---|
 | `npm run pruefen` | Verbindung prüfen (nur Zahlen) |
-| `npm run anhaenge` | Mailanhänge aus dem Posteingang nach OneDrive: `<ziel>/<JJJJ-MM>/<JJJJ-MM-TT> <Name>`, danach Kategorie „In OneDrive abgelegt“ an der Mail. Probelauf nur mit Zahlen; `--details` zeigt Betreff und Dateinamen, `--hoechstens 5` begrenzt |
+| `npm run rechnungen` | Rechnungseingang (Prompt 4): Lieferantenrechnungen (PDF) aus dem Ordner „Posteingang/Rechnungen“ bzw. dem Posteingang erkennen, nach `<ziel>/JJJJ/MM/<datum>_<lieferant>_<sha8>.pdf` ablegen, Mail markieren und nach „Rechnungen/Verarbeitet“ verschieben. Patientenpost wird nur mit „Prüfen – Patient“ markiert, nie abgelegt. Probelauf nur mit Zahlen; `--details` zeigt Lieferant und Ablageort; `--ausfuehren` braucht `DATABASE_URL` und `rechnungen.ziel` |
 | `npm run termin -- --titel … --beginn 2026-11-03T09:30 --ende 2026-11-03T10:00` | Termin im Praxiskalender, deutsche Zeit, ohne Einladungen |
-| `npm run senden -- --an … --betreff … --text …` (oder `--datei brief.txt`) | Mail aus praxis@lilli-nebel.de; die Signatur setzt Exchange |
+| `npm run entwurf -- --an … --betreff … --text …` (oder `--datei brief.txt`) | Mail als **Entwurf** im Praxispostfach – senden tut Lilli in Outlook oder Apple Mail |
+| `npm run db:migrieren` | Datenbankschema anlegen bzw. fortschreiben |
+| `npm run rechnungen:zaehlen -- --jahr 2026 [--mit-geloeschten]` | Bestandsaufnahme: Mails mit Rechnungs-PDF zählen, je Ordnergruppe (nur Zahlen, verändert nichts) |
+| `npm run rechnungen:uebernahme -- --von 2025-12-01 [--bezahlt-bis …] [--mit-geloeschten]` | Altbestand aus allen Ordnern ablegen; bis zum Stichtag bezahlte gleich ins Archiv (`--ausfuehren`) |
+| `npm run zahlungen [-- --quelle outlook\|lexware]` | Bezahlte Rechnungen ins Exchange-Archiv – heute über Lillis Kategorie in Outlook, ab Tarif XL aus Lexware (`--ausfuehren`) |
+| `npm run kategorien` | Outlook-Kategorien des Rechnungs-Flows anlegen (`--ausfuehren`) |
+| `npm run finanzjahr -- --jahr 2027` | Finanzordner eines Jahres nach Vorlage des Vorjahres anlegen, mit „Eingangsrechnungen“ (`--ausfuehren`) |
+| `npm run testordner` | Gekennzeichneten Testordner für Probeläufe anlegen (`--ausfuehren`) |
+| `npm run onedrive:ordner -- [--drive …] --pfad … --tiefe 3` | Ordnerbaum ansehen – nur Ordnernamen und Anzahlen |
+| `npm run hilfe:vorschau -- datei.html` | Hilfeseite als eigenständige Datei zum Ansehen |
 | `npm run serve` | Praxisdienst (Statusseite) auf 127.0.0.1:3300 |
 | `npm test` | Prüfungen mit Graph-Attrappe – ohne Netz, ohne Microsoft |
 
-Einstellungen für die Anhänge stehen in `config/praxis.json`: `seit` (nur Mails ab diesem Tag),
-`ziel` (OneDrive-Ordner), `kategorie`. **Vor dem ersten `--ausfuehren` den Zielordner festlegen** –
-der Ordner wird beim Ausführen angelegt, falls er fehlt. Nichts davon läuft automatisch; es gibt
-keinen Zeitplaner.
+Einstellungen für den Rechnungseingang stehen in `config/praxis.json` unter `rechnungen`: `seit`
+(nur Mails ab diesem Tag), `mailordner`, `verarbeitet`, `ziel` (OneDrive-Ordner – `null`, bis er
+festgelegt ist; bis dahin nur Probeläufe), `kategorien` und `lieferanten` (`{ "name": "Telekom",
+"domains": ["telekom.de"] }` – nur von ihnen wird ohne Rückfrage abgelegt, alles andere landet als
+„unklar“ bei Lilli). Nichts davon läuft automatisch; es gibt keinen Zeitplaner.
 
 ## Der Praxisdienst im eigenen Tailnet
 
@@ -83,6 +98,7 @@ Lillis Gerät ──Tailscale──▶ Knoten „praxis“ (tailscale serve, HTT
   `npm run login`). Auf einem anderen Rechner: dort `npm run login` ausführen oder
   `token-cache.json` sicher hinüberkopieren (enthält den Zugang zum Praxispostfach).
 - Der Dienst löst nichts aus: nur Statusseite und `/api/health`.
+- Ziel ist der **Strato-Server**, nicht OrbStack auf dem Mac (siehe [konzept/requirements.md](konzept/requirements.md), E6/E12).
 
 ### Einrichten
 

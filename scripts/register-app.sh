@@ -14,9 +14,13 @@ set -euo pipefail
 APP_NAME="${1:-praxis-graphapi}"
 KONTO="${2:-praxis@lilli-nebel.de}"
 GRAPH_APP_ID="00000003-0000-0000-c000-000000000000"
-# Mail.ReadWrite: Posteingang lesen, Anhänge, Ordner/Kategorien · Mail.Send: aus dem Praxispostfach senden
-# Files.ReadWrite: OneDrive der Praxis · Calendars.ReadWrite: Praxiskalender
-SCOPES=(User.Read offline_access Mail.ReadWrite Mail.Send Files.ReadWrite Calendars.ReadWrite)
+# Mail.ReadWrite: Posteingang lesen, Anhänge, Ordner, Kategorien an Mails · Mail.Send: erst für die
+#   Tagesübersicht (Prompt 8), heute ungenutzt · Files.ReadWrite: OneDrive der Praxis
+# Calendars.ReadWrite: Praxiskalender · MailboxSettings.ReadWrite: Outlook-Kategorien mit Farben anlegen
+# Sites.Read.All + Files.ReadWrite.All: SharePoint der Praxis (01 Finanzen …) finden und dort ablegen –
+#   delegiert, also nur, was praxis@lilli-nebel.de selbst sehen darf (20.10.2026)
+SCOPES=(User.Read offline_access Mail.ReadWrite Mail.Send Files.ReadWrite Calendars.ReadWrite
+        MailboxSettings.ReadWrite Sites.Read.All Files.ReadWrite.All)
 
 if ! az account show >/dev/null 2>&1; then
   az login --allow-no-subscriptions >/dev/null

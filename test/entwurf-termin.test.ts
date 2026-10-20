@@ -1,29 +1,31 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { terminAnlegen, terminKoerper } from '../src/kalender.ts';
-import { mailSenden, sendMailKoerper } from '../src/mail/senden.ts';
+import { entwurfAnlegen, entwurfKoerper } from '../src/mail/entwurf.ts';
 import { berlinMitternachtUtc, datumBerlin } from '../src/zeit.ts';
 import { graphAttrappe } from './attrappe.ts';
 
 const mail = { an: ['patient@example.org'], betreff: 'Termin', text: 'Hallo' };
 
-test('Mail: Probelauf sendet nichts', async () => {
+test('Entwurf: Probelauf legt nichts an', async () => {
   const g = graphAttrappe({});
-  assert.deepEqual(await mailSenden(g, mail, { ausfuehren: false }), { gesendet: false });
+  assert.deepEqual(await entwurfAnlegen(g, mail, { ausfuehren: false }), { angelegt: false });
   assert.deepEqual(g.schreibende(), []);
 });
 
-test('Mail: Ausführen ruft sendMail genau einmal', async () => {
+test('Entwurf: Ausführen legt genau einen Entwurf an und sendet nie', async () => {
   const g = graphAttrappe({});
-  await mailSenden(g, mail, { ausfuehren: true });
-  assert.deepEqual(g.schreibende(), [{ methode: 'POST', pfad: '/me/sendMail', body: sendMailKoerper(mail) }]);
+  const r = await entwurfAnlegen(g, mail, { ausfuehren: true });
+  assert.equal(r.angelegt, true);
+  assert.deepEqual(g.schreibende(), [{ methode: 'POST', pfad: '/me/messages', body: entwurfKoerper(mail) }]);
+  assert.ok(!g.aufrufe.some((a) => a.pfad.includes('sendMail') || a.pfad.endsWith('/send')));
 });
 
-test('Mail: ungültige Angaben werden vor jedem Aufruf abgewiesen', async () => {
+test('Entwurf: ungültige Angaben werden vor jedem Aufruf abgewiesen', async () => {
   const g = graphAttrappe({});
-  await assert.rejects(mailSenden(g, { ...mail, an: ['kein-at'] }, { ausfuehren: true }), /keine gültige/);
-  await assert.rejects(mailSenden(g, { ...mail, an: [] }, { ausfuehren: true }), /Kein Empfänger/);
-  await assert.rejects(mailSenden(g, { ...mail, betreff: ' ' }, { ausfuehren: true }), /Betreff/);
+  await assert.rejects(entwurfAnlegen(g, { ...mail, an: ['kein-at'] }, { ausfuehren: true }), /keine gültige/);
+  await assert.rejects(entwurfAnlegen(g, { ...mail, an: [] }, { ausfuehren: true }), /Kein Empfänger/);
+  await assert.rejects(entwurfAnlegen(g, { ...mail, betreff: ' ' }, { ausfuehren: true }), /Betreff/);
   assert.deepEqual(g.aufrufe, []);
 });
 

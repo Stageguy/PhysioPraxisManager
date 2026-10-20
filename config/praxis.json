@@ -1,7 +1,23 @@
 {
-  "anhaenge": {
+  "rechnungen": {
     "seit": "2026-10-20",
-    "ziel": "Mailanhänge",
-    "kategorie": "In OneDrive abgelegt"
+    "mailordner": "Posteingang/Rechnungen",
+    "verarbeitet": "Posteingang/Rechnungen/Verarbeitet",
+    "ziel": "Projekte/Praxis Lilli Nebel/07 Technik/_TEST PhysioPraxisManager – Probeläufe/{JJJJ}/Eingangsrechnungen",
+    "laufwerk": "b!h1Tr5-xCqky0vrBEdPQXxznNNAShHmBEkqQBOYPXzxzvrUC8t5zDT6zaNfRR730Y",
+    "kategorien": {
+      "eingegangen": "Rechnung: eingegangen",
+      "unklar": "Prüfen – unklar",
+      "patient": "Prüfen – Patient"
+    },
+    "lieferanten": [],
+    "eigeneAbsender": [
+      "belege.lexware.de"
+    ]
+  },
+  "ablage": {
+    "laufwerk": "b!h1Tr5-xCqky0vrBEdPQXxznNNAShHmBEkqQBOYPXzxzvrUC8t5zDT6zaNfRR730Y",
+    "finanzen": "Projekte/Praxis Lilli Nebel/01 Finanzen",
+    "probelauf": "Projekte/Praxis Lilli Nebel/07 Technik/_TEST PhysioPraxisManager – Probeläufe"
   }
 }

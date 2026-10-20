@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hilfe – Praxis Lilli Nebel</title>
+<style>
+:root{--bg:#faf7f9;--fg:#2b1f28;--grau:#6d5f68;--akzent:#722e61;--ok:#2e7d4f;--fehler:#b3261e;--karte:#fff;--rand:#e6dce3}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1519;--fg:#f1e9ee;--grau:#b3a5ae;--akzent:#d9a6c9;--ok:#7fd1a0;--fehler:#ff8a80;--karte:#271e24;--rand:#3d3038}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px 72px}
+nav{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:20px}
+nav a{color:var(--akzent);text-decoration:none;padding:6px 12px;border-radius:999px;border:1px solid var(--rand);min-height:36px;display:inline-flex;align-items:center}
+nav a[aria-current]{background:var(--akzent);color:var(--bg);border-color:var(--akzent)}
+h1{color:var(--akzent);font-size:24px;margin:0 0 4px}
+h2{font-size:19px;margin:28px 0 8px;color:var(--akzent)}
+h3{font-size:16px;margin:16px 0 4px}
+a{color:var(--akzent)}
+.karte{background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:12px 16px;margin:8px 0}
+.hint{color:var(--grau);font-size:14px}
+.liste{list-style:none;padding:0;margin:0;background:var(--karte);border-radius:12px;overflow:hidden;border:1px solid var(--rand)}
+.liste li{padding:12px 16px;border-bottom:1px solid var(--rand)}
+.liste li:last-child{border-bottom:0}
+.liste li span{display:inline-block;width:24px;font-weight:700}
+.liste li.ok span{color:var(--ok)} .liste li.fehler span{color:var(--fehler)}
+.liste li b{margin-right:6px}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--rand)}
+th{color:var(--grau);font-weight:600;font-size:13px}
+.tabelle{overflow-x:auto}
+.chip{display:inline-block;padding:2px 10px;border-radius:999px;font-size:14px;font-weight:600;color:#1b1519;white-space:nowrap;cursor:help}
+.chip.preset0{background:#f4a3a8}.chip.preset1{background:#ffc27a}.chip.preset3{background:#fbe97a}
+.chip.preset4{background:#a9e4a2}.chip.preset5{background:#9fe0d8}.chip.preset7{background:#9fd3f5}.chip.preset8{background:#d7b8e8}.chip.preset19{background:#6fbf73}
+.marke{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--rand);color:var(--grau);white-space:nowrap}
+.marke.jetzt{border-color:var(--ok);color:var(--ok)}
+ol.schritte{padding-left:22px} ol.schritte li{margin:6px 0}
+footer{margin-top:32px;font-size:13px;color:var(--grau)}
+kbd{font:inherit;font-size:.85em;padding:1px 5px;border:1px solid var(--rand);border-radius:4px}
+/* Erklärungen per Rechtsklick */
+.hilfe-karte{position:fixed;z-index:1200;width:min(440px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;
+  background:var(--karte);border:1px solid var(--rand);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.22);
+  padding:12px 14px 10px;font-size:14px;line-height:1.45}
+.hilfe-kopf{display:flex;gap:10px;align-items:baseline;margin-bottom:8px}
+.hilfe-kopf strong{flex:1;min-width:0;font-size:15px}
+.hilfe-schliessen{background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--grau);min-width:32px;min-height:32px}
+.hilfe-felder{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0}
+.hilfe-felder dt{color:var(--grau);font-size:12px;text-transform:uppercase;letter-spacing:.03em;padding-top:2px}
+.hilfe-felder dd{margin:0}
+.hilfe-fuss{margin-top:10px;padding-top:8px;border-top:1px solid var(--rand);font-size:12px;color:var(--grau)}
+.hilfe-hinweis{position:fixed;right:12px;bottom:10px;z-index:900;font-size:12px;color:var(--grau);background:var(--karte);
+  padding:4px 10px;border-radius:999px;border:1px solid var(--rand);max-width:calc(100vw - 24px)}
+.hilfe-hinweis.neu{color:var(--akzent);border-color:var(--akzent);font-size:13px;padding:6px 12px}
+.hilfe-eintrag{padding:12px 0;border-top:1px solid var(--rand)} .hilfe-eintrag:first-of-type{border-top:0}
+.hilfe-eintrag h3{margin:0 0 6px}
+@media (max-width:640px){th,td{padding:6px}.hilfe-felder{grid-template-columns:1fr}.hilfe-felder dt{padding-top:6px}}
+</style></head><body><main>
+<nav aria-label="Menü"><a href="/" data-hilfe="menue.status">Status</a><a href="/hilfe" data-hilfe="menue.hilfe" aria-current="page">Hilfe</a></nav>
+
+<h1>Hilfe</h1>
+<p>Die Praxis-Assistenz nimmt dir Büroarbeit ab: Sie sortiert Post, legt Rechnungen ab und bereitet
+Antworten vor. <b>Entscheiden tust du.</b> Nichts geht an Patienten, ohne dass du es freigibst.</p>
+
+<h2>Bedienen</h2>
+<div class="karte">
+<p><b>Rechtsklick</b> auf einen Knopf, eine Kategorie oder einen Prüfpunkt erklärt ihn – am iPhone und iPad
+<b>lange drücken</b>. Jede Erklärung beantwortet fünf Fragen: <i>Löst aus</i> (was passiert), <i>Bezug</i>
+(worauf), <i>Ändert</i> (was gespeichert wird), <i>Ergebnis</i> (wie es danach aussieht), <i>Rückweg</i>
+(wie man es zurücknimmt).</p>
+<p class="hint"><kbd>Esc</kbd> schließt die Erklärung. Tastatur: <kbd>?</kbd> oder <kbd>F1</kbd> auf einem
+ausgewählten Element. Umschalt + Rechtsklick öffnet das normale Browser-Menü.</p>
+</div>
+
+<h2>So arbeitet der Rechnungseingang</h2>
+<div class="karte"><ol class="schritte">
+<li><b>Einsammeln:</b> Mails mit PDF-Anhang im Ordner „Rechnungen“ (sonst im Posteingang).</li>
+<li><b>Erkennen:</b> nach festen Regeln, ohne KI. Eine Rechnung ist nur, was von einem <b>bekannten Lieferanten</b>
+kommt und nach Rechnung aussieht (Rechnungsnummer, Betrag, Steuer, IBAN).</li>
+<li><b>Ablegen:</b> nach <i>01 Finanzen / &lt;Jahr&gt; / Eingangsrechnungen</i>, Name
+<i>Datum_Lieferant_Kennung.pdf</i>. Dieselbe Rechnung kommt nie zweimal hinein. Rechnungsnummer, Betrag und
+Rechnungsdatum merkt sich das System – darüber findet es die Rechnung später in Lexware wieder.</li>
+<li><b>Markieren:</b> die Mail bekommt „Rechnung: eingegangen“ und wandert nach „Rechnungen/Verarbeitet“ –
+gelöscht wird nie etwas.</li>
+<li><b>Du entscheidest:</b> Unklares und Patientenpost bleiben bei dir. Später gibst du Rechnungen frei, dann
+gehen sie nach Lexware.</li>
+<li><b>Bezahlt → Archiv:</b> Ist die Rechnung bezahlt, bekommt die Mail „Rechnung: bezahlt“ und wandert ins
+Outlook-Archiv.
+<br><b>Heute (bis zum Lexware-Tarif XL):</b> Setze bei einer bezahlten Rechnung die Kategorie „Rechnung: bezahlt“
+selbst – in Outlook am Rechner oder auf dem iPhone. Das Verschieben ins Archiv übernimmt das System.
+<br><b>Später (mit XL):</b> Das System liest den Zahlungsstand selbst aus Lexware. Stößt du dort die Zahlung an,
+zeigt Outlook „Zahlung angestoßen“; hat die Bank gebucht, „bezahlt“ – du musst nichts doppelt eintragen.</li>
+</ol>
+<p class="hint">Patientenpost (Rezept, Verordnung, Befund, Arztbrief) wird nie im Büro-Ordner abgelegt
+und nicht gespeichert – sie bekommt nur die Kategorie „Prüfen – Patient“.</p></div>
+
+<h2>Outlook-Kategorien</h2>
+<p class="hint">Die Reihenfolge ist der Weg einer Rechnung: eingegangen → freigegeben → in Lexware → Zahlung
+angestoßen → bezahlt (dann im Archiv). An einer Mail steht immer nur die aktuelle Stufe; deine eigenen Kategorien
+bleiben. Die beiden „Prüfen“ heißen: hier entscheidest du.</p>
+<div class="tabelle"><table><thead><tr><th>Kategorie</th><th>Wann</th><th>Was du tust</th><th>Ab wann</th></tr></thead>
+<tbody><tr><td><span class="chip preset3" data-hilfe="kategorie.eingegangen" tabindex="0">Rechnung: eingegangen</span></td>
+      <td>Der Rechnungseingang hat das Rechnungs-PDF eines bekannten Lieferanten in „Eingangsrechnungen“ abgelegt und die Mail nach „Rechnungen/Verarbeitet“ verschoben.</td><td>Nichts in Outlook. Die Rechnung wartet im Cockpit auf deine Freigabe.</td><td><span class="marke jetzt">jetzt</span></td></tr><tr><td><span class="chip preset4" data-hilfe="kategorie.freigegeben" tabindex="0">Rechnung: freigegeben</span></td>
+      <td>Du hast die Rechnung im Cockpit freigegeben.</td><td>Nichts – sie geht als Nächstes an Lexware.</td><td><span class="marke">mit Freigabe (Prompt 5)</span></td></tr><tr><td><span class="chip preset7" data-hilfe="kategorie.lexware" tabindex="0">Rechnung: in Lexware</span></td>
+      <td>Der Beleg liegt in Lexware unter „Belege – zu prüfen“.</td><td>In Lexware buchen bzw. der Steuerberatung überlassen – und dort die Zahlung anstoßen.</td><td><span class="marke">mit Lexware (Prompt 5)</span></td></tr><tr><td><span class="chip preset5" data-hilfe="kategorie.angestossen" tabindex="0">Rechnung: Zahlung angestoßen</span></td>
+      <td>In Lexware ist die Zahlung beauftragt: Überweisung über das Lexware-Online-Banking oder Lastschrift autorisiert. Die Bank hat sie noch nicht gebucht.</td><td>Nichts – sobald die Bank bucht, wird daraus „bezahlt“.</td><td><span class="marke">mit Lexware (Prompt 5)</span></td></tr><tr><td><span class="chip preset19" data-hilfe="kategorie.bezahlt" tabindex="0">Rechnung: bezahlt</span></td>
+      <td>Die Rechnung ist bezahlt – laut Lexware (sobald der XL-Tarif da ist) oder weil du die Kategorie selbst gesetzt hast. Danach wandert die Mail ins Exchange-Archiv.</td><td>Bis zum XL-Tarif: bei bezahlten Rechnungen diese Kategorie selbst in Outlook setzen – den Rest erledigt das System. Danach: nichts.</td><td><span class="marke jetzt">jetzt</span></td></tr><tr><td><span class="chip preset1" data-hilfe="kategorie.unklar" tabindex="0">Prüfen – unklar</span></td>
+      <td>Ein PDF sieht nach Rechnung aus, kommt aber von einem Absender, der nicht in der Lieferantenliste steht – oder es ist ein Scan ohne Text. Nichts wurde abgelegt.</td><td>Anschauen: Ist es eine berufliche Rechnung? Dann den Absender in die Lieferantenliste aufnehmen lassen.</td><td><span class="marke jetzt">jetzt</span></td></tr><tr><td><span class="chip preset8" data-hilfe="kategorie.patient" tabindex="0">Prüfen – Patient</span></td>
+      <td>Die Mail sieht nach Patientenpost aus (Rezept, Verordnung, Befund, Arztbrief …). Das System hat nichts abgelegt und nichts gespeichert.</td><td>Selbst bearbeiten. Patientenpost kommt nie in den Büro-Ordner.</td><td><span class="marke jetzt">jetzt</span></td></tr></tbody></table></div>
+
+<h2>Was es heute gibt – und was kommt</h2>
+<div class="tabelle"><table><thead><tr><th>Funktion</th><th>Was sie tut</th><th>Stand</th><th>Grundlage</th></tr></thead>
+<tbody><tr><td><b>Statusseite</b></td><td>Zeigt, ob die Verbindung zu Postfach, Kalender und OneDrive steht.</td>
+    <td><span class="marke jetzt">jetzt</span></td><td class="hint">diese Seiten</td></tr><tr><td><b>Outlook-Kategorien</b></td><td>Fünf farbige Kategorien zeigen in Outlook, was mit einer Mail passiert ist.</td>
+    <td><span class="marke jetzt">jetzt</span></td><td class="hint">angelegt am 20.10.2026</td></tr><tr><td><b>Finanzordner je Jahr</b></td><td>Legt „01 Finanzen/&lt;Jahr&gt;“ nach der Vorlage des Vorjahres an, mit „Eingangsrechnungen“.</td>
+    <td><span class="marke jetzt">jetzt</span></td><td class="hint">2026 angelegt am 20.10.2026</td></tr><tr><td><b>Rechnungseingang</b></td><td>Erkennt Lieferantenrechnungen im Postfach und legt sie in „Eingangsrechnungen“ ab. Läuft bisher nur als Probelauf – es wird nichts verändert.</td>
+    <td><span class="marke jetzt">jetzt</span></td><td class="hint">Prompt 4</td></tr><tr><td><b>Mail-Entwürfe</b></td><td>Legt eine Mail als Entwurf in „Entwürfe“ – senden tust du.</td>
+    <td><span class="marke jetzt">jetzt</span></td><td class="hint">Leitplanke 3</td></tr><tr><td><b>Freigabe</b></td><td>Rechnungen auf einen Blick: Freigeben, Ablehnen oder Später – am Handy und am Rechner.</td>
+    <td><span class="marke">später</span></td><td class="hint">Prompt 5</td></tr><tr><td><b>Lexware</b></td><td>Freigegebene Belege landen in Lexware unter „Belege – zu prüfen“; später auch Rechnungsentwürfe an Patienten.</td>
+    <td><span class="marke">später</span></td><td class="hint">Prompt 5, 11</td></tr><tr><td><b>Bezahlt ins Archiv (Übergang)</b></td><td>Du setzt „Rechnung: bezahlt“ in Outlook, das System verschiebt die Mail ins Archiv und merkt sich den Stand.</td>
+    <td><span class="marke jetzt">jetzt</span></td><td class="hint">bis zum Tarif XL</td></tr><tr><td><b>Übernahme des Bestands</b></td><td>Rechnungen aus Archiv, Unterordnern und Papierkorb rückwirkend ablegen; was du als bezahlt bestätigst, kommt gleich ins Archiv.</td>
+    <td><span class="marke jetzt">jetzt</span></td><td class="hint">Fragen an Lilli, Nr. 1</td></tr><tr><td><b>Zahlungsstand aus Lexware</b></td><td>Liest aus Lexware, ob eine Rechnung zur Zahlung angestoßen oder bezahlt ist, setzt die Kategorie und archiviert die Mail.</td>
+    <td><span class="marke">später</span></td><td class="hint">Tarif XL, Prompt 5</td></tr><tr><td><b>Terminanfragen</b></td><td>Erkennt Terminwünsche in Mails, schlägt drei freie Zeiten vor und legt die Antwort als Entwurf an.</td>
+    <td><span class="marke">später</span></td><td class="hint">Prompt 6, 7</td></tr><tr><td><b>Cockpit</b></td><td>Eine Seite für heute: Termine, neue Rechnungen, offene Zahlungen, was auf dich wartet.</td>
+    <td><span class="marke">später</span></td><td class="hint">Prompt 8, 10</td></tr><tr><td><b>Patientenweg</b></td><td>Acht Phasen von der Anfrage bis zur Nachsorge – die Pinnwand zeigt, wer wo steht.</td>
+    <td><span class="marke">später</span></td><td class="hint">Prompt 12, PDF Patientenweg</td></tr><tr><td><b>Schnellaktionen</b></td><td>Ein Tipp auf die Patientenkarte legt eine fertige Mail als Entwurf an.</td>
+    <td><span class="marke">später</span></td><td class="hint">Prompt 13</td></tr><tr><td><b>Rezepte</b></td><td>Stempelkarte je Rezept, Abhaken nach jeder Behandlung, Zwischen- und Abschlussrechnung.</td>
+    <td><span class="marke">später</span></td><td class="hint">Prompt 14, PDF Patientenweg S. 5</td></tr></tbody></table></div>
+<p class="hint">Wie alles zusammenspielt, zeigen die beiden Übersichten „Büro &amp; Rechnungen“ und „Patientenweg“ (PDF).</p>
+
+<h2>Wo was liegt</h2>
+<div class="tabelle"><table><tbody>
+<tr><th>Postfach, Kalender</th><td>Microsoft 365, Konto praxis@lilli-nebel.de</td></tr>
+<tr><th>Büro-Ablage</th><td>OneDrive-Ordner „Praxis Lilli Nebel“ (01 Finanzen … 07 Technik) – nur Kaufmännisches, keine Gesundheitsdaten</td></tr>
+<tr><th>Testordner</th><td>07 Technik / „_TEST PhysioPraxisManager – Probeläufe“ – darf gelöscht werden</td></tr>
+<tr><th>Praxis-Kartei</th><td>Datenbank auf dem Praxis-Server bei Strato in Deutschland, verschlüsselt</td></tr>
+<tr><th>Zugang</th><td>nur über Tailscale, nur für freigegebene Konten</td></tr>
+<tr><th>Programm</th><td>PhysioPraxisManager 0.1.0, betreut von Christian</td></tr>
+</tbody></table></div>
+
+<h2>Alle Erklärungen</h2>
+<div id="hilfeListe"><div class="karte"><h3>Menü</h3><div class="hilfe-eintrag" id="hilfe-menue-status"><h3>Status</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Öffnet die Statusseite.</dd><dt>Bezug</dt><dd>Die Verbindung der Praxis-Assistenz zu Microsoft 365 (praxis@lilli-nebel.de).</dd>
+        <dt>Ändert</dt><dd>Nichts – nur die Anzeige.</dd><dt>Ergebnis</dt><dd>Ob Postfach, Kalender und OneDrive erreichbar sind – mit ✓ oder ✗.</dd><dt>Rückweg</dt><dd>Nicht nötig; es wurde nichts verändert.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-menue-hilfe"><h3>Hilfe</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Öffnet alle Erklärungen am Stück – dieselben, die der Rechtsklick zeigt.</dd><dt>Bezug</dt><dd>Die ganze Praxis-Assistenz.</dd>
+        <dt>Ändert</dt><dd>Nichts – nur die Anzeige.</dd><dt>Ergebnis</dt><dd>Wie der Rechnungseingang arbeitet, was die Outlook-Kategorien bedeuten, was heute geht und was später kommt.</dd><dt>Rückweg</dt><dd>Nicht nötig; es wurde nichts verändert.</dd></dl></div></div><div class="karte"><h3>Status</h3><div class="hilfe-eintrag" id="hilfe-status-gesamt"><h3>Gesamtzustand</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine Auskunft, keine Schaltfläche.</dd><dt>Bezug</dt><dd>Alle Prüfpunkte darunter zusammen.</dd>
+        <dt>Ändert</dt><dd>Nichts – nur die Anzeige.</dd><dt>Ergebnis</dt><dd>„Alles in Ordnung“, wenn jeder Punkt ✓ hat. Sonst ein Hinweis – dann bitte Christian Bescheid geben.</dd><dt>Rückweg</dt><dd>Nicht nötig; es wurde nichts verändert.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-status-konto"><h3>Konto</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine Auskunft, keine Schaltfläche.</dd><dt>Bezug</dt><dd>Das Microsoft-Konto, mit dem die Praxis-Assistenz arbeitet: praxis@lilli-nebel.de.</dd>
+        <dt>Ändert</dt><dd>Nichts – nur die Anzeige.</dd><dt>Ergebnis</dt><dd>Name und Adresse des Kontos. Steht hier ein anderes Konto, stimmt etwas nicht.</dd><dt>Rückweg</dt><dd>Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-status-posteingang"><h3>Posteingang</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine Auskunft, keine Schaltfläche.</dd><dt>Bezug</dt><dd>Der Posteingang von praxis@lilli-nebel.de.</dd>
+        <dt>Ändert</dt><dd>Nichts – nur die Anzeige.</dd><dt>Ergebnis</dt><dd>Nur die Anzahl der Mails und der ungelesenen – nie Betreff oder Absender.</dd><dt>Rückweg</dt><dd>Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-status-kalender"><h3>Kalender</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine Auskunft, keine Schaltfläche.</dd><dt>Bezug</dt><dd>Der Kalender von praxis@lilli-nebel.de.</dd>
+        <dt>Ändert</dt><dd>Nichts – nur die Anzeige.</dd><dt>Ergebnis</dt><dd>Name des Kalenders und ob die Praxis-Assistenz dort Termine eintragen darf.</dd><dt>Rückweg</dt><dd>Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-status-onedrive"><h3>OneDrive</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine Auskunft, keine Schaltfläche.</dd><dt>Bezug</dt><dd>Das OneDrive von praxis@lilli-nebel.de.</dd>
+        <dt>Ändert</dt><dd>Nichts – nur die Anzeige.</dd><dt>Ergebnis</dt><dd>Wie viel Speicher belegt ist. Dateinamen werden nicht angezeigt.</dd><dt>Rückweg</dt><dd>Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-status-rechte"><h3>Rechte</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine Auskunft, keine Schaltfläche.</dd><dt>Bezug</dt><dd>Was Microsoft der Praxis-Assistenz erlaubt hat – immer nur im Namen von praxis@lilli-nebel.de.</dd>
+        <dt>Ändert</dt><dd>Nichts – nur die Anzeige.</dd><dt>Ergebnis</dt><dd>Die erteilten Rechte: Mail, Kalender, OneDrive, Kategorien, geteilte Ordner. Fehlt eins, steht hier welches.</dd><dt>Rückweg</dt><dd>Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand.</dd></dl></div></div><div class="karte"><h3>Outlook-Kategorien</h3><div class="hilfe-eintrag" id="hilfe-kategorie-eingegangen"><h3>Kategorie „Rechnung: eingegangen“ (Gelb)</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.</dd><dt>Bezug</dt><dd>Eine Mail im Praxispostfach.</dd>
+        <dt>Ändert</dt><dd>Die Praxis-Assistenz setzt die Kategorie selbst (schon heute).</dd><dt>Ergebnis</dt><dd>Der Rechnungseingang hat das Rechnungs-PDF eines bekannten Lieferanten in „Eingangsrechnungen“ abgelegt und die Mail nach „Rechnungen/Verarbeitet“ verschoben. Was du tust: Nichts in Outlook. Die Rechnung wartet im Cockpit auf deine Freigabe.</dd><dt>Rückweg</dt><dd>In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-kategorie-freigegeben"><h3>Kategorie „Rechnung: freigegeben“ (Grün)</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.</dd><dt>Bezug</dt><dd>Eine Mail im Praxispostfach.</dd>
+        <dt>Ändert</dt><dd>Die Praxis-Assistenz setzt die Kategorie selbst (mit Freigabe (Prompt 5)).</dd><dt>Ergebnis</dt><dd>Du hast die Rechnung im Cockpit freigegeben. Was du tust: Nichts – sie geht als Nächstes an Lexware.</dd><dt>Rückweg</dt><dd>In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-kategorie-lexware"><h3>Kategorie „Rechnung: in Lexware“ (Blau)</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.</dd><dt>Bezug</dt><dd>Eine Mail im Praxispostfach.</dd>
+        <dt>Ändert</dt><dd>Die Praxis-Assistenz setzt die Kategorie selbst (mit Lexware (Prompt 5)).</dd><dt>Ergebnis</dt><dd>Der Beleg liegt in Lexware unter „Belege – zu prüfen“. Was du tust: In Lexware buchen bzw. der Steuerberatung überlassen – und dort die Zahlung anstoßen.</dd><dt>Rückweg</dt><dd>In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-kategorie-angestossen"><h3>Kategorie „Rechnung: Zahlung angestoßen“ (Türkis)</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.</dd><dt>Bezug</dt><dd>Eine Mail im Praxispostfach.</dd>
+        <dt>Ändert</dt><dd>Die Praxis-Assistenz setzt die Kategorie selbst (mit Lexware (Prompt 5)).</dd><dt>Ergebnis</dt><dd>In Lexware ist die Zahlung beauftragt: Überweisung über das Lexware-Online-Banking oder Lastschrift autorisiert. Die Bank hat sie noch nicht gebucht. Was du tust: Nichts – sobald die Bank bucht, wird daraus „bezahlt“.</dd><dt>Rückweg</dt><dd>In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-kategorie-bezahlt"><h3>Kategorie „Rechnung: bezahlt“ (Dunkelgrün)</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.</dd><dt>Bezug</dt><dd>Eine Mail im Praxispostfach.</dd>
+        <dt>Ändert</dt><dd>Die Praxis-Assistenz setzt die Kategorie selbst (schon heute).</dd><dt>Ergebnis</dt><dd>Die Rechnung ist bezahlt – laut Lexware (sobald der XL-Tarif da ist) oder weil du die Kategorie selbst gesetzt hast. Danach wandert die Mail ins Exchange-Archiv. Was du tust: Bis zum XL-Tarif: bei bezahlten Rechnungen diese Kategorie selbst in Outlook setzen – den Rest erledigt das System. Danach: nichts.</dd><dt>Rückweg</dt><dd>In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-kategorie-unklar"><h3>Kategorie „Prüfen – unklar“ (Orange)</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.</dd><dt>Bezug</dt><dd>Eine Mail im Praxispostfach.</dd>
+        <dt>Ändert</dt><dd>Die Praxis-Assistenz setzt die Kategorie selbst (schon heute).</dd><dt>Ergebnis</dt><dd>Ein PDF sieht nach Rechnung aus, kommt aber von einem Absender, der nicht in der Lieferantenliste steht – oder es ist ein Scan ohne Text. Nichts wurde abgelegt. Was du tust: Anschauen: Ist es eine berufliche Rechnung? Dann den Absender in die Lieferantenliste aufnehmen lassen.</dd><dt>Rückweg</dt><dd>In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab.</dd></dl></div><div class="hilfe-eintrag" id="hilfe-kategorie-patient"><h3>Kategorie „Prüfen – Patient“ (Lila)</h3>
+        <dl class="hilfe-felder"><dt>Löst aus</dt><dd>Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.</dd><dt>Bezug</dt><dd>Eine Mail im Praxispostfach.</dd>
+        <dt>Ändert</dt><dd>Die Praxis-Assistenz setzt die Kategorie selbst (schon heute).</dd><dt>Ergebnis</dt><dd>Die Mail sieht nach Patientenpost aus (Rezept, Verordnung, Befund, Arztbrief …). Das System hat nichts abgelegt und nichts gespeichert. Was du tust: Selbst bearbeiten. Patientenpost kommt nie in den Büro-Ordner.</dd><dt>Rückweg</dt><dd>In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab.</dd></dl></div></div></div>
+<footer>Angemeldet als Vorschau · PhysioPraxisManager 0.1.0</footer>
+</main>
+<script>var HILFE = {"menue.status":{"seite":"Menü","titel":"Status","loest_aus":"Öffnet die Statusseite.","bezug":"Die Verbindung der Praxis-Assistenz zu Microsoft 365 (praxis@lilli-nebel.de).","aendert":"Nichts – nur die Anzeige.","ergebnis":"Ob Postfach, Kalender und OneDrive erreichbar sind – mit ✓ oder ✗.","rueckweg":"Nicht nötig; es wurde nichts verändert."},"menue.hilfe":{"seite":"Menü","titel":"Hilfe","loest_aus":"Öffnet alle Erklärungen am Stück – dieselben, die der Rechtsklick zeigt.","bezug":"Die ganze Praxis-Assistenz.","aendert":"Nichts – nur die Anzeige.","ergebnis":"Wie der Rechnungseingang arbeitet, was die Outlook-Kategorien bedeuten, was heute geht und was später kommt.","rueckweg":"Nicht nötig; es wurde nichts verändert."},"status.gesamt":{"seite":"Status","titel":"Gesamtzustand","loest_aus":"Nichts – eine Auskunft, keine Schaltfläche.","bezug":"Alle Prüfpunkte darunter zusammen.","aendert":"Nichts – nur die Anzeige.","ergebnis":"„Alles in Ordnung“, wenn jeder Punkt ✓ hat. Sonst ein Hinweis – dann bitte Christian Bescheid geben.","rueckweg":"Nicht nötig; es wurde nichts verändert."},"status.konto":{"seite":"Status","titel":"Konto","loest_aus":"Nichts – eine Auskunft, keine Schaltfläche.","bezug":"Das Microsoft-Konto, mit dem die Praxis-Assistenz arbeitet: praxis@lilli-nebel.de.","aendert":"Nichts – nur die Anzeige.","ergebnis":"Name und Adresse des Kontos. Steht hier ein anderes Konto, stimmt etwas nicht.","rueckweg":"Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand."},"status.posteingang":{"seite":"Status","titel":"Posteingang","loest_aus":"Nichts – eine Auskunft, keine Schaltfläche.","bezug":"Der Posteingang von praxis@lilli-nebel.de.","aendert":"Nichts – nur die Anzeige.","ergebnis":"Nur die Anzahl der Mails und der ungelesenen – nie Betreff oder Absender.","rueckweg":"Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand."},"status.kalender":{"seite":"Status","titel":"Kalender","loest_aus":"Nichts – eine Auskunft, keine Schaltfläche.","bezug":"Der Kalender von praxis@lilli-nebel.de.","aendert":"Nichts – nur die Anzeige.","ergebnis":"Name des Kalenders und ob die Praxis-Assistenz dort Termine eintragen darf.","rueckweg":"Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand."},"status.onedrive":{"seite":"Status","titel":"OneDrive","loest_aus":"Nichts – eine Auskunft, keine Schaltfläche.","bezug":"Das OneDrive von praxis@lilli-nebel.de.","aendert":"Nichts – nur die Anzeige.","ergebnis":"Wie viel Speicher belegt ist. Dateinamen werden nicht angezeigt.","rueckweg":"Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand."},"status.rechte":{"seite":"Status","titel":"Rechte","loest_aus":"Nichts – eine Auskunft, keine Schaltfläche.","bezug":"Was Microsoft der Praxis-Assistenz erlaubt hat – immer nur im Namen von praxis@lilli-nebel.de.","aendert":"Nichts – nur die Anzeige.","ergebnis":"Die erteilten Rechte: Mail, Kalender, OneDrive, Kategorien, geteilte Ordner. Fehlt eins, steht hier welches.","rueckweg":"Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand."},"kategorie.eingegangen":{"seite":"Outlook-Kategorien","titel":"Kategorie „Rechnung: eingegangen“ (Gelb)","loest_aus":"Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.","bezug":"Eine Mail im Praxispostfach.","aendert":"Die Praxis-Assistenz setzt die Kategorie selbst (schon heute).","ergebnis":"Der Rechnungseingang hat das Rechnungs-PDF eines bekannten Lieferanten in „Eingangsrechnungen“ abgelegt und die Mail nach „Rechnungen/Verarbeitet“ verschoben. Was du tust: Nichts in Outlook. Die Rechnung wartet im Cockpit auf deine Freigabe.","rueckweg":"In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab."},"kategorie.freigegeben":{"seite":"Outlook-Kategorien","titel":"Kategorie „Rechnung: freigegeben“ (Grün)","loest_aus":"Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.","bezug":"Eine Mail im Praxispostfach.","aendert":"Die Praxis-Assistenz setzt die Kategorie selbst (mit Freigabe (Prompt 5)).","ergebnis":"Du hast die Rechnung im Cockpit freigegeben. Was du tust: Nichts – sie geht als Nächstes an Lexware.","rueckweg":"In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab."},"kategorie.lexware":{"seite":"Outlook-Kategorien","titel":"Kategorie „Rechnung: in Lexware“ (Blau)","loest_aus":"Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.","bezug":"Eine Mail im Praxispostfach.","aendert":"Die Praxis-Assistenz setzt die Kategorie selbst (mit Lexware (Prompt 5)).","ergebnis":"Der Beleg liegt in Lexware unter „Belege – zu prüfen“. Was du tust: In Lexware buchen bzw. der Steuerberatung überlassen – und dort die Zahlung anstoßen.","rueckweg":"In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab."},"kategorie.angestossen":{"seite":"Outlook-Kategorien","titel":"Kategorie „Rechnung: Zahlung angestoßen“ (Türkis)","loest_aus":"Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.","bezug":"Eine Mail im Praxispostfach.","aendert":"Die Praxis-Assistenz setzt die Kategorie selbst (mit Lexware (Prompt 5)).","ergebnis":"In Lexware ist die Zahlung beauftragt: Überweisung über das Lexware-Online-Banking oder Lastschrift autorisiert. Die Bank hat sie noch nicht gebucht. Was du tust: Nichts – sobald die Bank bucht, wird daraus „bezahlt“.","rueckweg":"In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab."},"kategorie.bezahlt":{"seite":"Outlook-Kategorien","titel":"Kategorie „Rechnung: bezahlt“ (Dunkelgrün)","loest_aus":"Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.","bezug":"Eine Mail im Praxispostfach.","aendert":"Die Praxis-Assistenz setzt die Kategorie selbst (schon heute).","ergebnis":"Die Rechnung ist bezahlt – laut Lexware (sobald der XL-Tarif da ist) oder weil du die Kategorie selbst gesetzt hast. Danach wandert die Mail ins Exchange-Archiv. Was du tust: Bis zum XL-Tarif: bei bezahlten Rechnungen diese Kategorie selbst in Outlook setzen – den Rest erledigt das System. Danach: nichts.","rueckweg":"In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab."},"kategorie.unklar":{"seite":"Outlook-Kategorien","titel":"Kategorie „Prüfen – unklar“ (Orange)","loest_aus":"Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.","bezug":"Eine Mail im Praxispostfach.","aendert":"Die Praxis-Assistenz setzt die Kategorie selbst (schon heute).","ergebnis":"Ein PDF sieht nach Rechnung aus, kommt aber von einem Absender, der nicht in der Lieferantenliste steht – oder es ist ein Scan ohne Text. Nichts wurde abgelegt. Was du tust: Anschauen: Ist es eine berufliche Rechnung? Dann den Absender in die Lieferantenliste aufnehmen lassen.","rueckweg":"In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab."},"kategorie.patient":{"seite":"Outlook-Kategorien","titel":"Kategorie „Prüfen – Patient“ (Lila)","loest_aus":"Nichts – eine farbige Markierung an der Mail in Outlook, auf iPhone und Mac.","bezug":"Eine Mail im Praxispostfach.","aendert":"Die Praxis-Assistenz setzt die Kategorie selbst (schon heute).","ergebnis":"Die Mail sieht nach Patientenpost aus (Rezept, Verordnung, Befund, Arztbrief …). Das System hat nichts abgelegt und nichts gespeichert. Was du tust: Selbst bearbeiten. Patientenpost kommt nie in den Büro-Ordner.","rueckweg":"In Outlook die Kategorie entfernen. Was abgelegt wurde, bleibt abgelegt; das System legt nichts doppelt ab."}};
+
+(function () {
+  var FELDER = [['loest_aus', 'Löst aus'], ['bezug', 'Bezug'], ['aendert', 'Ändert'], ['ergebnis', 'Ergebnis'], ['rueckweg', 'Rückweg']];
+  var offenFuer = null, druck = null;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function platz() {
+    var p = document.getElementById('hilfePlatz');
+    if (!p) { p = document.createElement('div'); p.id = 'hilfePlatz'; document.body.appendChild(p); }
+    return p;
+  }
+  function karteHtml(key) {
+    var e = HILFE[key];
+    if (!e) return '<div class="hilfe-karte" id="hilfeKarte" role="dialog"><div class="hilfe-kopf"><strong>Keine Erklärung</strong>' +
+      '<button class="hilfe-schliessen" aria-label="Schließen">×</button></div><p>Für dieses Element fehlt die Erklärung („' + esc(key) + '“).</p></div>';
+    return '<div class="hilfe-karte" id="hilfeKarte" role="dialog" aria-label="Erklärung: ' + esc(e.titel) + '">' +
+      '<div class="hilfe-kopf"><strong>' + esc(e.titel) + '</strong><button class="hilfe-schliessen" aria-label="Schließen">×</button></div>' +
+      '<dl class="hilfe-felder">' + FELDER.map(function (f) { return '<dt>' + f[1] + '</dt><dd>' + esc(e[f[0]]) + '</dd>'; }).join('') + '</dl>' +
+      '<div class="hilfe-fuss">Esc schließt · <a href="/hilfe#hilfe-' + esc(key.replace(/\./g, '-')) + '">in der Hilfe ansehen</a></div></div>';
+  }
+  function setzen(k, el) {
+    var r = el.getBoundingClientRect(), b = k.offsetWidth || 420, h = k.offsetHeight || 280;
+    var links = r.left, oben = r.bottom + 6;
+    if (links + b > window.innerWidth - 12) links = Math.max(12, window.innerWidth - b - 12);
+    if (oben + h > window.innerHeight - 12) oben = Math.max(12, r.top - h - 6);
+    k.style.left = Math.round(links) + 'px'; k.style.top = Math.round(oben) + 'px';
+  }
+  function zeige(el) {
+    if (offenFuer === el) { schliesse(); return; }
+    offenFuer = el;
+    var p = platz(); p.innerHTML = karteHtml(el.getAttribute('data-hilfe'));
+    var k = document.getElementById('hilfeKarte'); setzen(k, el);
+    k.querySelector('.hilfe-schliessen').addEventListener('click', schliesse);
+    try { localStorage.setItem('hilfeGesehen', '1'); } catch (x) { /* privates Fenster */ }
+    var hw = document.getElementById('hilfeHinweis'); if (hw) hw.className = 'hilfe-hinweis';
+  }
+  function schliesse() { var p = document.getElementById('hilfePlatz'); if (p) p.innerHTML = ''; offenFuer = null; }
+  function ziel(t) { return t && t.closest ? t.closest('[data-hilfe]') : null; }
+  document.addEventListener('contextmenu', function (e) {
+    if (e.shiftKey) return;
+    var el = ziel(e.target); if (!el) return;
+    e.preventDefault(); zeige(el);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { schliesse(); return; }
+    if (e.key !== '?' && e.key !== 'F1') return;
+    var el = ziel(document.activeElement);
+    if (!el || (e.key === '?' && /^(INPUT|TEXTAREA)$/.test(el.tagName))) return;
+    e.preventDefault(); zeige(el);
+  });
+  document.addEventListener('mousedown', function (e) {
+    if (offenFuer && !(e.target.closest && e.target.closest('#hilfeKarte'))) schliesse();
+  });
+  document.addEventListener('touchstart', function (e) {
+    var el = ziel(e.target); if (!el) return;
+    druck = setTimeout(function () { zeige(el); }, 600);
+  }, { passive: true });
+  ['touchend', 'touchmove'].forEach(function (n) { document.addEventListener(n, function () { clearTimeout(druck); druck = null; }); });
+  document.addEventListener('DOMContentLoaded', function () {
+    if (document.getElementById('hilfeListe')) return; // die Hilfeseite erklärt sich selbst
+    var gesehen = false; try { gesehen = localStorage.getItem('hilfeGesehen') === '1'; } catch (x) { /* privat */ }
+    var hw = document.createElement('div'); hw.id = 'hilfeHinweis';
+    hw.className = 'hilfe-hinweis' + (gesehen ? '' : ' neu');
+    hw.innerHTML = 'Rechtsklick (am Handy: lange drücken) erklärt jedes Element · <a href="/hilfe">alle Erklärungen</a>';
+    document.body.appendChild(hw);
+  });
+})();
+</script>
+</body></html>
