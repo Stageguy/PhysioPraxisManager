@@ -13,6 +13,7 @@
  * Element. Handy und Tablet: lange drücken. Esc schließt. Alles am Stück: /hilfe.
  */
 import { KATEGORIEN } from '../mail/kategorien.ts';
+import { FINANZEN, KANAELE, PATIENTEN, type Kachel } from './cockpit.ts';
 import { esc, seite } from './layout.ts';
 
 export interface HilfeEintrag {
@@ -34,8 +35,20 @@ const statuspunkt = (titel: string, bezug: string, ergebnis: string): HilfeEintr
   rueckweg: 'Bei ✗: Christian Bescheid geben. Die Seite neu laden zeigt den aktuellen Stand.',
 });
 
+const kachel = (bereich: string, k: Kachel): [string, HilfeEintrag] => [k.key, {
+  seite: 'Cockpit', titel: `${bereich}: ${k.titel}`,
+  loest_aus: k.href ? `Öffnet „${k.titel}“.` : `Noch nichts – ${k.spaeter}. Die Kachel zeigt, was hier entstehen wird.`,
+  bezug: k.text, aendert: NICHTS,
+  ergebnis: k.href ? `Die Seite „${k.titel}“.` : 'Bleibt grau, bis die Funktion gebaut ist; dann wird die Kachel anklickbar.',
+  rueckweg: k.href ? 'Im Menü oder oben auf „Cockpit“ zurück.' : KEIN_RUECKWEG,
+}];
+
 export const HILFE: Record<string, HilfeEintrag> = {
   // ── Menü ──────────────────────────────────────────────────────────────────
+  'menue.cockpit': { seite: 'Menü', titel: 'Cockpit',
+    loest_aus: 'Öffnet die Startseite der Praxis-Assistenz.', bezug: 'Alles, was heute ansteht: Termine, Rechnungen, Anfragen, Änderungen.',
+    aendert: NICHTS, ergebnis: 'Links Finanzen und Patienten mit ihren Seiten, rechts die Übersicht, unten was sich in der letzten Woche geändert hat.',
+    rueckweg: KEIN_RUECKWEG },
   'menue.status': { seite: 'Menü', titel: 'Status',
     loest_aus: 'Öffnet die Statusseite.', bezug: 'Die Verbindung der Praxis-Assistenz zu Microsoft 365 (praxis@lilli-nebel.de).',
     aendert: NICHTS, ergebnis: 'Ob Postfach, Kalender und OneDrive erreichbar sind – mit ✓ oder ✗.', rueckweg: KEIN_RUECKWEG },
@@ -43,6 +56,57 @@ export const HILFE: Record<string, HilfeEintrag> = {
     loest_aus: 'Öffnet alle Erklärungen am Stück – dieselben, die der Rechtsklick zeigt.', bezug: 'Die ganze Praxis-Assistenz.',
     aendert: NICHTS, ergebnis: 'Wie der Rechnungseingang arbeitet, was die Outlook-Kategorien bedeuten, was heute geht und was später kommt.',
     rueckweg: KEIN_RUECKWEG },
+
+  // ── Cockpit ───────────────────────────────────────────────────────────────
+  'bereich.finanzen': { seite: 'Cockpit', titel: 'Bereich Finanzen', loest_aus: AUSKUNFT,
+    bezug: 'Alles Kaufmännische: Eingangsrechnungen, Freigabe, Zahlungen.', aendert: NICHTS,
+    ergebnis: 'Darunter die Seiten dieses Bereichs. Grau heißt: kommt später.', rueckweg: KEIN_RUECKWEG },
+  'bereich.patienten': { seite: 'Cockpit', titel: 'Bereich Patienten', loest_aus: AUSKUNFT,
+    bezug: 'Alles rund um Patienten: Anfragen, Patientenweg, Rezepte, Mails.', aendert: NICHTS,
+    ergebnis: 'Darunter die Seiten dieses Bereichs. Grau heißt: kommt später.', rueckweg: KEIN_RUECKWEG },
+  ...Object.fromEntries([...FINANZEN.map((k) => kachel('Finanzen', k)), ...PATIENTEN.map((k) => kachel('Patienten', k))]),
+  'uebersicht.termine': { seite: 'Cockpit', titel: 'Termine heute', loest_aus: AUSKUNFT,
+    bezug: 'Der Kalender von praxis@lilli-nebel.de, heute von 0 bis 24 Uhr.', aendert: NICHTS,
+    ergebnis: 'Oben die Tagesleiste (jeder Block ein Termin, die rote Linie ist jetzt), darunter die Liste. Namen erscheinen nur als Initialen – für den Fall, dass jemand mit auf den Bildschirm schaut.',
+    rueckweg: KEIN_RUECKWEG },
+  'termine.namen': { seite: 'Cockpit', titel: 'Namen zeigen / Nur Initialen',
+    loest_aus: 'Lädt die Seite neu, mit vollen Termintiteln bzw. wieder nur mit Initialen.', bezug: 'Nur die Termine auf dieser Seite.',
+    aendert: 'Nichts – nur die Anzeige; beim nächsten Öffnen stehen wieder Initialen da.',
+    ergebnis: 'Die Termintitel, wie sie im Kalender stehen.', rueckweg: '„Nur Initialen zeigen“ klicken.' },
+  'uebersicht.rechnungen': { seite: 'Cockpit', titel: 'Neue Rechnungseingänge', loest_aus: AUSKUNFT,
+    bezug: 'Lieferantenrechnungen, die der Rechnungseingang erkannt hat – keine Patientenpost.', aendert: NICHTS,
+    ergebnis: 'Die Zahl je Stufe, ein Balken für das Verhältnis, der offene Betrag und die neuesten Rechnungen. „Nicht verbunden“ heißt: die Praxis-Datenbank läuft noch nicht.',
+    rueckweg: KEIN_RUECKWEG },
+  'uebersicht.anfragen': { seite: 'Cockpit', titel: 'Terminanfragen', loest_aus: AUSKUNFT,
+    bezug: 'Anfragen von Patienten aus allen Wegen – jeder Weg hat sein Symbol.', aendert: NICHTS,
+    ergebnis: 'Heute: welche Wege es geben wird und warum sie noch nicht angebunden sind. Es werden keine Zahlen erfunden.',
+    rueckweg: KEIN_RUECKWEG },
+  ...Object.fromEntries(KANAELE.map((k) => [k.key, {
+    seite: 'Cockpit', titel: `Weg: ${k.name}`, loest_aus: AUSKUNFT,
+    bezug: `Terminanfragen, die per ${k.name} kommen.`, aendert: NICHTS,
+    ergebnis: `Das Symbol zeigt bei jeder Anfrage, dass sie per ${k.name} kam. Stand: ${k.stand}.`, rueckweg: KEIN_RUECKWEG,
+  } satisfies HilfeEintrag])),
+  'uebersicht.protokoll': { seite: 'Cockpit', titel: 'Was sich geändert hat', loest_aus: AUSKUNFT,
+    bezug: 'Alles, was die Praxis-Assistenz in den letzten sieben Tagen getan hat – aus ihrem Protokoll, das sich nicht ändern lässt.',
+    aendert: NICHTS, ergebnis: 'Je Zeile Zeitpunkt und was geschah: Rechnung abgelegt, unklarer Anhang, Patientenpost markiert, bezahlt und archiviert … Ohne Patientennamen.',
+    rueckweg: KEIN_RUECKWEG },
+
+  // ── Rechnungs-Dashboard ──────────────────────────────────────────────────
+  'rechnungen.zaehler.eingegangen': { seite: 'Rechnungs-Dashboard', titel: 'Zahl: eingegangen', loest_aus: AUSKUNFT,
+    bezug: 'Rechnungen mit „Rechnung: eingegangen“ – abgelegt, noch nicht bezahlt.', aendert: NICHTS,
+    ergebnis: 'Wie viele es sind; ihr Betrag zusammen steht als „offen“ darunter.', rueckweg: KEIN_RUECKWEG },
+  'rechnungen.zaehler.unklar': { seite: 'Rechnungs-Dashboard', titel: 'Zahl: unklar', loest_aus: AUSKUNFT,
+    bezug: 'PDFs, die nach Rechnung aussehen, aber von einem unbekannten Absender kommen – nichts wurde abgelegt.', aendert: NICHTS,
+    ergebnis: 'Wie viele auf deinen Blick warten (in Outlook: „Prüfen – unklar“).', rueckweg: KEIN_RUECKWEG },
+  'rechnungen.zaehler.angestossen': { seite: 'Rechnungs-Dashboard', titel: 'Zahl: Zahlung angestoßen', loest_aus: AUSKUNFT,
+    bezug: 'Rechnungen, deren Zahlung in Lexware beauftragt ist – kommt mit dem Tarif XL.', aendert: NICHTS,
+    ergebnis: 'Wie viele unterwegs sind; bis zum Tarif XL bleibt es bei 0.', rueckweg: KEIN_RUECKWEG },
+  'rechnungen.zaehler.bezahlt': { seite: 'Rechnungs-Dashboard', titel: 'Zahl: bezahlt', loest_aus: AUSKUNFT,
+    bezug: 'Bezahlte Rechnungen – heute, wenn du „Rechnung: bezahlt“ in Outlook gesetzt hast; später laut Lexware.', aendert: NICHTS,
+    ergebnis: 'Wie viele erledigt und im Outlook-Archiv sind.', rueckweg: KEIN_RUECKWEG },
+  'rechnungen.tabelle': { seite: 'Rechnungs-Dashboard', titel: 'Liste der Rechnungen', loest_aus: AUSKUNFT,
+    bezug: 'Die letzten 200 Rechnungen und unklaren Anhänge, neueste oben.', aendert: NICHTS,
+    ergebnis: 'Eingang, Lieferant, Rechnungsnummer, Betrag, Stand und wo sie in OneDrive liegt.', rueckweg: KEIN_RUECKWEG },
 
   // ── Status ────────────────────────────────────────────────────────────────
   'status.gesamt': { seite: 'Status', titel: 'Gesamtzustand',
@@ -152,6 +216,8 @@ export function hilfeSkript(): string {
 }
 
 const FUNKTIONEN: { name: string; was: string; stand: 'jetzt' | 'später'; woher: string }[] = [
+  { name: 'Cockpit', was: 'Startseite: Finanzen und Patienten mit ihren Seiten, Termine heute, neue Rechnungen, Anfragen, Änderungen der Woche.', stand: 'jetzt', woher: 'erste Fassung, Prompt 10' },
+  { name: 'Rechnungs-Dashboard', was: 'Alle eingegangenen Rechnungen mit Stand, Betrag und Ablageort.', stand: 'jetzt', woher: 'Prompt 4, 10' },
   { name: 'Statusseite', was: 'Zeigt, ob die Verbindung zu Postfach, Kalender und OneDrive steht.', stand: 'jetzt', woher: 'diese Seiten' },
   { name: 'Outlook-Kategorien', was: 'Fünf farbige Kategorien zeigen in Outlook, was mit einer Mail passiert ist.', stand: 'jetzt', woher: 'angelegt am 20.10.2026' },
   { name: 'Finanzordner je Jahr', was: 'Legt „01 Finanzen/<Jahr>“ nach der Vorlage des Vorjahres an, mit „Eingangsrechnungen“.', stand: 'jetzt', woher: '2026 angelegt am 20.10.2026' },
@@ -163,7 +229,7 @@ const FUNKTIONEN: { name: string; was: string; stand: 'jetzt' | 'später'; woher
   { name: 'Übernahme des Bestands', was: 'Rechnungen aus Archiv, Unterordnern und Papierkorb rückwirkend ablegen; was du als bezahlt bestätigst, kommt gleich ins Archiv.', stand: 'jetzt', woher: 'Fragen an Lilli, Nr. 1' },
   { name: 'Zahlungsstand aus Lexware', was: 'Liest aus Lexware, ob eine Rechnung zur Zahlung angestoßen oder bezahlt ist, setzt die Kategorie und archiviert die Mail.', stand: 'später', woher: 'Tarif XL, Prompt 5' },
   { name: 'Terminanfragen', was: 'Erkennt Terminwünsche in Mails, schlägt drei freie Zeiten vor und legt die Antwort als Entwurf an.', stand: 'später', woher: 'Prompt 6, 7' },
-  { name: 'Cockpit', was: 'Eine Seite für heute: Termine, neue Rechnungen, offene Zahlungen, was auf dich wartet.', stand: 'später', woher: 'Prompt 8, 10' },
+  { name: 'Cockpit – weitere Teile', was: 'Offene Zahlungen aus Lexware, Freigabe direkt in der Übersicht, Diskret-Schalter für alle Seiten.', stand: 'später', woher: 'Prompt 8, 10' },
   { name: 'Patientenweg', was: 'Acht Phasen von der Anfrage bis zur Nachsorge – die Pinnwand zeigt, wer wo steht.', stand: 'später', woher: 'Prompt 12, PDF Patientenweg' },
   { name: 'Schnellaktionen', was: 'Ein Tipp auf die Patientenkarte legt eine fertige Mail als Entwurf an.', stand: 'später', woher: 'Prompt 13' },
   { name: 'Rezepte', was: 'Stempelkarte je Rezept, Abhaken nach jeder Behandlung, Zwischen- und Abschlussrechnung.', stand: 'später', woher: 'Prompt 14, PDF Patientenweg S. 5' },
@@ -201,6 +267,17 @@ Antworten vor. <b>Entscheiden tust du.</b> Nichts geht an Patienten, ohne dass d
 (wie man es zurücknimmt).</p>
 <p class="hint"><kbd>Esc</kbd> schließt die Erklärung. Tastatur: <kbd>?</kbd> oder <kbd>F1</kbd> auf einem
 ausgewählten Element. Umschalt + Rechtsklick öffnet das normale Browser-Menü.</p>
+</div>
+
+<h2>Das Cockpit</h2>
+<div class="karte">
+<p>Das Cockpit ist die Startseite. <b>Links</b> stehen die beiden Bereiche <b>Finanzen</b> und <b>Patienten</b>
+mit ihren Seiten – farbige Kacheln kannst du öffnen, graue kommen später. <b>Rechts</b> die Übersicht:
+<b>Termine heute</b> (als Leiste und Liste, Namen nur als Initialen), <b>neue Rechnungseingänge</b> und
+<b>Terminanfragen</b> – jede Anfrage trägt das Symbol ihres Wegs: E-Mail, WhatsApp, Telefon, Website,
+Online-Buchung. <b>Unten</b> steht, was sich in der letzten Woche geändert hat.</p>
+<p class="hint">Das Cockpit zeigt nur echte Daten. Ist eine Quelle noch nicht angebunden, steht das dort –
+es werden keine Zahlen erfunden. Am iPhone stehen die Teile untereinander, die Übersicht zuerst.</p>
 </div>
 
 <h2>So arbeitet der Rechnungseingang</h2>

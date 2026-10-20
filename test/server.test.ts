@@ -24,9 +24,9 @@ after(() => dienst.close());
 const als = (login?: string) => (login ? { headers: { 'Tailscale-User-Login': login } } : {});
 
 test('Statusseite nur für freigegebene Tailnet-Konten', async () => {
-  assert.equal((await fetch(`${basis}/`)).status, 403);
-  assert.equal((await fetch(`${basis}/`, als('fremd@example.org'))).status, 403);
-  const ok = await fetch(`${basis}/`, als('christian@example.org'));
+  assert.equal((await fetch(`${basis}/status`)).status, 403);
+  assert.equal((await fetch(`${basis}/status`, als('fremd@example.org'))).status, 403);
+  const ok = await fetch(`${basis}/status`, als('christian@example.org'));
   assert.equal(ok.status, 200);
   const html = await ok.text();
   assert.match(html, /Praxis &lt;Test&gt;/, 'Inhalte werden maskiert');

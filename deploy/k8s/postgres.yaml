@@ -1,0 +1,63 @@
+# Praxis-Datenbank (Quelle der Wahrheit, Leitplanke 5) – nur im Cluster erreichbar, kein Port nach außen.
+# Passwort im Secret praxis-db (legt deploy/strato-dev.sh beim ersten Mal an).
+apiVersion: v1
+kind: Service
+metadata:
+  name: praxis-db
+  namespace: praxis
+spec:
+  selector:
+    app: praxis-db
+  ports:
+    - port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: praxis-db
+  namespace: praxis
+spec:
+  serviceName: praxis-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: praxis-db
+  template:
+    metadata:
+      labels:
+        app: praxis-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_DB
+              value: praxis
+            - name: POSTGRES_USER
+              value: praxis
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: praxis-db, key: passwort }
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "praxis", "-d", "praxis"]
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - name: daten
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: daten
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

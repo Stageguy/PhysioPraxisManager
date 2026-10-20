@@ -1,0 +1,98 @@
+# Praxisdienst (Cockpit, Hilfe, Status).
+#
+# Bauphase (requirements A09a, N27): der Pod nutzt das Netz des Servers und hört nur auf
+# 127.0.0.1:3300. Erreichbar ist er über `tailscale serve` des Servers (Port 10000) – das setzt die
+# Kopfzeile Tailscale-User-Login, der Dienst lässt nur ERLAUBTE_NUTZER herein.
+# Später (eigener Praxis-Tailnet): hostNetwork weg, Tailscale-Sidecar wie in docker-compose.yml.
+#
+# Bild: physio-praxis-manager:<fassung> – baut deploy/strato-dev.sh am Server und lädt es in k3s.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: praxis-daten
+  namespace: praxis
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: praxis-dienst
+  namespace: praxis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: praxis-dienst
+  template:
+    metadata:
+      labels:
+        app: praxis-dienst
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+      initContainers:
+        # Die Microsoft-Anmeldung nur beim ersten Start übernehmen – danach erneuert der Dienst sie
+        # selbst in /data, und eine ältere Kopie darf sie nicht überschreiben
+        - name: anmeldung
+          image: BILD
+          imagePullPolicy: Never
+          command: ["sh", "-c", "test -s /data/token-cache.json || (cp /anmeldung/token-cache.json /data/token-cache.json && chmod 600 /data/token-cache.json)"]
+          volumeMounts:
+            - { name: daten, mountPath: /data }
+            - { name: anmeldung, mountPath: /anmeldung, readOnly: true }
+      containers:
+        - name: dienst
+          image: BILD
+          imagePullPolicy: Never
+          envFrom:
+            - secretRef: { name: praxis-env }
+          env:
+            - name: DATA_DIR
+              value: /data
+            - name: PORT
+              value: "3300"
+            - name: DB_PASSWORT
+              valueFrom:
+                secretKeyRef: { name: praxis-db, key: passwort }
+            - name: DATABASE_URL
+              value: postgres://praxis:$(DB_PASSWORT)@praxis-db.praxis.svc.cluster.local:5432/praxis
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          # Der Dienst hört nur auf 127.0.0.1 – deshalb exec statt httpGet auf die Knoten-Adresse
+          readinessProbe:
+            exec:
+              command: ["node", "-e", "fetch('http://127.0.0.1:3300/api/health').then(r=>process.exit(r.status<500?0:1),()=>process.exit(1))"]
+            periodSeconds: 30
+            timeoutSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["node", "-e", "fetch('http://127.0.0.1:3300/api/health').then(()=>process.exit(0),()=>process.exit(1))"]
+            initialDelaySeconds: 20
+            periodSeconds: 60
+            timeoutSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { memory: 384Mi }
+          volumeMounts:
+            - { name: daten, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: daten
+          persistentVolumeClaim: { claimName: praxis-daten }
+        - name: anmeldung
+          secret: { secretName: praxis-anmeldung, defaultMode: 0400 }
+        - name: tmp
+          emptyDir: {}

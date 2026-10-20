@@ -1,0 +1,9 @@
+{
+  "name": "praxis-pruefbrowser",
+  "private": true,
+  "type": "module",
+  "description": "Seiten im Browser ansehen und vermessen – WebKit im Container am Server, kein Browser auf dem Mac",
+  "dependencies": {
+    "playwright-core": "1.49.1"
+  }
+}

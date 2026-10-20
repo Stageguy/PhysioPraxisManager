@@ -4,6 +4,16 @@ import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import { praxisDienst, statusseite } from '../src/server.ts';
 import { HILFE, hilfeSeite, hilfeSkript } from '../src/web/hilfe.ts';
+import { cockpitSeite, rechnungenSeite } from '../src/web/cockpit.ts';
+import type { CockpitDaten } from '../src/cockpit/daten.ts';
+
+const ZEILE = { id: '1', eingang: '2026-10-20T08:00:00Z', lieferant: 'Telekom', rechnungsnummer: 'A1', betrag: 49.95, klasse: 'rechnung' as const, status: 'wartet_freigabe', onedrivePfad: 'a/b/c.pdf' };
+const STAND = { stand: 'ok' as const, daten: { zaehler: { eingegangen: 1, unklar: 0, angestossen: 0, bezahlt: 0 }, offenerBetrag: 49.95, neueste: [ZEILE] } };
+const DATEN: CockpitDaten = {
+  heute: '2026-10-20', namenZeigen: false, rechnungen: STAND,
+  termine: { stand: 'ok', daten: [{ beginn: '09:00', ende: '09:30', ganztags: false, titel: 'M. K.', frei: false }] },
+  protokoll: { stand: 'ok', daten: [{ zeit: '2026-10-20T08:00:00Z', aktion: 'rechnung_abgelegt', objekt: '1', details: { lieferant: 'Telekom' } }] },
+};
 
 /** Die Namen, die src/pruefung.ts für seine Prüfpunkte verwendet */
 const PRUEFPUNKTE = ['Konto', 'Posteingang', 'Kalender', 'OneDrive', 'Rechte'];
@@ -11,6 +21,8 @@ const PRUEFPUNKTE = ['Konto', 'Posteingang', 'Kalender', 'OneDrive', 'Rechte'];
 const seiten = () => [
   statusseite(PRUEFPUNKTE.map((name) => ({ name, ok: true, text: 'x' })), 'lilli@example.org', '0.0.0'),
   hilfeSeite({ wer: 'lilli@example.org', fassung: '0.0.0' }),
+  cockpitSeite(DATEN, { wer: 'lilli@example.org', fassung: '0.0.0', jetzt: '10:00' }),
+  rechnungenSeite(STAND, { stand: 'ok', daten: [ZEILE] }, { wer: 'lilli@example.org', fassung: '0.0.0' }),
 ];
 const schluessel = (html: string) => [...html.matchAll(/data-hilfe="([^"]+)"/g)].map((m) => m[1]!);
 

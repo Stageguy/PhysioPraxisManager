@@ -1,0 +1,7 @@
+# Eigener Bereich für die Praxis – getrennt von allem anderen auf dem Server
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: praxis
+  labels:
+    app.kubernetes.io/part-of: physio-praxis-manager

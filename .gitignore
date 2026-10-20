@@ -4,3 +4,4 @@ node_modules/
 .data/
 # Tailscale-Zustand des Knotens (falls lokal statt als Volume)
 tailscale/state/
+pruefung/browser/ergebnisse/

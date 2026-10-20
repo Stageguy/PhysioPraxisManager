@@ -1,0 +1,13 @@
+{
+  "basis": "http://127.0.0.1:3300",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "cockpit", "pfad": "/" },
+    { "name": "rechnungen", "pfad": "/finanzen/rechnungen" },
+    { "name": "hilfe", "pfad": "/hilfe" },
+    { "name": "status", "pfad": "/status" }
+  ]
+}
