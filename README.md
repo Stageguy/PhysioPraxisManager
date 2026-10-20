@@ -78,7 +78,29 @@ festgelegt ist; bis dahin nur Probeläufe), `kategorien` und `lieferanten` (`{ "
 "domains": ["telekom.de"] }` – nur von ihnen wird ohne Rückfrage abgelegt, alles andere landet als
 „unklar“ bei Lilli). Nichts davon läuft automatisch; es gibt keinen Zeitplaner.
 
-## Der Praxisdienst im eigenen Tailnet
+## Cockpit und Bereitstellung auf strato-dev
+
+Der Praxisdienst zeigt das **Praxis-Cockpit** (`/`): Finanzen und Patienten mit ihren Seiten, Termine
+heute, neue Rechnungseingänge, Terminanfragen (Kanäle vorbereitet), Änderungen der letzten 7 Tage.
+Dazu `/finanzen/rechnungen`, `/status`, `/hilfe`. Nur echte Daten – fehlt eine Quelle, steht das da.
+
+**Bereitstellen** (k3s auf strato-dev, Namespace `praxis`, mit eigener PostgreSQL):
+
+```bash
+deploy/strato-dev.sh      # baut am Server, wendet deploy/k8s/*.yaml an, richtet tailscale serve ein
+```
+
+Bauphase: erreichbar unter `http://strato-dev.<tailnet>.ts.net:10000/` im bestehenden Tailnet des
+Servers, nur für `ERLAUBTE_NUTZER` (`.env`). Umhängen auf den eigenen Praxis-Tailnet: siehe
+`konzept/requirements.md` N27.
+
+**Sichtprüfung** wie in mondre – WebKit im Container am Server, kein Browser auf dem Mac:
+
+```bash
+pruefung/browser/ansehen.sh pruefung/browser/auftrag-cockpit.json "" pruefung/browser/ergebnisse
+```
+
+## Der Praxisdienst im eigenen Tailnet (Zielbild)
 
 Der Container läuft in einem **eigenen Tailscale-Verbund der Praxis**, ohne Verbindung zu den
 mondre-Projekten. Zugreifen werden Lilli Nebel (Praxisinhaberin) und Christian.
