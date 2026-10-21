@@ -52,11 +52,17 @@ function privatForm(r: Rechnung, zurueck: string): string {
   </form>`;
 }
 
+/** Klein unter dem Brutto: Netto und Steuer – oder ehrlich, dass sie nicht sicher erkannt sind */
+const nettoZeile = (r: Rechnung) =>
+  r.betrag === null ? '' : r.netto !== null && r.ust !== null
+    ? `<span class="rk-netto" data-hilfe="rechnungen.netto">netto ${euro(r.netto)} · USt ${euro(r.ust)}${r.ustSatz ? ` (${esc(r.ustSatz)})` : ''}</span>`
+    : '<span class="rk-netto" data-hilfe="rechnungen.netto">netto / USt nicht sicher erkannt</span>';
+
 function kachel(r: KachelRechnung): string {
   return `<article class="rk${r.zurueckgestellt ? ' spaeter' : ''}" data-hilfe="rechnungen.kachel">
     <a class="rk-link" href="/finanzen/rechnungen/${r.id}">
       <span class="rk-kopf">${symbol('rechnung', { groesse: 20 })}<b class="rk-datei">${esc(r.dateiname ?? 'Rechnung.pdf')}</b></span>
-      <span class="rk-zeile"><span>${esc(r.lieferant ?? 'ohne Lieferant')}</span><b>${euro(r.betrag)}</b></span>
+      <span class="rk-zeile"><span>${esc(r.lieferant ?? 'ohne Lieferant')}</span><span class="rk-betrag"><b>${euro(r.betrag)}</b>${nettoZeile(r)}</span></span>
       <span class="rk-meta">Eingang ${datum(r.eingang)} · von ${absender(r)}</span>
       ${r.zurueckgestellt ? '<span class="marke">zurückgestellt</span>' : ''}
     </a>
@@ -193,6 +199,7 @@ ${o.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groes
     <div class="tafel">
       <dl class="liste-dl">
         <dt>Stand</dt><dd>${statusChip(r.status)}${r.zurueckgestellt && offen ? ' <span class="marke">zurückgestellt</span>' : ''}</dd>
+        <dt>Betrag</dt><dd><b>${euro(r.betrag)}</b> brutto${r.netto !== null && r.ust !== null ? `<br><span class="hint">netto ${euro(r.netto)} · USt ${euro(r.ust)}${r.ustSatz ? ` (${esc(r.ustSatz)})` : ''}</span>` : ''}</dd>
         <dt>Eingang</dt><dd>${datum(r.eingang)}</dd>
         <dt>Von</dt><dd>${absender(r)}</dd>
         <dt>Mail</dt><dd data-hilfe="rechnung.ort" tabindex="0">${r.ort === undefined ? 'nicht mehr im Postfach' : esc(r.ort)}</dd>

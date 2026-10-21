@@ -126,6 +126,8 @@ h3{font-size:15px;margin:0 0 8px}
 .rk-zeile{display:flex;justify-content:space-between;gap:8px;font-size:15px}
 .rk-meta{font-size:13px;color:var(--grau);overflow-wrap:anywhere}
 .rk-link .marke{align-self:flex-start}
+.rk-betrag{display:flex;flex-direction:column;align-items:flex-end;text-align:right}
+.rk-netto{font-size:12px;color:var(--grau);font-variant-numeric:tabular-nums}
 .dash-kopf{margin-top:28px}
 .rk-ort{position:absolute;left:10px;right:10px;top:-12px;transform:translateY(-100%);z-index:5;display:flex;gap:6px;align-items:center;
   background:var(--fg);color:var(--bg);font-size:13px;padding:6px 10px;border-radius:8px;visibility:hidden;opacity:0;transition:opacity .12s}

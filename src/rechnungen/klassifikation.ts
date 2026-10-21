@@ -93,6 +93,12 @@ export function klassifiziere(eingabe: {
   betreff: string;
   /** Text des PDFs; leer, wenn es keinen Text trägt (Scan, Foto) */
   text: string;
+  /**
+   * Rechnungen unbekannter Absender trotzdem ablegen (entschieden 21.10.2026, W52): solange die
+   * Lieferantenliste leer ist, sortiert Lilli Privates mit dem Haken „privat“ aus. Patientenpost
+   * und Scans ohne Text bleiben davon unberührt.
+   */
+  unbekannteAlsRechnung?: boolean;
 }): { klasse: Klasse; merkmale: string[] } {
   const gefunden = merkmale(eingabe.text);
   if (eingabe.bekannterLieferant) {
@@ -102,7 +108,10 @@ export function klassifiziere(eingabe: {
   if (betreffMitPatientenbezug(eingabe.betreff) || textMitPatientenbezug(eingabe.text)) return { klasse: 'patient', merkmale: gefunden };
   // Ein Scan ohne Text von einem Unbekannten kann ein Rezeptfoto sein – nie liegen lassen, nie ablegen
   if (!eingabe.text.trim()) return { klasse: 'unklar', merkmale: gefunden };
-  return { klasse: gefunden.length >= 2 ? 'unklar' : 'keine_rechnung', merkmale: gefunden };
+  if (gefunden.length >= 2) {
+    return { klasse: eingabe.unbekannteAlsRechnung && gefunden.includes('titel') ? 'rechnung' : 'unklar', merkmale: gefunden };
+  }
+  return { klasse: 'keine_rechnung', merkmale: gefunden };
 }
 
 /** Unzulässige Zeichen für OneDrive ersetzen, Leerraum zusammenziehen */
@@ -116,9 +125,26 @@ export function sichererName(name: string): string {
   );
 }
 
-/** "2026-10-20", "Telekom", "3fa9…" → "2026-10-20_Telekom_3fa91c2e.pdf" */
-export function ablageName(datum: string, lieferant: string, sha256: string): string {
-  return `${datum}_${sichererName(lieferant).replace(/ /g, '-')}_${sha256.slice(0, 8)}.pdf`;
+/**
+ * Name in der Ablage (entschieden 21.10.2026, W53): Eingangstag als TT-MM-JJJJ, „ER“ für
+ * Eingangsrechnung, dann der Originalname des Anhangs.
+ * "2026-10-03", "Rechnung 4711.pdf" → "03-10-2026-ER-Rechnung 4711.pdf"
+ */
+export function ablageName(datum: string, anhangName: string): string {
+  const [j, m, t] = datum.split('-');
+  let name = sichererName(anhangName);
+  if (!/\.pdf$/i.test(name)) name += '.pdf';
+  // Trägt der Anhang schon dasselbe Präfix (erneute Ablage), nicht doppeln
+  return name.startsWith(`${t}-${m}-${j}-ER-`) ? name : `${t}-${m}-${j}-ER-${name}`;
+}
+
+const FREEMAIL = /^(gmail|googlemail|web|gmx|t-online|yahoo|outlook|hotmail|icloud|me|aol|freenet|posteo|mail|online|arcor|live|privaterelay\.appleid)\./;
+
+/** Lieferantenname für einen unbekannten Absender: Anzeigename bei Freemail, sonst aus der Domain */
+export function lieferantName(domain: string, anzeigename?: string): string {
+  if (FREEMAIL.test(domain) && anzeigename?.trim()) return anzeigename.trim().slice(0, 80);
+  const roh = nameAusDomain(domain);
+  return roh.charAt(0).toUpperCase() + roh.slice(1);
 }
 
 /** Ein Name für einen unbekannten Absender aus seiner Domain: "rechnung.beispiel-gmbh.de" → "beispiel-gmbh" */

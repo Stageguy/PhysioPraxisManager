@@ -10,6 +10,11 @@ export interface Kopfdaten {
   betrag?: number;
   /** JJJJ-MM-TT */
   rechnungsdatum?: string;
+  /** Nur gesetzt, wenn netto + ust = betrag (auf den Cent) */
+  netto?: number;
+  ust?: number;
+  /** "19 %", "7 %", "7 % + 19 %", "0 % (steuerfrei)" */
+  ustSatz?: string;
 }
 
 const NUMMER = [
@@ -20,6 +25,40 @@ const NUMMER = [
 const BETRAG =
   /(?:gesamtbetrag|rechnungsbetrag|endbetrag|zu zahlen(?:der betrag)?|gesamtsumme|summe brutto|bruttobetrag|total)[^\d\n]{0,30}?(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/i;
 const DATUM = /(?:rechnungsdatum|rechnungs-datum|datum der rechnung|invoice date|belegdatum)\s*[:.]?\s*(\d{1,2})\.\s?(\d{1,2})\.\s?(\d{2,4})/i;
+
+const ZAHL = String.raw`(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})`;
+const NETTO = new RegExp(String.raw`(?:nettobetrag|netto[\s-]*summe|summe[\s-]*netto|gesamt[\s-]*netto|zwischensumme(?:[\s-]*netto)?|warenwert[\s-]*netto|rechnungsbetrag[\s-]*netto|betrag[\s-]*netto|netto)[^\d\n%]{0,30}?${ZAHL}`, 'i');
+// "19 % MwSt 7,98" · "MwSt. 19% 7,98" · "Umsatzsteuer (7 %): 3,50"
+const STEUER = new RegExp(String.raw`(?:(\d{1,2}(?:[.,]\d+)?)\s?%\s*(?:mwst|ust|umsatzsteuer|mehrwertsteuer)|(?:mwst|ust|umsatzsteuer|mehrwertsteuer)\.?[^\d\n]{0,15}?(\d{1,2}(?:[.,]\d+)?)\s?%)[^\d\n]{0,30}?${ZAHL}`, 'gi');
+const STEUERFREI = /steuerfrei|umsatzsteuerbefreit|§\s?4\s?nr|§\s?19\s?ustg|kleinunternehmer/i;
+
+const cent = (n: number) => Math.round(n * 100);
+
+/** Netto, Steuer und Satz – nur wenn sie zum Brutto passen; sonst nichts (lieber leer als falsch) */
+export function nettoUndSteuer(text: string, brutto: number | undefined): Pick<Kopfdaten, 'netto' | 'ust' | 'ustSatz'> {
+  if (brutto === undefined) return {};
+  const posten = [...text.matchAll(STEUER)].map((m) => ({ satz: Number((m[1] ?? m[2])!.replace(',', '.')), betrag: betragAlsZahl(m[3]!) }))
+    // Steuersätze in Deutschland und den Nachbarländern; alles andere ist eher eine Fundstelle wie „100 %“
+    .filter((p) => p.satz > 0 && p.satz <= 27 && p.betrag < brutto);
+  // Dieselbe Zeile steht oft zweimal (Übersicht und Summenblock) – je Satz und Betrag nur einmal
+  const eindeutig = [...new Map(posten.map((p) => [`${p.satz}|${p.betrag}`, p])).values()];
+  const ust = eindeutig.reduce((s, p) => s + p.betrag, 0);
+  const sätze = [...new Set(eindeutig.map((p) => p.satz))].sort((a, b) => a - b);
+  const n = NETTO.exec(text);
+  const netto = n ? betragAlsZahl(n[1]!) : undefined;
+  const satzText = sätze.map((x) => `${String(x).replace('.', ',')} %`).join(' + ');
+
+  if (netto !== undefined && eindeutig.length && cent(netto) + cent(ust) === cent(brutto)) return { netto, ust, ustSatz: satzText };
+  if (netto === undefined && sätze.length === 1 && ust < brutto) {
+    // Netto nur ausrechnen, wenn Steuer und Satz zusammenpassen (Rundung: höchstens 2 Cent)
+    const gerechnet = (cent(brutto) - cent(ust)) / 100;
+    if (Math.abs(gerechnet * (sätze[0]! / 100) - ust) <= 0.02) return { netto: gerechnet, ust, ustSatz: satzText };
+  }
+  if (!eindeutig.length && STEUERFREI.test(text) && (netto === undefined || cent(netto) === cent(brutto))) {
+    return { netto: brutto, ust: 0, ustSatz: '0 % (steuerfrei)' };
+  }
+  return {};
+}
 
 /** Für den Vergleich mit Lexware: Großbuchstaben, ohne Leerraum */
 export const normiereNummer = (n: string): string => n.toUpperCase().replace(/\s+/g, '').replace(/[.]+$/, '');
@@ -49,6 +88,7 @@ export function kopfdaten(text: string, betreff = ''): Kopfdaten {
     const wert = betragAlsZahl(b[1]!);
     if (Number.isFinite(wert) && wert > 0) k.betrag = wert;
   }
+  Object.assign(k, nettoUndSteuer(text, k.betrag));
   const d = DATUM.exec(text);
   if (d) {
     const jahr = Number(d[3]) < 100 ? 2000 + Number(d[3]) : Number(d[3]);

@@ -3,7 +3,7 @@
     "seit": "2026-10-20",
     "mailordner": "Posteingang/Rechnungen",
     "verarbeitet": "Posteingang/Rechnungen/Verarbeitet",
-    "ziel": "Projekte/Praxis Lilli Nebel/07 Technik/_TEST PhysioPraxisManager – Probeläufe/{JJJJ}/Eingangsrechnungen",
+    "ziel": "Projekte/Praxis Lilli Nebel/01 Finanzen/{JJJJ}/Eingangsrechnungen",
     "laufwerk": "b!h1Tr5-xCqky0vrBEdPQXxznNNAShHmBEkqQBOYPXzxzvrUC8t5zDT6zaNfRR730Y",
     "kategorien": {
       "eingegangen": "Rechnung: eingegangen",
@@ -13,7 +13,9 @@
     "lieferanten": [],
     "eigeneAbsender": [
       "belege.lexware.de"
-    ]
+    ],
+    "unbekannteAlsRechnung": true,
+    "mailsVerschieben": false
   },
   "ablage": {
     "laufwerk": "b!h1Tr5-xCqky0vrBEdPQXxznNNAShHmBEkqQBOYPXzxzvrUC8t5zDT6zaNfRR730Y",

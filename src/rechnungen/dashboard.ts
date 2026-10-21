@@ -24,6 +24,9 @@ export interface Rechnung {
   lieferant: string | null;
   rechnungsnummer: string | null;
   betrag: number | null;
+  netto: number | null;
+  ust: number | null;
+  ustSatz: string | null;
   rechnungsdatum: string | null;
   status: string;
   onedrivePfad: string | null;
@@ -37,7 +40,7 @@ export interface Rechnung {
 }
 
 const FELDER = `id::text, received_at, attachment_name, absender_name, absender_adresse, lieferant, rechnungsnummer,
-  betrag::text, to_char(rechnungsdatum, 'YYYY-MM-DD') AS rechnungsdatum, status::text, onedrive_path, onedrive_item_id,
+  betrag::text, netto::text, ust_betrag::text, ust_satz, to_char(rechnungsdatum, 'YYYY-MM-DD') AS rechnungsdatum, status::text, onedrive_path, onedrive_item_id,
   onedrive_web_url, graph_message_id, zurueckgestellt_am, ablehnungsgrund, reviewed_by, reviewed_at`;
 
 const zuRechnung = (r: Record<string, unknown>): Rechnung => ({
@@ -49,6 +52,9 @@ const zuRechnung = (r: Record<string, unknown>): Rechnung => ({
   lieferant: (r.lieferant as string) ?? null,
   rechnungsnummer: (r.rechnungsnummer as string) ?? null,
   betrag: r.betrag === null || r.betrag === undefined ? null : Number(r.betrag),
+  netto: r.netto === null || r.netto === undefined ? null : Number(r.netto),
+  ust: r.ust_betrag === null || r.ust_betrag === undefined ? null : Number(r.ust_betrag),
+  ustSatz: (r.ust_satz as string) ?? null,
   rechnungsdatum: (r.rechnungsdatum as string) ?? null,
   status: String(r.status),
   onedrivePfad: (r.onedrive_path as string) ?? null,
@@ -302,7 +308,10 @@ export async function ausfuehren(u: Umgebung, id: string, a: Aktion): Promise<st
         .map(([k]) => k);
       if (!geaendert.length) return 'unveraendert';
       await u.db.query(
-        `UPDATE inbound_document SET lieferant = $2, rechnungsnummer = $3, betrag = $4, rechnungsdatum = $5, updated_at = now() WHERE id = $1`,
+        `UPDATE inbound_document SET lieferant = $2, rechnungsnummer = $3, betrag = $4, rechnungsdatum = $5,
+           netto = CASE WHEN betrag IS DISTINCT FROM $4 THEN NULL ELSE netto END,
+           ust_betrag = CASE WHEN betrag IS DISTINCT FROM $4 THEN NULL ELSE ust_betrag END,
+           ust_satz = CASE WHEN betrag IS DISTINCT FROM $4 THEN NULL ELSE ust_satz END, updated_at = now() WHERE id = $1`,
         [id, neu.lieferant, neu.rechnungsnummer, neu.betrag, neu.rechnungsdatum],
       );
       await prot('rechnung_korrigiert', { felder: geaendert });

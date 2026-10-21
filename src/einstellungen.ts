@@ -25,6 +25,10 @@ export interface RechnungsEinstellungen {
    * Patientendaten (requirements N25).
    */
   eigeneAbsender?: string[];
+  /** Rechnungen unbekannter Absender ablegen statt als „unklar“ zu vermerken (W52) */
+  unbekannteAlsRechnung?: boolean;
+  /** Mails nach `verarbeitet` verschieben (Standard ja); nein = nur Kategorie setzen (W54) */
+  mailsVerschieben?: boolean;
 }
 
 export interface AblageEinstellungen {

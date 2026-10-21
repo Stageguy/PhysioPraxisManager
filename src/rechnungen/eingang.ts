@@ -31,8 +31,8 @@ import {
   betreffMitPatientenbezug,
   domainVon,
   klassifiziere,
+  lieferantName,
   lieferantZu,
-  nameAusDomain,
   type Klasse,
 } from './klassifikation.ts';
 import { kopfdaten, type Kopfdaten } from './kopfdaten.ts';
@@ -164,8 +164,8 @@ async function eintragen(db: Db, e: Eintrag): Promise<string | undefined> {
     `INSERT INTO inbound_document (graph_message_id, internet_message_id, attachment_id, received_at, sender_domain,
        subject_hash, attachment_name, sha256, size, klasse, lieferant, onedrive_item_id, onedrive_path, status,
        rechnungsnummer, betrag, rechnungsdatum, zahlstatus_quelle, archiviert_at,
-       absender_name, absender_adresse, onedrive_web_url)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+       absender_name, absender_adresse, onedrive_web_url, netto, ust_betrag, ust_satz)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
      ON CONFLICT (graph_message_id, attachment_id) DO NOTHING
      RETURNING id::text`,
     [
@@ -193,6 +193,9 @@ async function eintragen(db: Db, e: Eintrag): Promise<string | undefined> {
       e.klasse === 'rechnung' ? (e.mail.from?.emailAddress?.name ?? null) : null,
       e.klasse === 'rechnung' ? (e.mail.from?.emailAddress?.address ?? null) : null,
       e.onedriveWebUrl ?? null,
+      e.kopf?.netto ?? null,
+      e.kopf?.ust ?? null,
+      e.kopf?.ustSatz ?? null,
     ],
   );
   return rows[0]?.id;
@@ -303,14 +306,14 @@ export async function rechnungseingang(graph: EingangGraph, einst: RechnungsEins
             continue;
           }
           const text = await textAus(bytes);
-          const { klasse } = klassifiziere({ bekannterLieferant: !!lieferant, betreff, text });
+          const { klasse } = klassifiziere({ bekannterLieferant: !!lieferant, betreff, text, unbekannteAlsRechnung: einst.unbekannteAlsRechnung });
           if (klasse === 'patient') {
             patient = true;
             break;
           }
           eintraege.push({
             mail, anhang, hash: sha256(bytes), klasse, status: 'klassifiziert',
-            lieferant: klasse === 'rechnung' ? (lieferant?.name ?? nameAusDomain(domain)) : undefined,
+            lieferant: klasse === 'rechnung' ? (lieferant?.name ?? lieferantName(domain, mail.from?.emailAddress?.name)) : undefined,
             bytes: klasse === 'rechnung' ? bytes : undefined,
             kopf: klasse === 'rechnung' ? kopfdaten(text, betreff) : undefined,
             bezahlt: klasse === 'rechnung' && !!lauf.altbestandBezahltBis && tag <= lauf.altbestandBezahltBis,
@@ -360,7 +363,7 @@ export async function rechnungseingang(graph: EingangGraph, einst: RechnungsEins
           continue;
         }
         const ordner = zielOrdner(einst.ziel ?? '<Zielordner offen>', tag);
-        const name = ablageName(tag, e.lieferant!, e.hash);
+        const name = ablageName(tag, e.anhang.name ?? 'Rechnung.pdf');
         bericht.rechnungen++;
         if (!lauf.ausfuehren) {
           bericht.abgelegt.push({ lieferant: e.lieferant!, pfad: `${ordner}/${name}`, geplant: true });
@@ -392,7 +395,7 @@ export async function rechnungseingang(graph: EingangGraph, einst: RechnungsEins
       } else if (lauf.ausfuehren && (rechnung || unklar)) {
         const neu = [...kategorien, ...(rechnung ? [k.eingegangen] : []), ...(unklar ? [k.unklar] : [])];
         await graph.patch(`/me/messages/${mail.id}`, { categories: neu }, PREFER);
-        if (rechnung && !unklar) {
+        if (rechnung && !unklar && einst.mailsVerschieben !== false) {
           verarbeitetId ??= await mailOrdnerSicherstellen(graph, einst.verarbeitet);
           await graph.post(`/me/messages/${mail.id}/move`, { destinationId: verarbeitetId }, PREFER);
           bericht.verschoben++;

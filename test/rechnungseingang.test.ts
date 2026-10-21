@@ -72,7 +72,7 @@ test('Probelauf: liest nur, schreibt nichts – weder in Microsoft 365 noch in d
     { mails: 6, rechnungen: 1, unklar: 1, patient: 2, eigene: 1, ignoriert: 2 },
   );
   // 22:30 UTC am 19.10. ist in Deutschland schon der 20.10.
-  assert.match(b.abgelegt[0]!.pfad, /^<Zielordner offen>\/2026\/10\/2026-10-20_Telekom_[0-9a-f]{8}\.pdf$/);
+  assert.match(b.abgelegt[0]!.pfad, /^<Zielordner offen>\/2026\/10\/20-10-2026-ER-Rechnung\.pdf$/);
 });
 
 test('Ausführen verweigert ohne Zielordner und ohne Datenbank', async () => {
@@ -86,7 +86,7 @@ test('Ausführen: Rechnung abgelegt, Patientenpost nur markiert, Unklares vermer
   const b = await rechnungseingang(g, einst(), { ausfuehren: true, db, textAus: textAusAttrappe });
   assert.equal(b.fehler, 0);
   assert.deepEqual(g.hochgeladen.map((h) => h.pfad), ['Büro/Buchhaltung/Eingang/2026/10']);
-  assert.match(g.hochgeladen[0]!.name, /^2026-10-20_Telekom_[0-9a-f]{8}\.pdf$/);
+  assert.equal(g.hochgeladen[0]!.name, '20-10-2026-ER-Rechnung.pdf');
 
   const z = await zeilen();
   assert.deepEqual(z.map((r) => [r.klasse, r.status]), [['rechnung', 'wartet_freigabe'], ['unklar', 'klassifiziert']]);
@@ -173,6 +173,22 @@ test('Übernahme: bestätigter Altbestand kommt gleich als bezahlt ins Archiv, U
   assert.deepEqual(liste.find((m) => m.id === 'm-patient')!.categories ?? [], []);
   const k = (await db.query<{ rechnungsnummer: string; betrag: string }>('SELECT rechnungsnummer, betrag::text FROM inbound_document')).rows[0];
   assert.deepEqual(k, { rechnungsnummer: '4711', betrag: '49.95' });
+});
+
+test('Mails nur markieren, nicht verschieben (mailsVerschieben: false); unbekannte Absender als Rechnung', async () => {
+  const liste = mails();
+  // Eine andere Rechnung als die der Telekom – sonst wäre es eine Dublette
+  liste.find((m) => m.id === 'm-unbekannt')!.anhaenge[0]!.inhalt = `${RECHNUNG}\nKundennummer 99`;
+  const g = postfach(liste);
+  const b = await rechnungseingang(g, { ...einst(), mailsVerschieben: false, unbekannteAlsRechnung: true }, { ausfuehren: true, db, textAus: textAusAttrappe });
+  assert.equal(b.verschoben, 0);
+  assert.ok(!g.schreibend.some((x) => x.includes('/move')));
+  assert.equal(b.rechnungen, 2, 'Telekom und der unbekannte Lieferant');
+  const z = (await db.query<{ lieferant: string; absender_adresse: string; attachment_name: string }>(
+    "SELECT lieferant, absender_adresse, attachment_name FROM inbound_document WHERE klasse = 'rechnung' ORDER BY id")).rows;
+  assert.deepEqual(z.map((r) => r.lieferant), ['Telekom', 'Neuer-lieferant']);
+  assert.equal(z[1]!.absender_adresse, 'buchhaltung@neuer-lieferant.de');
+  assert.deepEqual(liste.find((m) => m.id === 'm-unbekannt')!.categories, ['Rechnung: eingegangen']);
 });
 
 test('Protokoll lässt sich nicht ändern', async () => {

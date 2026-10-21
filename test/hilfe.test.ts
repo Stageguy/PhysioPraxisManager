@@ -10,7 +10,7 @@ import type { CockpitDaten } from '../src/cockpit/daten.ts';
 
 const RE: KachelRechnung = {
   id: '7', eingang: '2026-10-20T08:00:00Z', dateiname: 'Rechnung.pdf', absenderName: 'Telekom', absenderAdresse: 'rechnung@telekom.de',
-  lieferant: 'Telekom', rechnungsnummer: 'A1', betrag: 49.95, rechnungsdatum: '2026-10-19', status: 'wartet_freigabe',
+  lieferant: 'Telekom', rechnungsnummer: 'A1', betrag: 49.95, netto: 41.97, ust: 7.98, ustSatz: '19 %', rechnungsdatum: '2026-10-19', status: 'wartet_freigabe',
   onedrivePfad: 'x/2026/Eingangsrechnungen/a.pdf', onedriveItemId: 'i', onedriveWebUrl: 'https://x', mailId: 'm',
   zurueckgestellt: false, ablehnungsgrund: null, geprueftVon: null, geprueftAm: null, ort: 'Posteingang › Rechnungen',
 };
