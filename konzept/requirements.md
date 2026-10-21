@@ -66,6 +66,7 @@ Neue Ideen bekommen eine W-Nummer und werden sofort mit den Prompts abgeglichen.
 | W46 | Erste Fassung auf den Strato-Server in Kubernetes | 9 | ✅ k3s auf strato-dev, Namespace `praxis` (N27) |
 | W47 | Über Tailscale anzeigen; später umhängen – ist der eigene Praxis-Tailnet jetzt nötig? | – | beantwortet: N27 |
 | W48 | Browserprüfungen wie in mondre (nicht Chrome) | – | ✅ Prüfbrowser übernommen: WebKit im Container am Server |
+| W49 | Bis auf Weiteres alles im mondre-Tailnet; später mit Lilli ihren eigenen Tailscale-Account anlegen, alles umziehen und im mondre-Tailnet löschen | – | entschieden 21.10.2026 (E4, Umzugs-Checkliste §5a) |
 | W37 | Hilfeseite, die Kategorien und spätere Funktionen erklärt; Rechtsklick-Erklärungen an Schaltflächen und Eingabefeldern wie in den mondre-Projekten | 10 | ✅ 20.10.2026: `/hilfe`, `/hilfe.js`, Vorschau `npm run hilfe:vorschau` |
 | W36 | Postfach durchlesen: wie viele Mails enthalten Rechnungen, die für das Geschäftsjahr 2026 relevant sind? | 4 | ✅ gezählt 20.10.2026, N21 |
 
@@ -232,7 +233,7 @@ Status: ✅ erledigt · ▶ als Nächstes · ⏳ wartet (auf Entscheidung oder V
 | A08a | Kategorien anlegen (`npm run kategorien`), Finanzjahr 2026 (`npm run finanzjahr`), Testordner (`npm run testordner`) | W33–W35 | ✅ 20.10.2026 |
 | A08b | Hilfeseite mit Rechtsklick-Erklärungen; jede neue Schaltfläche bekommt eine Erklärung (Test erzwingt das) | W37 | ✅ 20.10.2026 |
 | A06a | Erster Probelauf von `npm run rechnungen` gegen das echte Postfach (zeigt nur Zahlen) und Lieferantenliste mit Lilli füllen | W31 | ▶ Christian startet ihn |
-| A09 | Praxis-Tailnet anlegen (Passkey) | W21, N8 | ⏳ E4 |
+| A09 | Praxis-Tailnet anlegen (Lillis Apple-ID) – bis dahin mondre-Tailnet | W21, W49, N8 | ⏳ mit Lilli, Checkliste §5a |
 | A09a | k3s-Manifeste: Namespace `praxis`, PostgreSQL, Dienst, Secrets; Bereitstellung `deploy/strato-dev.sh` | W24, W25, W46, N27 | ✅ 20.10.2026 (Bauphase über tailscale serve des Servers) |
 | A09b | Umhängen auf den eigenen Praxis-Tailnet (Sidecar statt hostNetwork), Lilli einladen | W22, W47, N27 | ⏳ A09 (Tailnet anlegen) |
 | A09c | Cockpit 0.2.0 und Rechnungs-Dashboard; Sichtprüfung mit dem Prüfbrowser (WebKit, 393/1440 px) | W45, W48 | ✅ 20.10.2026 |
@@ -284,6 +285,20 @@ Status: ✅ erledigt · ▶ als Nächstes · ⏳ wartet (auf Entscheidung oder V
 
 ---
 
+## 5a. Umzugs-Checkliste: vom mondre-Tailnet in Lillis Tailnet
+
+Bis dahin gilt: Lilli bekommt **keinen** Zugang zum mondre-Tailnet, und echte Patientendaten kommen
+nicht in den Tresor (N16, N27).
+
+1. Lilli legt mit ihrer Apple-ID den Tailnet an (login.tailscale.com, „E-Mail teilen“, nicht verbergen).
+2. In der Admin-Konsole: MagicDNS und HTTPS-Zertifikate einschalten; Christian (mondre.net@icloud.com) als Admin einladen.
+3. Zugriffsregeln: `tag:praxis-dienst` mit Owner `autogroup:admin`; Grant `autogroup:member` → `tag:praxis-dienst:443`.
+4. Auth-Key (Tag `tag:praxis-dienst`, nicht wiederverwendbar) als `TS_AUTHKEY` in `.env`; `ERLAUBTE_NUTZER` = Lillis und Christians Tailnet-Konten.
+5. Deployment umbauen: `hostNetwork` raus, Tailscale-Sidecar rein (Kernel-Modus, `tailscale/serve.json`), Zustand in eigenem Volume; `deploy/strato-dev.sh` ausführen.
+6. Prüfen: `https://praxis.<tailnet>.ts.net` für Lilli (iPhone, Mac) und Christian; Prüfbrowser.
+7. **Im mondre-Tailnet löschen:** `tailscale serve --http=10000 off` auf strato-dev; `mondre.net@icloud.com` aus `ERLAUBTE_NUTZER` nur entfernen, wenn Christian über den Praxis-Tailnet zugreift; README/requirements anpassen.
+8. Danach erst: Lilli einladen, Härtung (A25), Tresor mit echten Daten.
+
 ## 6. Offene Entscheidungen (E)
 
 | # | Frage | Wer | Empfehlung |
@@ -291,7 +306,7 @@ Status: ✅ erledigt · ▶ als Nächstes · ⏳ wartet (auf Entscheidung oder V
 | E1 | Im mondre-Mandanten bleiben oder eigener M365-Mandant für die Praxis? | Christian + Lilli | vorerst bleiben, mit AVV (N1) |
 | E2 | Wann von delegiert auf app-only + Zertifikat umsteigen? | Christian | vor dem Dauerbetrieb der Worker (N2) |
 | E3 | Technik: TypeScript (wie graphapi) oder Python (wie Prompts)? | Christian | ✅ entschieden 20.10.2026: TypeScript |
-| E4 | Mit welcher Anmeldung wird das Praxis-Tailnet angelegt? | Christian | Passkey, nicht Microsoft (N8) |
+| E4 | Mit welcher Anmeldung wird das Praxis-Tailnet angelegt? | Christian + Lilli | ✅ entschieden 21.10.2026: vorerst mondre-Tailnet; später Lillis **eigene Apple-ID** (echte E-Mail freigeben, nicht „verbergen“), Christian als Admin eingeladen. Korrektur zu N8: Tailscale trennt nach Identität bzw. Domain – nur Christians Apple-ID führte zurück in den mondre-Tailnet. Tarif für die Praxis prüfen (Business statt Personal) |
 | E5 | Eigenes Konto für Lilli oder alles über praxis@lilli-nebel.de? | Christian + Lilli | offen (N9). Empfehlung: bei praxis@lilli-nebel.de bleiben, solange Lilli allein arbeitet. Ein eigenes Konto erst, wenn Mitarbeitende dazukommen oder die Microsoft-Protokolle Lilli und das System unterscheiden sollen – Letzteres löst auch der Umstieg auf app-only (A23). |
 | E6 | Welcher Strato-Server? | Christian | ✅ entschieden 20.10.2026: `strato-dev`, Praxis getrennt, nur für die Praxis verfügbar, VS-Code-Zugriff erlaubt (W25). Ob vor dem Tresor ein eigener Server nötig ist, wird bei der Härtung (A25) neu bewertet (N15). |
 | E12 | Docker Compose oder Kubernetes (k3s)? | Christian | ✅ entschieden 20.10.2026: **k3s**. Die Compose-Datei bleibt für lokale Tests. |
