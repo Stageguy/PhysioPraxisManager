@@ -1,7 +1,8 @@
-# Eigener Bereich für die Praxis – getrennt von allem anderen auf dem Server
+# Eigener Bereich für die Praxis – getrennt von allem anderen auf dem Server.
+# __NS__ = praxis (Produktion) oder praxis-test (Testumgebung), siehe deploy/strato-dev.sh
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: praxis
+  name: __NS__
   labels:
     app.kubernetes.io/part-of: physio-praxis-manager

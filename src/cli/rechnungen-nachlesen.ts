@@ -15,8 +15,10 @@ import { ladeEinstellungen } from '../einstellungen.ts';
 import { GraphClient } from '../graph.ts';
 import { kopfdaten } from '../rechnungen/kopfdaten.ts';
 import { pdfText } from '../rechnungen/pdf.ts';
+import { nurProduktion } from '../umgebung.ts';
 
 const { values } = parseArgs({ options: { ausfuehren: { type: 'boolean', default: false } } });
+if (values.ausfuehren) nurProduktion('Das Nachlesen von Rechnungen');
 const graph = new GraphClient(createTokenProvider(loadEnv(), ALLE_SCOPES, { interaktiv: false }));
 const lw = laufwerkPfad((await ladeEinstellungen()).rechnungen.laufwerk);
 const db = verbinde();

@@ -10,6 +10,7 @@ import { ALLE_SCOPES, createTokenProvider } from '../auth.ts';
 import { loadEnv } from '../config.ts';
 import { GraphClient } from '../graph.ts';
 import { terminAnlegen, type NeuerTermin } from '../kalender.ts';
+import { kalenderBasis } from '../umgebung.ts';
 
 const { values } = parseArgs({
   options: {
@@ -25,7 +26,8 @@ const { values } = parseArgs({
 const termin: NeuerTermin = { titel: values.titel, beginn: values.beginn, ende: values.ende, ort: values.ort, notiz: values.notiz };
 const env = loadEnv();
 const graph = new GraphClient(createTokenProvider(env, ALLE_SCOPES, { interaktiv: false }));
-const { angelegt } = await terminAnlegen(graph, termin, { ausfuehren: values.ausfuehren });
+const kalender = values.ausfuehren ? await kalenderBasis(graph) : undefined;
+const { angelegt } = await terminAnlegen(graph, termin, { ausfuehren: values.ausfuehren, kalender });
 
 console.log(`Termin:  ${termin.titel}`);
 console.log(`Zeit:    ${termin.beginn.replace('T', ' ')} bis ${termin.ende.replace('T', ' ')} (deutsche Zeit)`);

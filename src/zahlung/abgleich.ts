@@ -17,6 +17,7 @@ import type { GraphClient } from '../graph.ts';
 import type { Beleg, LexwareClient } from '../lexware/client.ts';
 import { aufStufe, KATEGORIEN } from '../mail/kategorien.ts';
 import { normiereNummer } from '../rechnungen/kopfdaten.ts';
+import { nurProduktion } from '../umgebung.ts';
 
 const PREFER = { Prefer: 'IdType="ImmutableId"' };
 type AbgleichGraph = Pick<GraphClient, 'get' | 'patch' | 'post' | 'paginate'>;
@@ -79,6 +80,7 @@ export async function abgleichLexware(
   lex: Pick<LexwareClient, 'belege' | 'zahlung'>,
   optionen: { ausfuehren: boolean },
 ): Promise<AbgleichBericht> {
+  if (optionen.ausfuehren) nurProduktion('Der Zahlungsabgleich (Lexware)');
   const b = neuerBericht();
   const zeilen = (await db.query<Zeile>(
     `SELECT id::text, graph_message_id, rechnungsnummer, betrag::text, lexware_voucher_id, status::text
@@ -139,6 +141,7 @@ export async function abgleichOutlook(
   db: Db,
   optionen: { ausfuehren: boolean },
 ): Promise<AbgleichBericht> {
+  if (optionen.ausfuehren) nurProduktion('Der Zahlungsabgleich (Outlook)');
   const b = neuerBericht();
   const archiv = await graph.get<{ id: string }>('/me/mailFolders/archive?$select=id', PREFER);
   const filter = encodeURIComponent(`categories/any(c:c eq '${KATEGORIEN.bezahlt.name.replace(/'/g, "''")}')`);

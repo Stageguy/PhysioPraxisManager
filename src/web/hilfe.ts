@@ -194,6 +194,13 @@ export const HILFE: Record<string, HilfeEintrag> = {
     aendert: 'Stand, Ablageort („<Jahr>/Privat“), Mail-Kategorie, Protokoll.', ergebnis: 'Die Seite lädt neu und nennt den neuen Stand.',
     rueckweg: 'Haken wieder entfernen.' },
 
+  // ── Testumgebung ─────────────────────────────────────────────────────────
+  'umgebung.test': { seite: 'Testumgebung', titel: 'Band „TESTUMGEBUNG“', loest_aus: AUSKUNFT,
+    bezug: 'Diese ganze Anwendung: die Testumgebung, in der neue Funktionen vor Lillis Abnahme laufen.',
+    aendert: NICHTS,
+    ergebnis: 'Hier sind alle Patienten erfunden. Mails gehen nur an Testadressen, Termine nur in den Kalender „Praxis-Test“, Entwürfe tragen die Kategorie „TEST“. Rechnungen, Ablage und Zahlungen verändert nur die echte Praxis-Anwendung.',
+    rueckweg: KEIN_RUECKWEG },
+
   // ── Status ────────────────────────────────────────────────────────────────
   'status.gesamt': { seite: 'Status', titel: 'Gesamtzustand',
     loest_aus: AUSKUNFT, bezug: 'Alle Prüfpunkte darunter zusammen.', aendert: NICHTS,

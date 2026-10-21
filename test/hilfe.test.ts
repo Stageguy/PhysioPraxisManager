@@ -33,7 +33,19 @@ const seiten = () => [
   dashboardSeite({ stand: STAND, neu: [RE], privat: [{ ...RE, id: '8', status: 'privat' }], auswertung: AUSWERTUNG, liste: [RE],
     filter: { jahr: 2026, stand: 'alle', suche: '' } }, { wer: 'lilli@example.org', fassung: '0.0.0' }),
   rechnungSeite(RE, { wer: 'lilli@example.org', fassung: '0.0.0' }),
+  inTest(() => statusseite([], 'christian@example.org', '0.0.0')),
 ];
+/** Eine Seite einmal in der Testumgebung – dort gibt es das Band */
+function inTest<T>(f: () => T): T {
+  const vorher = process.env.PRAXIS_UMGEBUNG;
+  process.env.PRAXIS_UMGEBUNG = 'test';
+  try {
+    return f();
+  } finally {
+    if (vorher === undefined) delete process.env.PRAXIS_UMGEBUNG;
+    else process.env.PRAXIS_UMGEBUNG = vorher;
+  }
+}
 const schluessel = (html: string) => [...html.matchAll(/data-hilfe="([^"]+)"/g)].map((m) => m[1]!);
 
 test('jedes Element mit data-hilfe hat eine Erklärung', () => {

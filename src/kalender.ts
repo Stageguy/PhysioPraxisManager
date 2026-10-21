@@ -41,10 +41,10 @@ export function terminKoerper(t: NeuerTermin) {
 export async function terminAnlegen(
   graph: Pick<GraphClient, 'post'>,
   t: NeuerTermin,
-  optionen: { ausfuehren: boolean },
+  optionen: { ausfuehren: boolean; /** Kalender aus kalenderBasis() – in der Testumgebung „Praxis-Test“ */ kalender?: string },
 ): Promise<{ angelegt: boolean; id?: string }> {
   pruefeTermin(t);
   if (!optionen.ausfuehren) return { angelegt: false };
-  const ergebnis = await graph.post<{ id: string }>('/me/events', terminKoerper(t));
+  const ergebnis = await graph.post<{ id: string }>(`${optionen.kalender ?? '/me/calendar'}/events`, terminKoerper(t));
   return { angelegt: true, id: ergebnis.id };
 }

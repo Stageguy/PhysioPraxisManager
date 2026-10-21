@@ -11,6 +11,7 @@ import { loadEnv } from '../config.ts';
 import { ordnerFinden, ordnerSicherstellen, uploadFile } from '../drive.ts';
 import { ladeEinstellungen } from '../einstellungen.ts';
 import { GraphClient } from '../graph.ts';
+import { nurProduktion } from '../umgebung.ts';
 
 const LIESMICH = `TESTORDNER – PhysioPraxisManager
 
@@ -24,6 +25,7 @@ Angelegt am ${new Date().toISOString().slice(0, 10)} von praxis@lilli-nebel.de (
 `;
 
 const { values } = parseArgs({ options: { ausfuehren: { type: 'boolean', default: false } } });
+if (values.ausfuehren) nurProduktion('Das Anlegen des Testordners');
 const { ablage } = await ladeEinstellungen();
 if (!ablage) throw new Error('config/praxis.json: Abschnitt "ablage" fehlt');
 const graph = new GraphClient(createTokenProvider(loadEnv(), ALLE_SCOPES, { interaktiv: false }));

@@ -247,6 +247,8 @@ Status: ✅ erledigt · ▶ als Nächstes · ⏳ wartet (auf Entscheidung oder V
 | A09a | k3s-Manifeste: Namespace `praxis`, PostgreSQL, Dienst, Secrets; Bereitstellung `deploy/strato-dev.sh` | W24, W25, W46, N27 | ✅ 20.10.2026 (Bauphase über tailscale serve des Servers) |
 | A09b | Umhängen auf den eigenen Praxis-Tailnet (Sidecar statt hostNetwork), Lilli einladen | W22, W47, N27 | ⏳ A09 (Tailnet anlegen) |
 | A09c | Cockpit 0.2.0 und Rechnungs-Dashboard; Sichtprüfung mit dem Prüfbrowser (WebKit, 393/1440 px) | W45, W48 | ✅ 20.10.2026 |
+| A09d | Testumgebung `praxis-test` (eigene Datenbank, Port 3301 / Tailscale :10001), `deploy/strato-dev.sh prod\|test`, Band „TESTUMGEBUNG“, sechs Schranken in `src/umgebung.ts` mit Tests | W56–W58, N28 | ✅ 21.10.2026 (0.5.0) |
+| A09e | Testdaten-Generator: erfundene Patienten mit Adresse shopping@2late.de (Plus-Varianten möglich) | W56, E23 | ▶ nächster Schritt |
 | A10 | CLAUDE.md für das Repo (Prompt 0, angepasst an N6, N7, N13) | Prompt 0 | ▶ |
 
 ### Phase 1 – Büro & Rechnungen
@@ -321,7 +323,7 @@ nicht in den Tresor (N16, N27).
 | E4 | Mit welcher Anmeldung wird das Praxis-Tailnet angelegt? | Christian + Lilli | ✅ entschieden 21.10.2026: vorerst mondre-Tailnet; später Lillis **eigene Apple-ID** (echte E-Mail freigeben, nicht „verbergen“), Christian als Admin eingeladen. Korrektur zu N8: Tailscale trennt nach Identität bzw. Domain – nur Christians Apple-ID führte zurück in den mondre-Tailnet. Tarif für die Praxis prüfen (Business statt Personal) |
 | E5 | Eigenes Konto für Lilli oder alles über praxis@lilli-nebel.de? | Christian + Lilli | offen (N9). Empfehlung: bei praxis@lilli-nebel.de bleiben, solange Lilli allein arbeitet. Ein eigenes Konto erst, wenn Mitarbeitende dazukommen oder die Microsoft-Protokolle Lilli und das System unterscheiden sollen – Letzteres löst auch der Umstieg auf app-only (A23). |
 | E6 | Welcher Strato-Server? | Christian | ✅ entschieden 20.10.2026 und endgültig 21.10.2026 (W57): `strato-dev` auch für die Produktion mit Patientendaten. Ausgleich: eigener Namespace, Verschlüsselung durch die App, Schlüssel als Secret + Notfallkopie bei Lilli, nur Tailscale, eigene Sicherung; die gemeinsame Nutzung mit mondre steht in den TOM (A24). |
-| E23 | Christians Testadresse(n) für erfundene Patienten | Christian | offen – nötig für die Allowlists in N28 |
+| E23 | Christians Testadresse(n) für erfundene Patienten | Christian | ✅ 21.10.2026: shopping@2late.de für alle Testpatienten (in `.env`/Secret, nicht im Repository). Entwürfe in Outlook, Ergebnis aus „Gesendete Elemente“ |
 | E12 | Docker Compose oder Kubernetes (k3s)? | Christian | ✅ entschieden 20.10.2026: **k3s**. Die Compose-Datei bleibt für lokale Tests. |
 | E14 | Patientenakte selbst bauen oder eine Fachsoftware nutzen? | Christian | ✅ entschieden 20.10.2026: selbst bauen (W28) |
 | E16 | Patientendaten: PostgreSQL auf dem Strato-Server mit App-Verschlüsselung (Empfehlung) – und wohin geht die Sicherung außerhalb des Servers? | Christian | Datenbank: empfohlen (N19). Sicherung: vor dem Tresor (A19) entscheiden – HiDrive-Objektspeicher oder anderer Standort |

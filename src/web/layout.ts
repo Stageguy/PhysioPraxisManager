@@ -3,6 +3,8 @@
  * Kein Inline-Skript (Content-Security-Policy): die Hilfe kommt als /hilfe.js.
  */
 
+import { umgebung } from '../umgebung.ts';
+
 export const esc = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -103,7 +105,11 @@ a.kachel:hover,a.kachel:focus-visible{transform:translateY(-2px);box-shadow:0 6p
 .protokoll time{color:var(--grau);font-variant-numeric:tabular-nums;min-width:110px}
 .log-sym{color:var(--akzent)}
 .zahlspalte{text-align:right;font-variant-numeric:tabular-nums}
-.chip.preset5{background:#9fe0d8}.chip.preset19{background:#6fbf73}.chip.preset0{background:#f4a3a8}.chip.preset12{background:#cfcfd4}
+.chip.preset5{background:#9fe0d8}.chip.preset19{background:#6fbf73}.chip.preset0{background:#f4a3a8}.chip.preset12{background:#cfcfd4}.chip.preset9{background:#f0a6bf}
+/* Testumgebung: nicht zu übersehen, auf jeder Seite */
+.testband{position:sticky;top:0;z-index:1000;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;
+  padding:8px 16px;font-size:14px;font-weight:600;color:#1b1519;text-align:center;
+  background:repeating-linear-gradient(135deg,#ffd54a 0 16px,#ffe58a 16px 32px);border-bottom:2px solid #1b1519}
 /* Rechnungs-Dashboard */
 h3{font-size:15px;margin:0 0 8px}
 .umbruch{overflow-wrap:anywhere}
@@ -191,8 +197,10 @@ export function seite(o: {
   const skript = o.skriptInline !== undefined ? `<script>${o.skriptInline}</script>` : '<script src="/hilfe.js"></script><script src="/praxis.js"></script>';
   return `<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(o.titel)}</title>
-<style>${CSS}</style></head><body><main${o.breit ? ' class="breit"' : ''}>
+<title>${umgebung() === 'test' ? 'TEST · ' : ''}${esc(o.titel)}</title>
+<style>${CSS}</style></head><body>${umgebung() === 'test'
+  ? '<div class="testband" role="note" data-hilfe="umgebung.test" tabindex="0">TESTUMGEBUNG – erfundene Patienten · Mails nur an Testadressen · Termine im Kalender „Praxis-Test“</div>'
+  : ''}<main${o.breit ? ' class="breit"' : ''}>
 <nav aria-label="Menü">${menue}</nav>
 ${o.inhalt}
 <footer>Angemeldet als ${esc(o.wer)} · PhysioPraxisManager ${esc(o.fassung)}</footer>

@@ -1,7 +1,7 @@
 # Praxisdienst (Cockpit, Hilfe, Status).
 #
 # Bauphase (requirements A09a, N27): der Pod nutzt das Netz des Servers und hört nur auf
-# 127.0.0.1:3300. Erreichbar ist er über `tailscale serve` des Servers (Port 10000) – das setzt die
+# 127.0.0.1:__PORT__. Erreichbar ist er über `tailscale serve` des Servers (Port 10000) – das setzt die
 # Kopfzeile Tailscale-User-Login, der Dienst lässt nur ERLAUBTE_NUTZER herein.
 # Später (eigener Praxis-Tailnet): hostNetwork weg, Tailscale-Sidecar wie in docker-compose.yml.
 #
@@ -10,7 +10,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: praxis-daten
-  namespace: praxis
+  namespace: __NS__
 spec:
   accessModes: ["ReadWriteOnce"]
   resources:
@@ -21,7 +21,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: praxis-dienst
-  namespace: praxis
+  namespace: __NS__
 spec:
   replicas: 1
   strategy:
@@ -61,12 +61,12 @@ spec:
             - name: DATA_DIR
               value: /data
             - name: PORT
-              value: "3300"
+              value: "__PORT__"
             - name: DB_PASSWORT
               valueFrom:
                 secretKeyRef: { name: praxis-db, key: passwort }
             - name: DATABASE_URL
-              value: postgres://praxis:$(DB_PASSWORT)@praxis-db.praxis.svc.cluster.local:5432/praxis
+              value: postgres://praxis:$(DB_PASSWORT)@praxis-db.__NS__.svc.cluster.local:5432/praxis
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -74,12 +74,12 @@ spec:
           # Der Dienst hört nur auf 127.0.0.1 – deshalb exec statt httpGet auf die Knoten-Adresse
           readinessProbe:
             exec:
-              command: ["node", "-e", "fetch('http://127.0.0.1:3300/api/health').then(r=>process.exit(r.status<500?0:1),()=>process.exit(1))"]
+              command: ["node", "-e", "fetch('http://127.0.0.1:__PORT__/api/health').then(r=>process.exit(r.status<500?0:1),()=>process.exit(1))"]
             periodSeconds: 30
             timeoutSeconds: 10
           livenessProbe:
             exec:
-              command: ["node", "-e", "fetch('http://127.0.0.1:3300/api/health').then(()=>process.exit(0),()=>process.exit(1))"]
+              command: ["node", "-e", "fetch('http://127.0.0.1:__PORT__/api/health').then(()=>process.exit(0),()=>process.exit(1))"]
             initialDelaySeconds: 20
             periodSeconds: 60
             timeoutSeconds: 10

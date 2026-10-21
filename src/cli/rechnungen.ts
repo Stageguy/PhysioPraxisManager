@@ -43,7 +43,7 @@ try {
   }
   console.log(
     `${b.fehler ? '⚠' : '✓'} ${b.mails} Mails · ${b.rechnungen} Rechnungen · ${b.duplikate} Dubletten · ${b.unklar} unklar · ` +
-      `${b.patient} Patientenpost (nur markiert) · ${b.eigene} eigene Ausgangsrechnungen (übersprungen) · ${b.keineRechnung} keine Rechnung · ${b.ignoriert} andere Anhänge · ` +
+      `${b.patient} Patientenpost (nur markiert) · ${b.eigene} eigene Ausgangsrechnungen (übersprungen) · ${b.test ? `${b.test} von Testadressen (übersprungen) · ` : ''}${b.keineRechnung} keine Rechnung · ${b.ignoriert} andere Anhänge · ` +
       `${b.bekannt} schon bekannt · ${b.verschoben} verschoben · ${b.fehler} Fehler`,
   );
   process.exitCode = b.fehler ? 1 : 0;

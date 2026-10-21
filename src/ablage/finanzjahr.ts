@@ -7,6 +7,7 @@
  */
 import { encodeDrivePath } from '../drive.ts';
 import type { GraphClient } from '../graph.ts';
+import { nurProduktion } from '../umgebung.ts';
 
 interface Item {
   id: string;
@@ -49,6 +50,7 @@ export async function finanzjahrAnlegen(
   jahr: number,
   optionen: { ausfuehren: boolean; vorlageJahr?: number },
 ): Promise<{ vorlage: string; ziel: string; vorhanden: string[]; angelegt: string[]; geplant: string[] }> {
+  if (optionen.ausfuehren) nurProduktion('Das Anlegen von Finanzordnern');
   const laufwerk = `/drives/${einst.laufwerk}`;
   const vorlageJahr = optionen.vorlageJahr ?? jahr - 1;
   const vorlage = `${einst.finanzen}/${vorlageJahr}`;

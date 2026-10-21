@@ -11,6 +11,7 @@
  * autorisiert) heißt „angestoßen“, `paid` heißt „bezahlt“ (die Bank hat gebucht, paidDate gesetzt).
  */
 import type { GraphClient } from '../graph.ts';
+import { nurProduktion } from '../umgebung.ts';
 
 export interface Kategorie {
   name: string;
@@ -61,6 +62,11 @@ export const KATEGORIEN = {
     wann: 'Du hast im Rechnungs-Dashboard „privat“ angehakt: die Rechnung gehört nicht zur Praxis. Die Datei liegt in „<Jahr>/Privat“.',
     tun: 'Nichts – sie zählt nicht in der Praxisbuchhaltung. Haken wieder weg nimmt das zurück.', ab: 'jetzt',
   },
+  test: {
+    name: 'TEST', farbe: 'preset9', farbname: 'Cranberry',
+    wann: 'Ein Entwurf aus der Testumgebung – adressiert an eine Testadresse, nie an echte Patienten.',
+    tun: 'Nicht senden – gehört nicht zum Praxisbetrieb. Christian prüft damit neue Funktionen.', ab: 'jetzt',
+  },
   unklar: {
     name: 'Prüfen – unklar', farbe: 'preset1', farbname: 'Orange',
     wann: 'Ein PDF sieht nach Rechnung aus, kommt aber von einem Absender, der nicht in der Lieferantenliste steht – oder es ist ein Scan ohne Text. Nichts wurde abgelegt.',
@@ -97,6 +103,7 @@ export async function kategorienAnlegen(
   graph: Pick<GraphClient, 'paginate' | 'post' | 'get' | 'delete'>,
   optionen: { ausfuehren: boolean },
 ): Promise<{ vorhanden: string[]; angelegt: string[]; fehlt: string[]; andereFarbe: string[]; entfernt: string[]; nochBenutzt: string[] }> {
+  if (optionen.ausfuehren) nurProduktion('Das Anlegen von Outlook-Kategorien');
   const da = new Map<string, MasterKategorie>();
   for await (const k of graph.paginate<MasterKategorie>('/me/outlook/masterCategories')) da.set(k.displayName.toLowerCase(), k);
   const ergebnis = {

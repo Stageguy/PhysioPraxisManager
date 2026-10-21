@@ -25,6 +25,7 @@ import { laufwerkPfad, ordnerSicherstellen, uploadFile } from '../drive.ts';
 import { zielOrdner, type RechnungsEinstellungen } from '../einstellungen.ts';
 import type { GraphClient } from '../graph.ts';
 import { mailOrdnerFinden, mailOrdnerSicherstellen } from '../mail/ordner.ts';
+import { istTestadresse, nurProduktion } from '../umgebung.ts';
 import { berlinMitternachtUtc, datumBerlin } from '../zeit.ts';
 import {
   ablageName,
@@ -90,6 +91,8 @@ export interface Bericht {
   patient: number;
   /** Eigene Ausgangsrechnungen (eigeneAbsender) – übersprungen, nichts gelesen */
   eigene: number;
+  /** Mails von Testadressen – gehören der Testumgebung, hier übersprungen (Schranke 5) */
+  test: number;
   keineRechnung: number;
   /** Anhänge, die keine PDF-Dateien sind (Bilder, Office, angehängte Mails) */
   ignoriert: number;
@@ -237,6 +240,7 @@ async function* quelle(
 }
 
 export async function rechnungseingang(graph: EingangGraph, einst: RechnungsEinstellungen, lauf: Lauf): Promise<Bericht> {
+  if (lauf.ausfuehren) nurProduktion('Der Rechnungseingang');
   if (lauf.ausfuehren && !lauf.db) throw new Error('Zum Ausführen braucht es die Datenbank (DATABASE_URL)');
   if (lauf.ausfuehren && !einst.ziel) {
     throw new Error('Kein OneDrive-Zielordner festgelegt (config/praxis.json → rechnungen.ziel) – bis dahin nur Probeläufe');
@@ -246,7 +250,7 @@ export async function rechnungseingang(graph: EingangGraph, einst: RechnungsEins
   const k = einst.kategorien;
   const eigene = new Set([k.eingegangen, k.patient, k.unklar, ...Object.values(KATEGORIEN).map((x) => x.name), 'Rechnung: abgelegt']);
   const bericht: Bericht = {
-    quelle: 'posteingang', mails: 0, rechnungen: 0, duplikate: 0, unklar: 0, patient: 0, eigene: 0, keineRechnung: 0,
+    quelle: 'posteingang', mails: 0, rechnungen: 0, duplikate: 0, unklar: 0, patient: 0, eigene: 0, test: 0, keineRechnung: 0,
     ignoriert: 0, bekannt: 0, fehler: 0, verschoben: 0, archiviert: 0, abgelegt: [],
   };
   const laufwerk = laufwerkPfad(einst.laufwerk);
@@ -269,6 +273,10 @@ export async function rechnungseingang(graph: EingangGraph, einst: RechnungsEins
 
     try {
       const domain = domainVon(mail.from?.emailAddress?.address ?? '');
+      if (istTestadresse(mail.from?.emailAddress?.address ?? '')) {
+        bericht.test++;
+        continue;
+      }
       if (lieferantZu(domain, (einst.eigeneAbsender ?? []).map((d) => ({ name: '', domains: [d] })))) {
         bericht.eigene++;
         continue;

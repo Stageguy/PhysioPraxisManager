@@ -12,6 +12,7 @@ import { dateiVerschieben, laufwerkPfad, ordnerSicherstellen } from '../drive.ts
 import type { GraphClient } from '../graph.ts';
 import { aufStufe, KATEGORIEN } from '../mail/kategorien.ts';
 import { normiereNummer } from './kopfdaten.ts';
+import { nurProduktion } from '../umgebung.ts';
 
 const PREFER = { Prefer: 'IdType="ImmutableId"' };
 
@@ -222,6 +223,12 @@ async function verschieben(u: Umgebung, r: Rechnung, zielOrdner: string): Promis
 const BETRAG = /^\d{1,9}([.,]\d{1,2})?$/;
 
 export async function ausfuehren(u: Umgebung, id: string, a: Aktion): Promise<string> {
+  // Schranke 4: Freigabe, privat und Korrekturen verändern Postfach und Ablage – nur Produktion
+  try {
+    nurProduktion('Das Rechnungs-Dashboard');
+  } catch (err) {
+    throw new AktionAbgelehnt((err as Error).message);
+  }
   const r = await rechnung(u.db, id);
   if (!r) throw new AktionAbgelehnt('Diese Rechnung gibt es nicht');
   const prot = (action: string, details: Record<string, unknown> = {}) =>
