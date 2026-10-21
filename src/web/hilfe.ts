@@ -119,7 +119,7 @@ export const HILFE: Record<string, HilfeEintrag> = {
     ergebnis: 'Die Rechnungsansicht. Mit der Maus darüber zeigt die Kachel, wo die Mail im Postfach liegt.', rueckweg: 'Zurück zum Rechnungs-Dashboard.' },
   'rechnungen.netto': { seite: 'Rechnungs-Dashboard', titel: 'Netto und Umsatzsteuer', loest_aus: AUSKUNFT,
     bezug: 'Was das System aus dem PDF gelesen hat: Nettobetrag, Steuer und Steuersatz.', aendert: NICHTS,
-    ergebnis: 'Steht nur da, wenn Netto + Steuer genau den Brutto-Betrag ergeben. Sonst „nicht sicher erkannt“ – dann gilt, was auf der Rechnung steht. Wird der Betrag korrigiert, verfallen Netto und Steuer.',
+    ergebnis: 'Steht nur da, wenn Netto + Steuer genau den Brutto-Betrag ergeben. „errechnet“ heißt: die Rechnung nennt nur den Satz („inkl. 19 % MwSt“) – Netto und Steuer sind aus dem Brutto gerechnet. Sonst „nicht sicher erkannt“ – dann gilt, was auf der Rechnung steht. Wird der Betrag korrigiert, verfallen Netto und Steuer.',
     rueckweg: KEIN_RUECKWEG },
   'rechnungen.ort': { seite: 'Rechnungs-Dashboard', titel: 'Wo die Mail liegt', loest_aus: AUSKUNFT,
     bezug: 'Die Mail, mit der die Rechnung kam – live aus dem Postfach gelesen.', aendert: NICHTS,

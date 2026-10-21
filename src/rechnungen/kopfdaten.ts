@@ -13,7 +13,7 @@ export interface Kopfdaten {
   /** Nur gesetzt, wenn netto + ust = betrag (auf den Cent) */
   netto?: number;
   ust?: number;
-  /** "19 %", "7 %", "7 % + 19 %", "0 % (steuerfrei)" */
+  /** "19 %", "7 %", "7 % + 19 %", "0 % (steuerfrei)", "19 % (errechnet)" */
   ustSatz?: string;
 }
 
@@ -30,6 +30,8 @@ const ZAHL = String.raw`(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})`;
 const NETTO = new RegExp(String.raw`(?:nettobetrag|netto[\s-]*summe|summe[\s-]*netto|gesamt[\s-]*netto|zwischensumme(?:[\s-]*netto)?|warenwert[\s-]*netto|rechnungsbetrag[\s-]*netto|betrag[\s-]*netto|netto)[^\d\n%]{0,30}?${ZAHL}`, 'i');
 // "19 % MwSt 7,98" · "MwSt. 19% 7,98" · "Umsatzsteuer (7 %): 3,50"
 const STEUER = new RegExp(String.raw`(?:(\d{1,2}(?:[.,]\d+)?)\s?%\s*(?:mwst|ust|umsatzsteuer|mehrwertsteuer)|(?:mwst|ust|umsatzsteuer|mehrwertsteuer)\.?[^\d\n]{0,15}?(\d{1,2}(?:[.,]\d+)?)\s?%)[^\d\n]{0,30}?${ZAHL}`, 'gi');
+/** Ein Steuersatz neben einem Steuerwort, ohne Betrag: „inkl. 19 % MwSt“, „MwSt-Satz 7%“ */
+const SATZ_ALLEIN = /(?:(\d{1,2}(?:[.,]\d+)?)\s?%\s*(?:mwst|ust|umsatzsteuer|mehrwertsteuer)|(?:mwst|ust|umsatzsteuer|mehrwertsteuer)[^\d\n]{0,15}?(\d{1,2}(?:[.,]\d+)?)\s?%)/gi;
 const STEUERFREI = /steuerfrei|umsatzsteuerbefreit|§\s?4\s?nr|§\s?19\s?ustg|kleinunternehmer/i;
 
 const cent = (n: number) => Math.round(n * 100);
@@ -49,10 +51,23 @@ export function nettoUndSteuer(text: string, brutto: number | undefined): Pick<K
   const satzText = sätze.map((x) => `${String(x).replace('.', ',')} %`).join(' + ');
 
   if (netto !== undefined && eindeutig.length && cent(netto) + cent(ust) === cent(brutto)) return { netto, ust, ustSatz: satzText };
-  if (netto === undefined && sätze.length === 1 && ust < brutto) {
-    // Netto nur ausrechnen, wenn Steuer und Satz zusammenpassen (Rundung: höchstens 2 Cent)
-    const gerechnet = (cent(brutto) - cent(ust)) / 100;
-    if (Math.abs(gerechnet * (sätze[0]! / 100) - ust) <= 0.02) return { netto: gerechnet, ust, ustSatz: satzText };
+  if (netto === undefined && sätze.length === 1 && eindeutig.length === 1) {
+    const satz = sätze[0]! / 100;
+    const zahl = eindeutig[0]!.betrag;
+    // Die Zahl hinter dem Satz ist die Steuer …
+    const nettoAusSteuer = (cent(brutto) - cent(zahl)) / 100;
+    if (Math.abs(nettoAusSteuer * satz - zahl) <= 0.02) return { netto: nettoAusSteuer, ust: zahl, ustSatz: satzText };
+    // … oder die Bemessungsgrundlage („19 % auf 41,97“)
+    const steuerAusNetto = (cent(brutto) - cent(zahl)) / 100;
+    if (Math.abs(zahl * satz - steuerAusNetto) <= 0.02) return { netto: zahl, ust: steuerAusNetto, ustSatz: satzText };
+  }
+  // Nur „inkl. 19 % MwSt“ ohne Betrag: aus dem Brutto errechnen – aber nur, wenn genau ein Satz genannt ist
+  if (!eindeutig.length) {
+    const nur = [...new Set([...text.matchAll(SATZ_ALLEIN)].map((m) => Number((m[1] ?? m[2])!.replace(',', '.'))))].filter((x) => x === 19 || x === 7);
+    if (nur.length === 1) {
+      const n = Math.round((brutto / (1 + nur[0]! / 100)) * 100) / 100;
+      return { netto: n, ust: (cent(brutto) - cent(n)) / 100, ustSatz: `${nur[0]} % (errechnet)` };
+    }
   }
   if (!eindeutig.length && STEUERFREI.test(text) && (netto === undefined || cent(netto) === cent(brutto))) {
     return { netto: brutto, ust: 0, ustSatz: '0 % (steuerfrei)' };

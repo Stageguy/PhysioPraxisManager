@@ -52,6 +52,9 @@ test('Netto und Umsatzsteuer – nur wenn es zum Brutto passt', () => {
   assert.deepEqual(nettoUndSteuer('Netto 40,00\n19 % MwSt 7,98\nGesamt 49,95', 49.95), {}, 'Summe stimmt nicht → nichts');
   assert.deepEqual(nettoUndSteuer('Gemäß § 19 UStG wird keine Umsatzsteuer berechnet. Gesamt 80,00', 80), { netto: 80, ust: 0, ustSatz: '0 % (steuerfrei)' });
   assert.deepEqual(nettoUndSteuer('Gesamt 80,00', 80), {});
+  assert.deepEqual(nettoUndSteuer('19 % MwSt auf 41,97\nGesamtbetrag 49,95', 49.95), { netto: 41.97, ust: 7.98, ustSatz: '19 %' }, 'Zahl ist die Grundlage');
+  assert.deepEqual(nettoUndSteuer('Gesamtbetrag 49,95 inkl. 19 % MwSt', 49.95), { netto: 41.97, ust: 7.98, ustSatz: '19 % (errechnet)' });
+  assert.deepEqual(nettoUndSteuer('Gesamt 20,00 inkl. 7 % MwSt und 19 % MwSt', 20), {}, 'zwei Sätze ohne Beträge: nichts errechnen');
 });
 
 test('Scan ohne Text von Unbekannten ist unklar – könnte ein Rezeptfoto sein', () => {

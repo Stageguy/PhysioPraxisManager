@@ -24,7 +24,8 @@
     "test": "node --test test/*.test.ts",
     "testordner": "node --env-file-if-exists=.env src/cli/testordner.ts",
     "typecheck": "tsc --noEmit",
-    "zahlungen": "node --env-file-if-exists=.env src/cli/zahlungen.ts"
+    "zahlungen": "node --env-file-if-exists=.env src/cli/zahlungen.ts",
+    "rechnungen:nachlesen": "node --env-file-if-exists=.env src/cli/rechnungen-nachlesen.ts"
   },
   "dependencies": {
     "@azure/msal-node": "^6.0.1",
