@@ -51,6 +51,16 @@ export const KATEGORIEN = {
     wann: 'Die Rechnung ist bezahlt – laut Lexware (sobald der XL-Tarif da ist) oder weil du die Kategorie selbst gesetzt hast. Danach wandert die Mail ins Exchange-Archiv.',
     tun: 'Bis zum XL-Tarif: bei bezahlten Rechnungen diese Kategorie selbst in Outlook setzen – den Rest erledigt das System. Danach: nichts.', ab: 'jetzt',
   },
+  abgelehnt: {
+    name: 'Rechnung: abgelehnt', farbe: 'preset0', farbname: 'Rot',
+    wann: 'Du hast die Rechnung im Rechnungs-Dashboard abgelehnt (mit Grund). Die Datei liegt in „Eingangsrechnungen/Abgelehnt“.',
+    tun: 'Nichts – sie wird nicht gebucht. Rückfrage beim Lieferanten, falls nötig.', ab: 'jetzt',
+  },
+  privat: {
+    name: 'Rechnung: privat', farbe: 'preset12', farbname: 'Grau',
+    wann: 'Du hast im Rechnungs-Dashboard „privat“ angehakt: die Rechnung gehört nicht zur Praxis. Die Datei liegt in „<Jahr>/Privat“.',
+    tun: 'Nichts – sie zählt nicht in der Praxisbuchhaltung. Haken wieder weg nimmt das zurück.', ab: 'jetzt',
+  },
   unklar: {
     name: 'Prüfen – unklar', farbe: 'preset1', farbname: 'Orange',
     wann: 'Ein PDF sieht nach Rechnung aus, kommt aber von einem Absender, der nicht in der Lieferantenliste steht – oder es ist ein Scan ohne Text. Nichts wurde abgelegt.',
@@ -67,7 +77,10 @@ export const KATEGORIEN = {
 export const FRUEHERE_NAMEN = ['Rechnung: abgelegt'];
 
 /** Kategorien des Rechnungswegs – an einer Mail steht immer nur die der aktuellen Stufe */
-export const STUFEN: string[] = [KATEGORIEN.eingegangen, KATEGORIEN.freigegeben, KATEGORIEN.lexware, KATEGORIEN.angestossen, KATEGORIEN.bezahlt].map((k) => k.name);
+export const STUFEN: string[] = [
+  KATEGORIEN.eingegangen, KATEGORIEN.freigegeben, KATEGORIEN.lexware, KATEGORIEN.angestossen, KATEGORIEN.bezahlt,
+  KATEGORIEN.abgelehnt, KATEGORIEN.privat,
+].map((k) => k.name);
 
 /** Kategorien einer Mail auf eine neue Stufe setzen; fremde Kategorien (Lillis eigene) bleiben */
 export function aufStufe(kategorien: string[], neu: string): string[] {

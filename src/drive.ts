@@ -67,6 +67,19 @@ const CHUNK_SIZE = 16 * 320 * 1024;
 export interface UploadedItem {
   id: string;
   name: string;
+  webUrl?: string;
+}
+
+/** Datei in einen anderen Ordner verschieben; ist der Name dort belegt, nummeriert OneDrive */
+export async function dateiVerschieben(
+  graph: Pick<GraphClient, 'patch'>,
+  itemId: string,
+  zielOrdnerId: string,
+  laufwerk = '/me/drive',
+): Promise<UploadedItem> {
+  return graph.patch<UploadedItem>(`${laufwerk}/items/${itemId}?@microsoft.graph.conflictBehavior=rename`, {
+    parentReference: { id: zielOrdnerId },
+  });
 }
 
 /**

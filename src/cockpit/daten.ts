@@ -97,19 +97,6 @@ export async function rechnungsstand(db: Db | undefined, anzahl = 6): Promise<Qu
   }
 }
 
-export async function rechnungsliste(db: Db | undefined, anzahl = 200): Promise<Quelle<RechnungZeile[]>> {
-  if (!db) return { stand: 'nicht-verbunden', hinweis: KEINE_DB };
-  try {
-    const { rows } = await db.query(
-      `SELECT ${ZEILE_FELDER} FROM inbound_document WHERE klasse IN ('rechnung', 'unklar') ORDER BY received_at DESC LIMIT $1`,
-      [anzahl],
-    );
-    return { stand: 'ok', daten: rows.map(zuZeile) };
-  } catch (err) {
-    return { stand: 'fehler', hinweis: `Datenbank: ${(err as Error).message}` };
-  }
-}
-
 /** "Max Mustermann KG" → "M. M." – Diskret-Modus für Kalendertitel */
 export function initialen(titel: string): string {
   const w = titel.split(/[\s,/–-]+/).filter((x) => /^\p{L}/u.test(x)).slice(0, 3);

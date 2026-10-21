@@ -22,7 +22,7 @@ export interface Kachel {
 
 export const FINANZEN: Kachel[] = [
   { key: 'finanzen.rechnungen', symbol: 'rechnung', titel: 'Rechnungs-Dashboard', text: 'Eingegangene Rechnungen, Unklares und Zahlungsstand auf einen Blick.', href: '/finanzen/rechnungen' },
-  { key: 'finanzen.freigabe', symbol: 'freigabe', titel: 'Freigabe', text: 'Rechnungen freigeben, ablehnen oder später ansehen.', spaeter: 'kommt mit Lexware (Prompt 5)' },
+  { key: 'finanzen.freigabe', symbol: 'freigabe', titel: 'Freigabe', text: 'Neue Rechnungen ansehen, freigeben, ablehnen oder zurückstellen.', href: '/finanzen/rechnungen#t-neu' },
   { key: 'finanzen.zahlungen', symbol: 'euro', titel: 'Zahlungen', text: 'Offene Zahlungen an Lieferanten und von Patienten.', spaeter: 'kommt mit Lexware-Tarif XL' },
 ];
 
@@ -191,28 +191,5 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
     ${termine}${rechnungen}${anfragen}</section>
   ${log}
 </div>`,
-  });
-}
-
-// ── Rechnungs-Dashboard ─────────────────────────────────────────────────────
-export function rechnungenSeite(
-  stand: Quelle<Rechnungsstand>,
-  liste: Quelle<RechnungZeile[]>,
-  o: { wer: string; fassung: string; skriptInline?: string },
-): string {
-  const tabelle = leer(liste, (l) => l.length
-    ? `<div class="tabelle"><table data-hilfe="rechnungen.tabelle"><thead><tr><th>Eingang</th><th>Lieferant</th><th>Rechnungsnr.</th><th class="zahlspalte">Betrag</th><th>Stand</th><th>Ablage</th></tr></thead><tbody>
-      ${l.map((z) => `<tr><td>${datum(z.eingang)}</td><td>${esc(z.lieferant ?? 'unbekannt')}</td><td>${esc(z.rechnungsnummer ?? '–')}</td>
-        <td class="zahlspalte">${z.betrag === null ? '–' : euro(z.betrag)}</td><td>${statusChip(z)}</td>
-        <td class="hint">${z.onedrivePfad ? esc(z.onedrivePfad.split('/').slice(-3).join(' / ')) : '–'}</td></tr>`).join('')}
-      </tbody></table></div>`
-    : `<p class="leer" data-hilfe="rechnungen.tabelle" tabindex="0">Noch keine Rechnungen erfasst.</p>`);
-  return seite({
-    titel: 'Rechnungs-Dashboard', aktiv: 'cockpit', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
-    inhalt: `<p class="hint"><a href="/">Cockpit</a> › Finanzen</p>
-<h1>${symbol('rechnung', { groesse: 26 })} Rechnungs-Dashboard</h1>
-<section class="tafel">${zaehlerHtml(stand)}${stand.stand === 'ok' ? `${balken(stand.daten.zaehler)}<p class="hint">Offen (eingegangen, noch nicht bezahlt): <b>${euro(stand.daten.offenerBetrag)}</b></p>` : ''}</section>
-<section class="tafel">${tabelle}</section>
-<p class="hint">Bezahlt heißt heute: Lilli hat „Rechnung: bezahlt“ in Outlook gesetzt. Mit Lexware-Tarif XL kommt der Stand aus Lexware.</p>`,
   });
 }

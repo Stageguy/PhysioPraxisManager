@@ -52,7 +52,7 @@ export interface Nachricht {
   subject?: string;
   receivedDateTime: string;
   categories?: string[];
-  from?: { emailAddress?: { address?: string } };
+  from?: { emailAddress?: { address?: string; name?: string } };
   hasAttachments?: boolean;
   internetMessageId?: string;
   '@removed'?: unknown;
@@ -149,6 +149,7 @@ interface Eintrag {
   lieferant?: string;
   onedriveItemId?: string;
   onedrivePfad?: string;
+  onedriveWebUrl?: string;
   status: 'wartet_freigabe' | 'klassifiziert';
   /** Inhalt – nur bei Rechnungen, nur bis zum Upload */
   bytes?: Uint8Array;
@@ -162,8 +163,9 @@ async function eintragen(db: Db, e: Eintrag): Promise<string | undefined> {
   const { rows } = await db.query<{ id: string }>(
     `INSERT INTO inbound_document (graph_message_id, internet_message_id, attachment_id, received_at, sender_domain,
        subject_hash, attachment_name, sha256, size, klasse, lieferant, onedrive_item_id, onedrive_path, status,
-       rechnungsnummer, betrag, rechnungsdatum, zahlstatus_quelle, archiviert_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+       rechnungsnummer, betrag, rechnungsdatum, zahlstatus_quelle, archiviert_at,
+       absender_name, absender_adresse, onedrive_web_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
      ON CONFLICT (graph_message_id, attachment_id) DO NOTHING
      RETURNING id::text`,
     [
@@ -187,6 +189,10 @@ async function eintragen(db: Db, e: Eintrag): Promise<string | undefined> {
       e.kopf?.rechnungsdatum ?? null,
       e.bezahlt ? 'altbestand' : null,
       e.bezahlt ? new Date().toISOString() : null,
+      // Absender nur bei Lieferantenrechnungen – Name und Adresse eines Patienten gehören nicht hierher
+      e.klasse === 'rechnung' ? (e.mail.from?.emailAddress?.name ?? null) : null,
+      e.klasse === 'rechnung' ? (e.mail.from?.emailAddress?.address ?? null) : null,
+      e.onedriveWebUrl ?? null,
     ],
   );
   return rows[0]?.id;
@@ -367,7 +373,7 @@ export async function rechnungseingang(graph: EingangGraph, einst: RechnungsEins
         }
         const item = await uploadFile(graph, ordnerId, name, e.bytes!, laufwerk);
         const id = await eintragen(lauf.db!, {
-          ...e, onedriveItemId: item.id, onedrivePfad: `${ordner}/${item.name}`, status: 'wartet_freigabe',
+          ...e, onedriveItemId: item.id, onedrivePfad: `${ordner}/${item.name}`, onedriveWebUrl: item.webUrl, status: 'wartet_freigabe',
         });
         await protokolliere(lauf.db!, {
           actor: ACTOR, action: 'rechnung_abgelegt', objectType: 'inbound_document', objectId: id,

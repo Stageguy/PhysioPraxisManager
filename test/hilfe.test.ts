@@ -4,9 +4,17 @@ import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import { praxisDienst, statusseite } from '../src/server.ts';
 import { HILFE, hilfeSeite, hilfeSkript } from '../src/web/hilfe.ts';
-import { cockpitSeite, rechnungenSeite } from '../src/web/cockpit.ts';
+import { cockpitSeite } from '../src/web/cockpit.ts';
+import { dashboardSeite, rechnungSeite, type KachelRechnung } from '../src/web/rechnungen.ts';
 import type { CockpitDaten } from '../src/cockpit/daten.ts';
 
+const RE: KachelRechnung = {
+  id: '7', eingang: '2026-10-20T08:00:00Z', dateiname: 'Rechnung.pdf', absenderName: 'Telekom', absenderAdresse: 'rechnung@telekom.de',
+  lieferant: 'Telekom', rechnungsnummer: 'A1', betrag: 49.95, rechnungsdatum: '2026-10-19', status: 'wartet_freigabe',
+  onedrivePfad: 'x/2026/Eingangsrechnungen/a.pdf', onedriveItemId: 'i', onedriveWebUrl: 'https://x', mailId: 'm',
+  zurueckgestellt: false, ablehnungsgrund: null, geprueftVon: null, geprueftAm: null, ort: 'Posteingang › Rechnungen',
+};
+const AUSWERTUNG = { jahr: 2026, monate: [0, 0, 0, 0, 0, 0, 0, 0, 0, 49.95, 0, 0], lieferanten: [{ name: 'Telekom', summe: 49.95 }], summe: 49.95, ohneBetrag: 0, jahre: [2026] };
 const ZEILE = { id: '1', eingang: '2026-10-20T08:00:00Z', lieferant: 'Telekom', rechnungsnummer: 'A1', betrag: 49.95, klasse: 'rechnung' as const, status: 'wartet_freigabe', onedrivePfad: 'a/b/c.pdf' };
 const STAND = { stand: 'ok' as const, daten: { zaehler: { eingegangen: 1, unklar: 0, angestossen: 0, bezahlt: 0 }, offenerBetrag: 49.95, neueste: [ZEILE] } };
 const DATEN: CockpitDaten = {
@@ -22,7 +30,9 @@ const seiten = () => [
   statusseite(PRUEFPUNKTE.map((name) => ({ name, ok: true, text: 'x' })), 'lilli@example.org', '0.0.0'),
   hilfeSeite({ wer: 'lilli@example.org', fassung: '0.0.0' }),
   cockpitSeite(DATEN, { wer: 'lilli@example.org', fassung: '0.0.0', jetzt: '10:00' }),
-  rechnungenSeite(STAND, { stand: 'ok', daten: [ZEILE] }, { wer: 'lilli@example.org', fassung: '0.0.0' }),
+  dashboardSeite({ stand: STAND, neu: [RE], privat: [{ ...RE, id: '8', status: 'privat' }], auswertung: AUSWERTUNG, liste: [RE],
+    filter: { jahr: 2026, stand: 'alle', suche: '' } }, { wer: 'lilli@example.org', fassung: '0.0.0' }),
+  rechnungSeite(RE, { wer: 'lilli@example.org', fassung: '0.0.0' }),
 ];
 const schluessel = (html: string) => [...html.matchAll(/data-hilfe="([^"]+)"/g)].map((m) => m[1]!);
 

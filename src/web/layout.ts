@@ -7,8 +7,8 @@ export const esc = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const CSS = `
-:root{--bg:#faf7f9;--fg:#2b1f28;--grau:#6d5f68;--akzent:#722e61;--ok:#2e7d4f;--fehler:#b3261e;--karte:#fff;--rand:#e6dce3}
-@media (prefers-color-scheme:dark){:root{--bg:#1b1519;--fg:#f1e9ee;--grau:#b3a5ae;--akzent:#d9a6c9;--ok:#7fd1a0;--fehler:#ff8a80;--karte:#271e24;--rand:#3d3038}}
+:root{--diagramm:#9a4a86;--bg:#faf7f9;--fg:#2b1f28;--grau:#6d5f68;--akzent:#722e61;--ok:#2e7d4f;--fehler:#b3261e;--karte:#fff;--rand:#e6dce3}
+@media (prefers-color-scheme:dark){:root{--diagramm:#c45fab;--bg:#1b1519;--fg:#f1e9ee;--grau:#b3a5ae;--akzent:#d9a6c9;--ok:#7fd1a0;--fehler:#ff8a80;--karte:#271e24;--rand:#3d3038}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
 main{max-width:760px;margin:0 auto;padding:24px 16px 72px}
@@ -103,8 +103,68 @@ a.kachel:hover,a.kachel:focus-visible{transform:translateY(-2px);box-shadow:0 6p
 .protokoll time{color:var(--grau);font-variant-numeric:tabular-nums;min-width:110px}
 .log-sym{color:var(--akzent)}
 .zahlspalte{text-align:right;font-variant-numeric:tabular-nums}
-.chip.preset5{background:#9fe0d8}.chip.preset19{background:#6fbf73}.chip.preset0{background:#f4a3a8}
-@media (max-width:900px){.cockpit{grid-template-columns:minmax(0,1fr)}.uebersicht{order:-1}}
+.chip.preset5{background:#9fe0d8}.chip.preset19{background:#6fbf73}.chip.preset0{background:#f4a3a8}.chip.preset12{background:#cfcfd4}
+/* Rechnungs-Dashboard */
+h3{font-size:15px;margin:0 0 8px}
+.umbruch{overflow-wrap:anywhere}
+.js .nur-ohne-js{display:none}
+.knopf{font:inherit;font-size:15px;display:inline-flex;gap:6px;align-items:center;justify-content:center;min-height:44px;padding:8px 16px;
+  border-radius:10px;border:1px solid var(--rand);background:var(--karte);color:var(--fg);cursor:pointer}
+.knopf.klein{min-height:32px;padding:4px 10px;font-size:13px}
+.knopf.primaer{background:var(--akzent);border-color:var(--akzent);color:var(--bg);font-weight:600}
+.knopf.warnend{border-color:var(--fehler);color:var(--fehler)}
+.knopf:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--akzent);outline-offset:2px}
+.meldung{display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:10px;margin:12px 0}
+.meldung.ok{background:color-mix(in srgb,var(--ok) 14%,transparent)}.meldung.fehler{background:color-mix(in srgb,var(--fehler) 14%,transparent)}
+.rk-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin:12px 0 20px}
+.rk{position:relative;display:flex;flex-direction:column;background:var(--karte);border:1px solid var(--rand);border-radius:14px;min-width:0}
+.rk.spaeter{opacity:.7}
+.rk-link{display:flex;flex-direction:column;gap:6px;padding:14px 14px 8px;color:var(--fg);text-decoration:none;border-radius:14px 14px 0 0}
+.rk-link:hover .rk-datei{text-decoration:underline}
+.rk-kopf{display:flex;gap:8px;align-items:flex-start;color:var(--akzent)}
+.rk-datei{color:var(--fg);overflow-wrap:anywhere}
+.rk-zeile{display:flex;justify-content:space-between;gap:8px;font-size:15px}
+.rk-meta{font-size:13px;color:var(--grau);overflow-wrap:anywhere}
+.rk-link .marke{align-self:flex-start}
+.dash-kopf{margin-top:28px}
+.rk-ort{position:absolute;left:10px;right:10px;top:-12px;transform:translateY(-100%);z-index:5;display:flex;gap:6px;align-items:center;
+  background:var(--fg);color:var(--bg);font-size:13px;padding:6px 10px;border-radius:8px;visibility:hidden;opacity:0;transition:opacity .12s}
+.rk:hover .rk-ort,.rk:focus-within .rk-ort{visibility:visible;opacity:1}
+@media (hover:none){.rk-ort{position:static;transform:none;visibility:visible;opacity:1;background:none;color:var(--grau);padding:0 14px}}
+.rk-privat{display:flex;gap:10px;align-items:center;padding:8px 14px 12px;margin-top:auto;border-top:1px solid var(--rand)}
+.rk-privat label{display:flex;gap:8px;align-items:center;min-height:32px;cursor:pointer}
+.rk-privat input[type=checkbox]{width:20px;height:20px;accent-color:var(--akzent)}
+.privatliste summary{cursor:pointer;color:var(--grau);min-height:32px}
+.filter{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:0 0 12px}
+.filter label{display:flex;flex-direction:column;font-size:13px;color:var(--grau);gap:4px}
+.filter label.suche{flex:1 1 220px}
+.filter select,.filter input,.korrektur input,.ablehnen textarea{font:inherit;font-size:15px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:8px 10px;min-height:40px}
+.diagramme{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;margin-bottom:16px}
+.diagramm{width:100%;height:auto;display:block}
+.diagramm .raster{stroke:var(--rand);stroke-width:1}.diagramm .basis{stroke:var(--grau);stroke-width:1}
+.diagramm .achse{fill:var(--grau);font-size:11px;text-anchor:middle}.diagramm .achse.ende{text-anchor:end}
+.diagramm .wert{fill:var(--fg);font-size:12px;text-anchor:middle;font-weight:600}
+.diagramm .marke-d{fill:var(--diagramm)}.diagramm .treffer{fill:transparent}
+.diagramm .ziel:hover .marke-d{opacity:.8}
+.balkenliste{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.balkenliste li{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:14px}
+.bl-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bl-spur{display:block;height:14px}
+.bl-fuellung{display:block;height:14px;background:var(--diagramm);border-radius:0 4px 4px 0;min-width:2px}
+.bl-wert{font-variant-numeric:tabular-nums;color:var(--fg)}
+.ansicht{display:grid;grid-template-columns:minmax(0,3fr) minmax(300px,2fr);gap:16px;align-items:start;margin-top:12px}
+.pdf-rahmen{background:var(--karte);border:1px solid var(--rand);border-radius:14px;overflow:hidden;min-height:200px}
+.pdf-rahmen iframe{display:block;width:100%;height:80vh;border:0;background:#fff}
+.angaben{display:grid;gap:12px;min-width:0}
+.angaben h2{font-size:17px;margin:0 0 10px}
+.liste-dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin:0}
+.liste-dl dt{color:var(--grau);font-size:13px;padding-top:2px}.liste-dl dd{margin:0;overflow-wrap:anywhere}
+.links{display:flex;flex-wrap:wrap;gap:6px 16px;margin:12px 0 0}.links a{display:inline-flex;gap:6px;align-items:center;min-height:32px}
+.knopfreihe{display:flex;gap:8px;flex-wrap:wrap}.knopfreihe form{margin:0}
+.ablehnen{display:grid;gap:8px;margin-top:12px}.ablehnen label,.korrektur label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--grau)}
+.korrektur{display:grid;gap:10px}
+@media (max-width:900px){.cockpit{grid-template-columns:minmax(0,1fr)}.uebersicht{order:-1}
+  .diagramme,.ansicht{grid-template-columns:minmax(0,1fr)}.pdf-rahmen iframe{height:60vh}}
 @media (max-width:640px){th,td{padding:6px}.hilfe-felder{grid-template-columns:1fr}.hilfe-felder dt{padding-top:6px}
   .zaehler{grid-template-columns:repeat(2,1fr)}.kacheln{grid-template-columns:1fr}.protokoll time{min-width:auto}}
 `;
@@ -126,7 +186,7 @@ export function seite(o: {
     .map(([key, href, text]) =>
       `<a href="${href}" data-hilfe="menue.${key}"${o.aktiv === key ? ' aria-current="page"' : ''}>${text}</a>`)
     .join('');
-  const skript = o.skriptInline !== undefined ? `<script>${o.skriptInline}</script>` : '<script src="/hilfe.js"></script>';
+  const skript = o.skriptInline !== undefined ? `<script>${o.skriptInline}</script>` : '<script src="/hilfe.js"></script><script src="/praxis.js"></script>';
   return `<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(o.titel)}</title>

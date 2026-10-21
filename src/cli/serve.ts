@@ -11,7 +11,9 @@ import { ALLE_SCOPES, createTokenProvider } from '../auth.ts';
 import { loadEnv } from '../config.ts';
 import { GraphClient } from '../graph.ts';
 import { verbindungPruefen } from '../pruefung.ts';
-import { cockpitDaten, rechnungsliste, rechnungsstand } from '../cockpit/daten.ts';
+import { cockpitDaten } from '../cockpit/daten.ts';
+import { ladeEinstellungen } from '../einstellungen.ts';
+import { rechnungsDienst } from '../rechnungen/dienst.ts';
 import { migriere, verbinde } from '../db/index.ts';
 import { praxisDienst } from '../server.ts';
 
@@ -52,7 +54,7 @@ const dienst = praxisDienst({
   pruefen: () => verbindungPruefen(graph, token),
   angemeldet: () => token().then(() => true, () => false),
   cockpit: ({ namenZeigen }) => cockpitDaten({ db, graph, namenZeigen }),
-  rechnungen: async () => ({ stand: await rechnungsstand(db), liste: await rechnungsliste(db) }),
+  rechnungen: db ? rechnungsDienst({ db, graph, laufwerk: (await ladeEinstellungen()).rechnungen.laufwerk }) : undefined,
 });
 
 // Nur 127.0.0.1: von außen ist der Dienst ausschließlich über tailscale serve erreichbar

@@ -67,6 +67,8 @@ Neue Ideen bekommen eine W-Nummer und werden sofort mit den Prompts abgeglichen.
 | W47 | Über Tailscale anzeigen; später umhängen – ist der eigene Praxis-Tailnet jetzt nötig? | – | beantwortet: N27 |
 | W48 | Browserprüfungen wie in mondre (nicht Chrome) | – | ✅ Prüfbrowser übernommen: WebKit im Container am Server |
 | W49 | Bis auf Weiteres alles im mondre-Tailnet; später mit Lilli ihren eigenen Tailscale-Account anlegen, alles umziehen und im mondre-Tailnet löschen | – | entschieden 21.10.2026 (E4, Umzugs-Checkliste §5a) |
+| W50 | Rechnungs-Dashboard ausbauen: Freigabe; Auswertung & Suche; neue Rechnungen als Kacheln mit Dateiname, Eingang (Mail-Datum), Absender; beim Darüberfahren der Ort der Mail im Postfach; Haken „privat“ (nicht im Firmenkontext verbuchen); Klick öffnet PDF-Viewer | 5, 10 → **Prompt 15** | ✅ 0.3.0 gebaut (21.10.2026), nur mit Test- und Beispieldaten geprüft (W51) |
+| W51 | Noch nicht das Postfach durchsuchen und keine Echtdaten einbinden | – | eingehalten: Datenbank am Server leer, kein Lauf gegen das Postfach |
 | W37 | Hilfeseite, die Kategorien und spätere Funktionen erklärt; Rechtsklick-Erklärungen an Schaltflächen und Eingabefeldern wie in den mondre-Projekten | 10 | ✅ 20.10.2026: `/hilfe`, `/hilfe.js`, Vorschau `npm run hilfe:vorschau` |
 | W36 | Postfach durchlesen: wie viele Mails enthalten Rechnungen, die für das Geschäftsjahr 2026 relevant sind? | 4 | ✅ gezählt 20.10.2026, N21 |
 
@@ -247,7 +249,9 @@ Status: ✅ erledigt · ▶ als Nächstes · ⏳ wartet (auf Entscheidung oder V
 | A11a | PostgreSQL im Namespace `praxis` auf `strato-dev` (k3s) | A09a | ✅ 20.10.2026, Migrationen 001+002 beim Start |
 | A12 | Eingangsrechnungen im Betrieb: Zielordner festlegen, Zeitplaner (k3s-CronJob), Outlook-Regel für den Ordner „Rechnungen“ | W3, Prompt 4 | ○ nach A06a, A08, A11a |
 | A13 | Lexware: Tarif XL, technischer Benutzer, API-Schlüssel (Lilli) | W9, Prompt 5, N12 | ⏳ Lilli |
-| A14 | Freigabe im Cockpit + Beleg-Upload nach Lexware | W3, Prompt 5 | ○ nach A12, A13 |
+| A14 | Freigabe (Freigeben/Ablehnen/Später, Korrektur, privat) im Rechnungs-Dashboard | W3, W50, Prompt 15 | ✅ 0.3.0 |
+| A14d | Beleg-Upload nach Lexware bei „Freigeben“ | Prompt 5 | ⏳ A13 (Tarif XL) |
+| A14e | Outlook-Kategorien „Rechnung: abgelehnt“ und „Rechnung: privat“ anlegen (`npm run kategorien -- --ausfuehren`) | W50 | ⏳ wartet auf Christians Go (W51) |
 | A14a | Zahlungsstand: Lexware-Abgleich (Lösung 3) und Übergang über Outlook, bezahlt → Exchange-Archiv; Kopfdaten (Rechnungsnummer, Betrag, Datum) beim Eingang | W38, W40–W42, N24, N26 | ✅ gebaut 20.10.2026, getestet (Attrappen), nie gegen Postfach oder Lexware gelaufen |
 | A14b | Lexware-Abgleich im Betrieb: Schlüssel eintragen, Zeitplaner alle 15 Min., später Webhook `payment.changed` über Tailscale Funnel | N26 | ⏳ A13 (Tarif XL) |
 | A14c | Übernahme des Altbestands mit Lilli: Stichtag „bezahlt bis“ klären, dann `rechnungen:uebernahme` | N26, W42 | ⏳ Fragen an Lilli Nr. 1, Lieferantenliste (Nr. 2) |

@@ -365,6 +365,42 @@ Tests: Quartalsgrenzen (inkl. Jahreswechsel), Zwischen- + Abschlussrechnung ohne
 
 ---
 
+## Prompt 15 – Rechnungs-Dashboard (Stand 21.10.2026, ersetzt die Rechnungsteile von Prompt 5 und 10)
+
+```text
+Baue das Rechnungs-Dashboard des Praxisdienstes (/finanzen/rechnungen) aus – TypeScript, server-
+gerendertes HTML wie das Cockpit, Zugang über Tailscale (requirements N27), keine Inline-Skripte.
+Datenbasis: inbound_document (Prompt 4, Migrationen 001/002). Lexware ist noch nicht da (Tarif XL):
+alles muss ohne Lexware funktionieren; der Upload nach Lexware hängt sich später an „Freigeben“.
+
+1. Kacheln „Neue Rechnungen“: jede Rechnung mit Stand eingegangen/wartet_freigabe als Kachel mit
+   Dateiname des Anhangs, Eingang (Datum der Mail), Absender (Name und Adresse), Lieferant, Betrag.
+   - Fährt man mit der Maus darüber (oder fokussiert per Tastatur), zeigt die Kachel, wo die Mail im
+     Postfach liegt (Ordnerpfad, z. B. „Posteingang › Rechnungen › Verarbeitet“) – live aus Graph.
+   - Haken „privat“: die Rechnung gehört nicht in die Praxisbuchhaltung. Stand „privat“, Datei nach
+     01 Finanzen/<Jahr>/Privat, Mail-Kategorie „Rechnung: privat“, raus aus Summen und Freigabe.
+     Haken wieder weg → zurück nach Eingangsrechnungen, Stand wie vorher. Protokolliert.
+   - Klick auf die Kachel öffnet die Rechnungsansicht.
+2. Rechnungsansicht (/finanzen/rechnungen/<id>): PDF-Viewer mit dem Rechnungs-PDF (aus OneDrive über
+   den Dienst gestreamt, nie zwischengespeichert), daneben die Angaben und die Freigabe:
+   - Freigeben | Ablehnen (Grund Pflicht) | Später. Freigeben → Stand freigegeben, Kategorie
+     „Rechnung: freigegeben“. Ablehnen → Stand abgelehnt, Datei nach Eingangsrechnungen/Abgelehnt,
+     Kategorie „Rechnung: abgelehnt“. Später → zurückgestellt, Kachel rückt nach hinten.
+   - Lieferant, Rechnungsnummer, Betrag, Rechnungsdatum korrigierbar (wichtig für die Zuordnung zu
+     Lexware, N26). Wer was wann entschieden hat: reviewed_by/reviewed_at + audit_event.
+   - Am iPhone: PDF in voller Größe öffnen (Safari zeigt PDFs im Rahmen nur einseitig).
+3. Auswertung & Suche: Summen je Monat (Säulen) und je Lieferant (Balken) für ein gewähltes Jahr,
+   ohne privat und abgelehnt; Filter nach Stand und Jahr, Suche über Lieferant, Dateiname,
+   Rechnungsnummer, Absender; Tabelle mit Link „in OneDrive öffnen“.
+4. Sicherheit: Aktionen nur per POST, nur same-origin (Origin/Sec-Fetch-Site prüfen); keine
+   Patientendaten (die Tabelle enthält nur Lieferantenrechnungen); Protokoll ohne Inhalte.
+5. Hilfe: jede Schaltfläche, jedes Feld mit data-hilfe und den fünf Fragen; Hilfe-Vorschau neu.
+6. Tests: Aktionen (Statuswechsel, Datei-Verschiebung, Kategorien, Protokoll, Rückweg bei privat),
+   Origin-Prüfung, Filter/Suche, Summen; Sichtprüfung mit dem Prüfbrowser (WebKit, 393/1440 px).
+```
+
+---
+
 ## Ideen-Backlog (wird laufend ergänzt)
 
 | # | Idee / Feature | Status | Umsetzung |
