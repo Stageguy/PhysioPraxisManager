@@ -65,6 +65,9 @@ export const HILFE: Record<string, HilfeEintrag> = {
     bezug: 'Alles rund um Patienten: Anfragen, Patientenweg, Rezepte, Mails.', aendert: NICHTS,
     ergebnis: 'Darunter die Seiten dieses Bereichs. Grau heißt: kommt später.', rueckweg: KEIN_RUECKWEG },
   ...Object.fromEntries([...FINANZEN.map((k) => kachel('Finanzen', k)), ...PATIENTEN.map((k) => kachel('Patienten', k))]),
+  'bereich.uebersicht': { seite: 'Cockpit', titel: 'Heute im Blick', loest_aus: AUSKUNFT,
+    bezug: 'Was heute wichtig ist: Termine, neue Rechnungen, Anfragen von Patienten.', aendert: NICHTS,
+    ergebnis: 'Darunter drei Tafeln; am iPhone stehen sie ganz oben, vor Finanzen und Patienten.', rueckweg: KEIN_RUECKWEG },
   'uebersicht.termine': { seite: 'Cockpit', titel: 'Termine heute', loest_aus: AUSKUNFT,
     bezug: 'Der Kalender von praxis@lilli-nebel.de, heute von 0 bis 24 Uhr.', aendert: NICHTS,
     ergebnis: 'Oben die Tagesleiste (jeder Block ein Termin, die rote Linie ist jetzt), darunter die Liste. Namen erscheinen nur als Initialen – für den Fall, dass jemand mit auf den Bildschirm schaut.',
@@ -272,7 +275,7 @@ ausgewählten Element. Umschalt + Rechtsklick öffnet das normale Browser-Menü.
 <h2>Das Cockpit</h2>
 <div class="karte">
 <p>Das Cockpit ist die Startseite. <b>Links</b> stehen die beiden Bereiche <b>Finanzen</b> und <b>Patienten</b>
-mit ihren Seiten – farbige Kacheln kannst du öffnen, graue kommen später. <b>Rechts</b> die Übersicht:
+mit ihren Seiten – farbige Kacheln kannst du öffnen, graue kommen später. <b>Rechts</b> „Heute im Blick“:
 <b>Termine heute</b> (als Leiste und Liste, Namen nur als Initialen), <b>neue Rechnungseingänge</b> und
 <b>Terminanfragen</b> – jede Anfrage trägt das Symbol ihres Wegs: E-Mail, WhatsApp, Telefon, Website,
 Online-Buchung. <b>Unten</b> steht, was sich in der letzten Woche geändert hat.</p>

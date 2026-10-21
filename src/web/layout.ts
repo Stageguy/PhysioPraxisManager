@@ -61,7 +61,8 @@ main.breit{max-width:1240px}
 .kopf h1{margin:0}.kopf p{margin:2px 0 0;color:var(--grau)}
 .cockpit{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:20px;margin-top:16px;align-items:start}
 .bereiche{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;min-width:0}
-.bereich h2,.tafel h2{display:flex;gap:8px;align-items:center;margin:0 0 12px}
+.bereich h2,.tafel h2,.spaltenkopf{display:flex;gap:8px;align-items:center;margin:0 0 12px}
+.uebersicht>.spaltenkopf{margin-bottom:-8px}
 .kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .kachel{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:14px;background:var(--karte);border:1px solid var(--rand);
   color:var(--fg);text-decoration:none;min-height:96px;transition:transform .12s,box-shadow .12s}
