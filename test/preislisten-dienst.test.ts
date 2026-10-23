@@ -98,3 +98,25 @@ test('Positionsseite und Zuordnung ändern', async () => {
   assert.match(ziel(await post({ aktion: 'beihilfe', id, position_id: pos, beihilfe_position_id: kandidat, notiz: 'geprüft', zurueck: `/preislisten/${id}/positionen/${pos}` })), /Zuordnung gespeichert/);
   assert.match(await seite(`/preislisten/${id}/positionen/${pos}`), /Nr\. <b>10<\/b>/);
 });
+
+test('Speichern fragt nach einem neuen Muster – nur bei Abweichung; neues Muster, Name doppelt, Nein', async () => {
+  const gkv = (await db.query<{ id: string }>("SELECT id::text FROM preisquelle WHERE art = 'gkv'")).rows[0]!.id;
+  const id = /\/preislisten\/(\d+)\//.exec(ziel(await post({ aktion: 'anlegen', name: 'M', grundlage: 'gkv', gkv_id: gkv, standard_faktor: '1,2', zurueck: '/preislisten/neu' })))![1]!;
+  const nummern = Array.from({ length: 25 }, (_, i) => `205${String(i).padStart(2, '0')}`);
+  const felder = (preis20500: string) => {
+    const f: Record<string, string | string[]> = { aktion: 'speichern', id, name: 'M', standard_faktor: '1,2', z_nummer: nummern, zurueck: `/preislisten/${id}/bearbeiten` };
+    for (const n of nummern) Object.assign(f, { [`z_uebernehmen_${n}`]: '1', [`z_faktor_${n}`]: '1,2', [`z_preis_${n}`]: '' });
+    f.z_preis_20500 = preis20500;
+    return f;
+  };
+  assert.ok(!/muster_frage/.test(ziel(await post(felder('')))), 'ohne Muster keine Frage');
+  assert.match(ziel(await post({ aktion: 'vorlage', id, vorlage_name: 'Grundmuster', zurueck: `/preislisten/${id}/bearbeiten` })), /Muster „Grundmuster“ gespeichert/);
+  assert.ok(!/muster_frage/.test(ziel(await post(felder('')))), 'unverändert zum Muster: keine Frage');
+  const mitFrage = ziel(await post(felder('99,00')));
+  assert.match(mitFrage, /bearbeiten\?muster_frage=1&meldung=Gespeichert/);
+  assert.match(await seite(`/preislisten/${id}/bearbeiten?muster_frage=1`), /Neues Muster speichern\?.*Grundmuster/s);
+  assert.match(ziel(await post({ aktion: 'muster_neu', id, muster_name: 'Grundmuster', zurueck: `/preislisten/${id}/bearbeiten?muster_frage=1` })), /fehler=Ein Muster „Grundmuster“ gibt es schon/);
+  assert.match(ziel(await post({ aktion: 'muster_neu', id, muster_name: 'Grundmuster 2', zurueck: `/preislisten/${id}/bearbeiten` })), /Neues Muster „Grundmuster 2“/);
+  assert.ok(!/Neues Muster speichern\?/.test(await seite(`/preislisten/${id}/bearbeiten?muster_frage=1`)), 'jetzt gleich dem neuen Muster');
+  assert.match(ziel(await post({ aktion: 'muster_nein', id })), /Muster bleibt/);
+});

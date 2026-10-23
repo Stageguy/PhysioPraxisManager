@@ -208,6 +208,13 @@ td.mitte{text-align:center}td.mitte input{width:20px;height:20px;accent-color:va
 .zahl-eingabe{width:7.5em;text-align:right;font:inherit;font-variant-numeric:tabular-nums;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:6px 8px;min-height:36px}
 .warn{color:var(--fehler)}
 .kuerzel{white-space:nowrap}
+label.haken{flex-direction:row!important;align-items:center;gap:8px;color:var(--fg)!important;font-size:15px!important;min-height:36px;cursor:pointer}
+label.haken input{width:20px;height:20px;min-height:0;accent-color:var(--akzent)}
+.faktor-alle{display:grid;gap:6px}
+.hinweis-muster{border:1px solid var(--akzent);background:color-mix(in srgb,var(--akzent) 8%,var(--karte));border-radius:12px;padding:12px 16px;margin:12px 0}
+.hinweis-muster p{margin:0 0 10px}
+.vorlage-form label{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--grau)}
+.vorlage-form select{font:inherit;font-size:15px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:6px 8px;min-height:36px}
 .editor-kopf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:16px;align-items:start;margin-bottom:12px}
 .editor-kopf label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--grau)}
 .faktor-alle .zeile{display:flex;gap:8px;align-items:center}.faktor-alle input{width:7em}

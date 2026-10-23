@@ -57,7 +57,7 @@ function kachel(l: Preisliste): string {
       <dl class="liste-dl klein">
         <dt>Grundlage</dt><dd>${grundlage(l)}</dd>
         <dt>Beihilfe</dt><dd>${quelleText(l.beihilfe)}</dd>
-        ${l.vorlage ? `<dt>Vorlage</dt><dd>${esc(l.vorlage.name)}</dd>` : ''}
+        ${l.vorlage ? `<dt>Muster</dt><dd>${esc(l.vorlage.name)}</dd>` : ''}
         <dt>Erstellt</dt><dd>${datum(l.erstelltAm)}</dd>
         <dt>Freigegeben</dt><dd>${l.freigegebenAm ? datum(l.freigegebenAm) : 'noch nicht'}</dd>
         <dt>Positionen</dt><dd>${l.uebernommen} von ${l.positionen} übernommen</dd>
@@ -81,7 +81,7 @@ export function uebersichtSeite(d: UebersichtDaten, o: Rahmen): string {
     ? `<div class="hinweis-neu" role="status" data-hilfe="preislisten.neu-hinweis" tabindex="0">
         <p><span class="punkt-rot" aria-hidden="true"></span><b>Neue Grundlage verfügbar</b></p>
         <ul>${d.neu.map((q) => `<li>${esc(q.titel)}: <b>${esc(q.version)}</b> <span class="hint">(abgerufen ${datum(q.abgerufenAm)})</span>
-          ${q.art === 'gkv' ? ` · <a href="/preislisten/neu?gkv=${q.id}">Neue Preisliste daraus</a>` : ''}${q.art === 'gebueth' ? ' · <span class="hint">neue Auflage: Buch bestellen, Faktoren in einer Vorlage nachtragen</span>' : ''}</li>`).join('')}</ul>
+          ${q.art === 'gkv' ? ` · <a href="/preislisten/neu?gkv=${q.id}">Neue Preisliste daraus</a>` : ''}${q.art === 'gebueth' ? ' · <span class="hint">neue Auflage: Buch bestellen, Faktoren in einem Muster nachtragen</span>' : ''}</li>`).join('')}</ul>
         ${form('gesehen', '<button class="knopf klein" data-hilfe="preislisten.gesehen">Als gesehen markieren</button>', { klasse: 'nur-desktop' })}
       </div>`
     : '';
@@ -100,7 +100,7 @@ ${d.listen.length ? `<div class="pk-raster">${d.listen.slice(0, 3).map(kachel).j
 ${d.listen.length > 3 ? `<p><a href="/preislisten/bearbeiten">Alle ${d.listen.length} Preislisten</a></p>` : ''}
 <h2 class="spaltenkopf dash-kopf">Grundlagen</h2>
 <ul class="quellen tafel">${quellen}</ul>
-<p class="hint">Die GebüTh ist ein Buch (Buchner &amp; Partner, Kiel) ohne Download. Ihre Empfehlungen trägt man einmal in eine Vorlage ein; nachts wird nur geprüft, ob eine neue Auflage erschienen ist. GKV-Liste und Beihilfe-Höchstbeträge holt das System selbst – jede Nacht um 3 Uhr.</p>`,
+<p class="hint">Die GebüTh ist ein Buch (Buchner &amp; Partner, Kiel) ohne Download. Ihre Empfehlungen trägt man einmal in ein Muster ein; nachts wird nur geprüft, ob eine neue Auflage erschienen ist. GKV-Liste und Beihilfe-Höchstbeträge holt das System selbst – jede Nacht um 3 Uhr.</p>`,
   });
 }
 
@@ -133,9 +133,10 @@ ${d.gkv.length ? '' : '<p class="meldung fehler">Noch keine GKV-Fassung abgerufe
       <select name="basis_id">${opt(d.listen.map((l) => ({ id: l.id, text: `${l.name} – ${STATUS_TEXT(l)[0]}` })), d.vorwahl.basis)}</select></label>
   </fieldset>
   <label>Beihilfe-Höchstbeträge zum Vergleich<select name="beihilfe_id" data-hilfe="preisliste.feld.beihilfe"><option value="">keine</option>${opt(d.beihilfe.map((q) => ({ id: q.id, text: q.version })), d.beihilfe[0]?.id)}</select></label>
-  <label>Vorlage übernehmen<select name="vorlage_id" data-hilfe="preisliste.feld.vorlage"><option value="">keine – alle Positionen übernehmen</option>${opt(d.vorlagen.map((v) => ({ id: v.id, text: `${v.name}${v.standardFaktor ? ` (Faktor ${faktorText(v.standardFaktor)})` : ''}` })))}</select></label>
-  <label>Allgemeiner Faktor auf den GKV-Preis (leer lassen = von Hand)<input name="standard_faktor" inputmode="decimal" placeholder="z. B. 1,3" data-hilfe="preisliste.feld.faktor"></label>
-  ${d.gebueth ? `<p class="hint">GebüTh: ${esc(d.gebueth.version)} – ihre Faktoren kommen über eine Vorlage.</p>` : ''}
+  <label>Muster übernehmen (Haken und Faktoren)<select name="vorlage_id" data-hilfe="preisliste.feld.vorlage"><option value="">keins – alle Positionen übernehmen</option>${opt(d.vorlagen.map((v) => ({ id: v.id, text: `${v.name}${v.standardFaktor ? ` (Faktor ${faktorText(v.standardFaktor)})` : ''}${v.aufrunden ? ' · aufgerundet' : ''}` })), mitBasis ? undefined : d.vorlagen[0]?.id)}</select></label>
+  <label>Allgemeiner Faktor auf den GKV-Preis (leer lassen = wie im Muster bzw. von Hand)<input name="standard_faktor" inputmode="decimal" placeholder="z. B. 1,3" data-hilfe="preisliste.feld.faktor"></label>
+  <label class="haken"><input type="checkbox" name="aufrunden" value="1" data-hilfe="preisliste.feld.aufrunden"> Eigene Preise auf volle Euro aufrunden <span class="hint">(oder wie im Muster)</span></label>
+  ${d.gebueth ? `<p class="hint">GebüTh: ${esc(d.gebueth.version)} – ihre Faktoren kommen über ein Muster.</p>` : ''}
   <button class="knopf primaer" data-hilfe="preisliste.anlegen">Preisliste anlegen</button>
 </form>`,
   });
@@ -168,8 +169,27 @@ function zweiteZeile(p: Position): string {
   return `${teile.filter(Boolean).join(' · ')}${teile.some(Boolean) ? ' · ' : ''}${bh}${ueber}`;
 }
 
-export function editorSeite(l: Preisliste, pos: Position[], o: Rahmen): string {
+export function editorSeite(
+  l: Preisliste,
+  pos: Position[],
+  o: Rahmen & { muster?: Vorlage[]; abweichung?: { muster: Vorlage; unterschiede: number } },
+): string {
   const fest = l.status !== 'entwurf';
+  const heute = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
+  // Nach dem Speichern: weicht die Liste vom Muster ab, fragen, ob es ein neues Muster geben soll
+  const frage = o.abweichung && !fest
+    ? `<div class="hinweis-muster" role="alertdialog" aria-labelledby="muster-frage" data-hilfe="preisliste.muster-frage" tabindex="0">
+        <p id="muster-frage"><b>Neues Muster speichern?</b> Die Preisliste weicht an ${o.abweichung.unterschiede} Stelle(n) vom Muster „${esc(o.abweichung.muster.name)}“ ab (Haken, Faktoren, allgemeiner Faktor oder Aufrunden).</p>
+        <div class="knopfreihe">
+          ${form('muster_neu', `<input name="muster_name" value="${esc(`${o.abweichung.muster.name} (${heute})`)}" maxlength="120" required aria-label="Name des neuen Musters"><button class="knopf primaer" data-hilfe="preisliste.muster-neu">Als neues Muster speichern</button>`, { id: l.id, zurueck: `/preislisten/${l.id}/bearbeiten?muster_frage=1`, klasse: 'inline vorlage-form' })}
+          ${form('muster_aktualisieren', `<button class="knopf" data-hilfe="preisliste.muster-aktualisieren">Muster „${esc(o.abweichung.muster.name)}“ aktualisieren</button>`, { id: l.id, zurueck: `/preislisten/${l.id}/bearbeiten` })}
+          ${form('muster_nein', '<button class="knopf" data-hilfe="preisliste.muster-nein">Nein, Muster lassen</button>', { id: l.id, zurueck: `/preislisten/${l.id}/bearbeiten` })}
+        </div>
+      </div>`
+    : '';
+  const hakenAusMuster = !fest && o.muster?.length
+    ? form('muster_haken', `<label>Haken aus Muster<select name="vorlage_id" data-hilfe="preisliste.muster-anwenden">${o.muster.map((m) => `<option value="${m.id}"${m.id === l.vorlage?.id ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label><button class="knopf klein">übernehmen</button>`, { id: l.id, zurueck: `/preislisten/${l.id}/bearbeiten`, klasse: 'inline vorlage-form nur-desktop' })
+    : '';
   const zeilen = pos.map((p) => `<tr data-href="/preislisten/${l.id}/positionen/${p.id}" data-basis="${p.gkvPreis ?? ''}"${p.uebernehmen ? '' : ' class="ab"'}>
     <td class="mitte"><input type="hidden" name="z_nummer" value="${esc(p.nummer)}"><input type="checkbox" name="z_uebernehmen_${esc(p.nummer)}" value="1"${p.uebernehmen ? ' checked' : ''}${fest ? ' disabled' : ''} data-hilfe="preisliste.uebernehmen" aria-label="${esc(p.nummer)} übernehmen"></td>
     <td><b>${esc(p.nummer)}</b><br><span class="hint kuerzel">${esc(p.kuerzel ?? '')}</span></td>
@@ -180,7 +200,7 @@ export function editorSeite(l: Preisliste, pos: Position[], o: Rahmen): string {
   </tr>`).join('');
   return seite({
     titel: `Preisliste ${l.name}`, aktiv: 'preislisten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
-    inhalt: `${kopfzeile(esc(l.name), 'euro', ` › <a href="/preislisten/bearbeiten">Bearbeiten</a>`)}${meldungen(o)}
+    inhalt: `${kopfzeile(esc(l.name), 'euro', ` › <a href="/preislisten/bearbeiten">Bearbeiten</a>`)}${meldungen(o)}${frage}
 ${fest ? `<p class="meldung ok">${symbol('schloss', { groesse: 18 })} Diese Preisliste ist ${STATUS_TEXT(l)[0]} und lässt sich nicht mehr ändern. <a href="/preislisten/neu?basis=${l.id}">Als neue Preisliste kopieren</a></p>` : ''}
 <form method="post" action="/preislisten/aktion" class="editor" id="editor">
   <input type="hidden" name="aktion" value="speichern"><input type="hidden" name="id" value="${l.id}"><input type="hidden" name="zurueck" value="/preislisten/${l.id}/bearbeiten">
@@ -189,12 +209,14 @@ ${fest ? `<p class="meldung ok">${symbol('schloss', { groesse: 18 })} Diese Prei
     <dl class="liste-dl klein" data-hilfe="preisliste.kopfdaten" tabindex="0">
       <dt>Grundlage</dt><dd>${grundlage(l)}${l.gkv ? ` · <a href="/preislisten/quelle/${l.gkv.id}/original" target="_blank" rel="noopener">Original</a>` : ''}</dd>
       <dt>Beihilfe</dt><dd>${quelleText(l.beihilfe)}</dd>
-      <dt>Vorlage</dt><dd>${l.vorlage ? esc(l.vorlage.name) : 'keine'}</dd>
+      <dt>Muster</dt><dd>${l.vorlage ? esc(l.vorlage.name) : 'keins'}</dd>
       <dt>Erstellt</dt><dd>${datum(l.erstelltAm)}${l.erstelltVon ? ` von ${esc(l.erstelltVon)}` : ''} <span class="hint">(fest)</span></dd>
       <dt>Status</dt><dd>${statusChip(l)}</dd>
     </dl>
-    <label class="faktor-alle">Allgemeiner Faktor<span class="zeile"><input name="standard_faktor" value="${faktorText(l.standardFaktor)}" inputmode="decimal" data-faktor-standard${fest ? ' disabled' : ''} data-hilfe="preisliste.feld.faktor">
+    <div class="faktor-alle"><label>Allgemeiner Faktor<span class="zeile"><input name="standard_faktor" value="${faktorText(l.standardFaktor)}" inputmode="decimal" data-faktor-standard${fest ? ' disabled' : ''} data-hilfe="preisliste.feld.faktor">
       <button type="button" class="knopf klein nur-desktop" data-faktor-alle${fest ? ' disabled' : ''} data-hilfe="preisliste.faktor-alle">auf alle übernommenen anwenden</button></span></label>
+      <label class="haken" data-hilfe="preisliste.aufrunden"><input type="checkbox" name="aufrunden" value="1" data-aufrunden${l.aufrunden ? ' checked' : ''}${fest ? ' disabled' : ''}> Aufrunden <span class="hint">auf volle Euro</span></label>
+    </div>
   </div>
   <div class="tabelle scrollliste editor-tabelle" data-hilfe="preisliste.tabelle"><table>
     <thead><tr><th>Übern.</th><th>ID · Kürzel</th><th>Position</th><th class="zahlspalte">GKV-Preis</th><th class="zahlspalte">Faktor</th><th class="zahlspalte">Eigener Preis</th></tr></thead>
@@ -204,12 +226,13 @@ ${fest ? `<p class="meldung ok">${symbol('schloss', { groesse: 18 })} Diese Prei
     <a class="knopf" href="/preislisten/${l.id}/bearbeiten" data-hilfe="preisliste.verwerfen">Verwerfen</a>
   </div>`}
 </form>
+${hakenAusMuster}
 ${fest ? '' : `<div class="knopfreihe nur-desktop editor-aktionen">
   ${form('freigeben', `<button class="knopf" data-hilfe="preisliste.freigeben">${symbol('freigabe', { groesse: 18 })} Freigeben</button>`, { id: l.id, zurueck: `/preislisten/${l.id}/bearbeiten` })}
-  ${form('vorlage', `<input name="vorlage_name" placeholder="Name der Vorlage" maxlength="120" required data-hilfe="preisliste.vorlage-name"><button class="knopf" data-hilfe="preisliste.vorlage">Als Vorlage speichern</button>`, { id: l.id, zurueck: `/preislisten/${l.id}/bearbeiten`, klasse: 'inline vorlage-form' })}
+  ${form('vorlage', `<input name="vorlage_name" placeholder="Name des Musters" maxlength="120" required data-hilfe="preisliste.vorlage-name"><button class="knopf" data-hilfe="preisliste.vorlage">Als Muster speichern</button>`, { id: l.id, zurueck: `/preislisten/${l.id}/bearbeiten`, klasse: 'inline vorlage-form' })}
   ${form('loeschen', `<button class="knopf warnend" data-hilfe="preisliste.loeschen">${symbol('kreuz', { groesse: 18 })} Löschen</button>`, { id: l.id, zurueck: `/preislisten/${l.id}/bearbeiten` })}
 </div>`}
-<p class="hint">Faktor und eigener Preis rechnen sich gegenseitig um (Grundlage: GKV-Preis). Beim Speichern zählt der Preis; der Faktor wird daraus auf vier Stellen gerechnet.</p>`,
+<p class="hint">Faktor und eigener Preis rechnen sich gegenseitig um (Grundlage: GKV-Preis). Mit „Aufrunden“ wird jeder eigene Preis auf den nächsten vollen Euro aufgerundet. Beim Speichern zählt der Preis; der Faktor wird daraus auf vier Stellen gerechnet.</p>`,
   });
 }
 
@@ -227,8 +250,8 @@ export function detailsSeite(l: Preisliste, pos: Position[], verw: { patienten: 
     <dt>Status</dt><dd>${statusChip(l)}</dd>
     <dt>Grundlage</dt><dd>${grundlage(l)}${l.gkv ? ` · <a href="/preislisten/quelle/${l.gkv.id}/original" target="_blank" rel="noopener">Original</a>` : ''}</dd>
     <dt>Beihilfe</dt><dd>${quelleText(l.beihilfe)}${l.beihilfe ? ` · <a href="/preislisten/quelle/${l.beihilfe.id}/original" target="_blank" rel="noopener">Original</a>` : ''}</dd>
-    <dt>Vorlage</dt><dd>${l.vorlage ? esc(l.vorlage.name) : 'keine'}</dd>
-    <dt>Allg. Faktor</dt><dd>${faktorText(l.standardFaktor) || '–'}</dd>
+    <dt>Muster</dt><dd>${l.vorlage ? esc(l.vorlage.name) : 'keins'}</dd>
+    <dt>Allg. Faktor</dt><dd>${faktorText(l.standardFaktor) || '–'}${l.aufrunden ? ' · auf volle Euro aufgerundet' : ''}</dd>
     <dt>Erstellt</dt><dd>${datum(l.erstelltAm)}${l.erstelltVon ? ` · ${esc(l.erstelltVon)}` : ''}</dd>
     <dt>Freigegeben</dt><dd>${l.freigegebenAm ? `${datum(l.freigegebenAm)}${l.freigegebenVon ? ` · ${esc(l.freigegebenVon)}` : ''}` : 'noch nicht'}</dd>
     ${l.archiviertAm ? `<dt>Archiviert</dt><dd>${datum(l.archiviertAm)}</dd>` : ''}

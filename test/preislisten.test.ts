@@ -4,8 +4,8 @@ import { PGlite } from '@electric-sql/pglite';
 import { migriere, type Db } from '../src/db/index.ts';
 import { beihilfeLesen, beihilfeZuordnen, gebuethAuflage, gkvLesen, gkvLinkFinden } from '../src/preise/leser.ts';
 import {
-  aktivSetzen, alsVorlage, anlegen, archivieren, beihilfeSetzen, freigeben, listen, loeschen, positionDetail, positionen,
-  PreislisteFehler, preisliste, speichern, wiederherstellen,
+  aktivSetzen, alsVorlage, anlegen, archivieren, beihilfeSetzen, freigeben, listen, loeschen, musterAbweichung, musterHakenUebernehmen,
+  positionDetail, positionen, PreislisteFehler, preisliste, preisRunden, speichern, wiederherstellen,
 } from '../src/preise/preislisten.ts';
 import { allePruefen, alsGesehen, neueQuellen } from '../src/preise/quellen.ts';
 
@@ -182,4 +182,41 @@ test('Detail einer Position: GKV-Original, Beihilfe-Kandidaten, Zuordnung änder
   const mt = d.kandidaten.find((k) => k.nummer === '11')!;
   await beihilfeSetzen(db, id, pos.id, mt.id, 'bewusst anders', 'l');
   assert.deepEqual([(await positionDetail(db, id, pos.id))!.position.beihilfeHoechstbetrag, (await positionDetail(db, id, pos.id))!.position.notiz], [34.8, 'bewusst anders']);
+});
+
+test('Aufrunden: auf den nächsten vollen Euro, ganze Beträge bleiben; der Faktor folgt', async () => {
+  assert.deepEqual([preisRunden(43.88, true), preisRunden(39.01, true), preisRunden(40, true), preisRunden(38.519, false)], [44, 40, 40, 38.52]);
+  const q = await grundlagen();
+  const id = await anlegen(db, { name: 'Rund', gkvQuelleId: q.gkv, standardFaktor: 1.3, aufrunden: true, wer: 'l' });
+  const kg = (await positionen(db, id)).find((p) => p.nummer === '20501')!;
+  assert.deepEqual([kg.eigenerPreis, kg.faktor], [39, 1.3162], '29,63 × 1,3 = 38,52 → 39,00');
+  await speichern(db, id, { name: 'Rund', standardFaktor: '1,3', aufrunden: true, zeilen: [{ nummer: '20501', uebernehmen: true, faktor: '', eigenerPreis: '41,20' }] }, 'l');
+  assert.equal((await positionen(db, id)).find((p) => p.nummer === '20501')!.eigenerPreis, 42);
+  await speichern(db, id, { name: 'Rund', standardFaktor: '1,3', aufrunden: false, zeilen: [{ nummer: '20501', uebernehmen: true, faktor: '1,3', eigenerPreis: '' }] }, 'l');
+  assert.equal((await positionen(db, id)).find((p) => p.nummer === '20501')!.eigenerPreis, 38.52);
+  assert.equal((await preisliste(db, id))!.aufrunden, false);
+});
+
+test('Muster: Abweichung erkennen (ohne Fehlalarm durch Rundung), Haken übernehmen, Aufrunden im Muster', async () => {
+  const q = await grundlagen();
+  const a = await anlegen(db, { name: 'Basis', gkvQuelleId: q.gkv, standardFaktor: 1.3, aufrunden: true, wer: 'l' });
+  await speichern(db, a, { name: 'Basis', standardFaktor: '1,3', aufrunden: true, zeilen: [{ nummer: '29701', uebernehmen: false, faktor: '', eigenerPreis: '' }] }, 'l');
+  const m = await alsVorlage(db, a, 'Muster A', 'l');
+  assert.equal((await preisliste(db, a))!.vorlage?.name, 'Muster A', 'die Liste folgt dem neuen Muster');
+  assert.equal(await musterAbweichung(db, a), undefined, 'gleich wie das Muster');
+
+  const b = await anlegen(db, { name: 'Aus Muster', gkvQuelleId: q.gkv, vorlageId: m, wer: 'l' });
+  const lb = (await preisliste(db, b))!;
+  assert.equal(lb.aufrunden, true, 'Aufrunden kommt aus dem Muster');
+  assert.equal((await positionen(db, b)).find((p) => p.nummer === '29701')!.uebernehmen, false, 'Haken aus dem Muster vorbelegt');
+  assert.equal(await musterAbweichung(db, b), undefined, 'frisch aus dem Muster: keine Abweichung, trotz Rundung');
+
+  await speichern(db, b, { name: 'Aus Muster', standardFaktor: '1,3', aufrunden: true, zeilen: [
+    { nummer: '20501', uebernehmen: true, faktor: '', eigenerPreis: '45' }, { nummer: '29701', uebernehmen: true, faktor: '1,3', eigenerPreis: '' },
+  ] }, 'l');
+  assert.equal((await musterAbweichung(db, b))?.unterschiede, 2);
+
+  await musterHakenUebernehmen(db, b, m, 'l');
+  assert.equal((await positionen(db, b)).find((p) => p.nummer === '29701')!.uebernehmen, false);
+  assert.equal((await musterAbweichung(db, b))?.unterschiede, 1, 'nur noch der geänderte Preis');
 });

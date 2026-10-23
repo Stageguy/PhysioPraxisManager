@@ -227,7 +227,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const zurueck = /^\/preislisten(\/[\w/-]*)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/preislisten';
       try {
         const e = await d.aktion(f, wer);
-        return umleiten(res, `${e.ziel}?meldung=${encodeURIComponent(e.meldung)}`);
+        return umleiten(res, `${e.ziel}${e.ziel.includes('?') ? '&' : '?'}meldung=${encodeURIComponent(e.meldung)}`);
       } catch (err) {
         if (err instanceof PreislisteFehler) return umleiten(res, `${zurueck}?fehler=${encodeURIComponent(err.message)}`);
         throw err;
@@ -261,8 +261,8 @@ export function praxisDienst(opt: DienstOptionen): Server {
         return p ? senden(res, 200, 'text/html', positionSeite(p.liste, p.detail, r)) : senden(res, 404, 'text/plain', 'Diese Position gibt es nicht');
       }
       if (bearbeiten) {
-        const e = await d.editor(id);
-        return e ? senden(res, 200, 'text/html', editorSeite(e.liste, e.positionen, r)) : senden(res, 404, 'text/plain', 'Diese Preisliste gibt es nicht');
+        const e = await d.editor(id, adresse.searchParams.get('muster_frage') === '1');
+        return e ? senden(res, 200, 'text/html', editorSeite(e.liste, e.positionen, { ...r, muster: e.muster, abweichung: e.abweichung })) : senden(res, 404, 'text/plain', 'Diese Preisliste gibt es nicht');
       }
       const det = await d.details(id);
       return det ? senden(res, 200, 'text/html', detailsSeite(det.liste, det.positionen, det.verwendung, r)) : senden(res, 404, 'text/plain', 'Diese Preisliste gibt es nicht');

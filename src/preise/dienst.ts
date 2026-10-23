@@ -5,8 +5,8 @@
 import type { Db } from '../db/index.ts';
 import type { NeuDaten, UebersichtDaten } from '../web/preislisten.ts';
 import {
-  aktivSetzen, alsVorlage, anlegen, archivieren, beihilfeSetzen, freigeben, listen, loeschen, positionDetail, positionen,
-  PreislisteFehler, preisliste, quellen, speichern, verwendung, vorlagen, wiederherstellen, type Position, type PositionDetail, type Preisliste,
+  aktivSetzen, alsVorlage, anlegen, archivieren, beihilfeSetzen, freigeben, listen, loeschen, musterAbweichung, musterHakenUebernehmen, positionDetail, positionen,
+  PreislisteFehler, preisliste, quellen, speichern, verwendung, vorlagen, wiederherstellen, type Position, type PositionDetail, type Preisliste, type Vorlage,
 } from './preislisten.ts';
 import { allePruefen, alsGesehen, neueQuellen, type Pruefergebnis } from './quellen.ts';
 
@@ -21,7 +21,8 @@ export interface PreislistenDienst {
   uebersicht(): Promise<UebersichtDaten>;
   neu(vorwahl: { gkv?: string; basis?: string }): Promise<NeuDaten>;
   auswahl(archiv: boolean): Promise<Preisliste[]>;
-  editor(id: string): Promise<{ liste: Preisliste; positionen: Position[] } | undefined>;
+  /** `musterFrage`: nach dem Speichern prüfen, ob die Liste vom Muster abweicht */
+  editor(id: string, musterFrage?: boolean): Promise<{ liste: Preisliste; positionen: Position[]; muster: Vorlage[]; abweichung?: { muster: Vorlage; unterschiede: number } } | undefined>;
   details(id: string): Promise<{ liste: Preisliste; positionen: Position[]; verwendung: { patienten: string[]; rechnungen: string[] } } | undefined>;
   position(id: string, posId: string): Promise<{ liste: Preisliste; detail: PositionDetail } | undefined>;
   original(quelleId: string): Promise<{ daten: Uint8Array; typ: string; name: string } | undefined>;
@@ -51,9 +52,11 @@ export function preislistenDienst(q: { db: Db; holen?: (url: string) => Promise<
       };
     },
     auswahl: (archiv) => listen(db, { archiv }),
-    async editor(id) {
+    async editor(id, musterFrage) {
       const liste = await preisliste(db, id);
-      return liste ? { liste, positionen: await positionen(db, id) } : undefined;
+      if (!liste) return undefined;
+      const abweichung = musterFrage && liste.status === 'entwurf' ? await musterAbweichung(db, id) : undefined;
+      return { liste, positionen: await positionen(db, id), muster: await vorlagen(db), abweichung };
     },
     async details(id) {
       const liste = await preisliste(db, id);
@@ -98,6 +101,7 @@ export function preislistenDienst(q: { db: Db; holen?: (url: string) => Promise<
             beihilfeQuelleId: f.get('beihilfe_id') || undefined,
             vorlageId: f.get('vorlage_id') || undefined,
             standardFaktor: faktor ? Number(faktor) : undefined,
+            aufrunden: f.has('aufrunden'),
             wer,
           });
           return nach(`/preislisten/${neu}/bearbeiten`, 'Preisliste angelegt – jetzt Positionen, Faktoren und Preise prüfen.');
@@ -106,8 +110,30 @@ export function preislistenDienst(q: { db: Db; holen?: (url: string) => Promise<
           const zeilen = f.getAll('z_nummer').map((nummer) => ({
             nummer, uebernehmen: f.has(`z_uebernehmen_${nummer}`), faktor: f.get(`z_faktor_${nummer}`) ?? '', eigenerPreis: f.get(`z_preis_${nummer}`) ?? '',
           }));
-          await speichern(db, id, { name: f.get('name') ?? '', standardFaktor: f.get('standard_faktor') ?? '', zeilen }, wer);
-          return nach(`/preislisten/${id}/bearbeiten`, 'Gespeichert.');
+          await speichern(db, id, { name: f.get('name') ?? '', standardFaktor: f.get('standard_faktor') ?? '', aufrunden: f.has('aufrunden'), zeilen }, wer);
+          // Weicht die Liste jetzt vom Muster ab, fragt die Seite, ob es ein neues Muster geben soll
+          const abw = await musterAbweichung(db, id);
+          return nach(`/preislisten/${id}/bearbeiten${abw ? '?muster_frage=1' : ''}`, 'Gespeichert.');
+        }
+        case 'muster_neu': {
+          const name = (f.get('muster_name') ?? '').trim();
+          if ((await vorlagen(db)).some((v) => v.name.toLowerCase() === name.toLowerCase())) {
+            throw new PreislisteFehler(`Ein Muster „${name}“ gibt es schon – bitte einen anderen Namen wählen oder es aktualisieren`);
+          }
+          await alsVorlage(db, id, name, wer);
+          return nach(`/preislisten/${id}/bearbeiten`, `Neues Muster „${name}“ gespeichert – die Preisliste folgt ihm.`);
+        }
+        case 'muster_aktualisieren': {
+          const l = await preisliste(db, id);
+          if (!l?.vorlage) throw new PreislisteFehler('Diese Preisliste hat kein Muster');
+          await alsVorlage(db, id, l.vorlage.name, wer);
+          return nach(`/preislisten/${id}/bearbeiten`, `Muster „${l.vorlage.name}“ aktualisiert.`);
+        }
+        case 'muster_nein':
+          return nach(`/preislisten/${id}/bearbeiten`, 'Muster bleibt, wie es war.');
+        case 'muster_haken': {
+          const name = await musterHakenUebernehmen(db, id, f.get('vorlage_id') ?? '', wer);
+          return nach(`/preislisten/${id}/bearbeiten`, `Haken aus Muster „${name}“ übernommen.`);
         }
         case 'freigeben':
           await freigeben(db, id, wer);
@@ -124,7 +150,7 @@ export function preislistenDienst(q: { db: Db; holen?: (url: string) => Promise<
           return nach(f.get('zurueck') ?? '/preislisten', f.get('aktion') === 'wiederherstellen_aktiv' ? 'Wiederhergestellt und aktiv gesetzt.' : 'Wiederhergestellt.');
         case 'vorlage':
           await alsVorlage(db, id, f.get('vorlage_name') ?? '', wer);
-          return nach(`/preislisten/${id}/bearbeiten`, `Vorlage „${f.get('vorlage_name')}“ gespeichert.`);
+          return nach(`/preislisten/${id}/bearbeiten`, `Muster „${f.get('vorlage_name')}“ gespeichert.`);
         case 'beihilfe': {
           const posId = f.get('position_id') ?? '';
           await beihilfeSetzen(db, id, posId, f.get('beihilfe_position_id') || null, f.get('notiz') ?? '', wer);

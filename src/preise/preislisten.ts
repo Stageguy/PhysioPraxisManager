@@ -38,6 +38,7 @@ export interface Preisliste {
   freigegebenVon: string | null;
   archiviertAm: string | null;
   standardFaktor: number | null;
+  aufrunden: boolean;
   notiz: string | null;
   gkv: QuelleKurz | null;
   beihilfe: QuelleKurz | null;
@@ -67,6 +68,8 @@ export interface Position {
 const zahlOder = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 const iso = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string).toISOString());
 export const rund2 = (n: number) => Math.round(n * 100) / 100;
+/** Eigener Preis: auf Cent – oder mit „Aufrunden“ auf den nächsten vollen Euro (39,01 → 40,00) */
+export const preisRunden = (n: number, aufrunden: boolean) => (aufrunden ? Math.ceil(rund2(n) - 1e-9) : rund2(n));
 export const rund4 = (n: number) => Math.round(n * 10000) / 10000;
 
 const QUELL_SQL = (alias: string, spalte: string) =>
@@ -74,7 +77,7 @@ const QUELL_SQL = (alias: string, spalte: string) =>
      'abgerufenAm', q.abgerufen_am, 'url', q.url) FROM preisquelle q WHERE q.id = ${alias}.${spalte}) AS ${spalte.replace('_id', '')}`;
 
 const LISTEN_SQL = `SELECT l.id::text, l.name, l.status::text, l.aktiv, l.erstellt_am, l.erstellt_von, l.freigegeben_am, l.freigegeben_von,
-  l.archiviert_am, l.standard_faktor::text, l.notiz,
+  l.archiviert_am, l.standard_faktor::text, l.aufrunden, l.notiz,
   ${QUELL_SQL('l', 'gkv_quelle_id')}, ${QUELL_SQL('l', 'beihilfe_quelle_id')},
   (SELECT json_build_object('id', b.id::text, 'name', b.name) FROM preisliste b WHERE b.id = l.basis_preisliste_id) AS basis,
   (SELECT json_build_object('id', v.id::text, 'name', v.name) FROM preisvorlage v WHERE v.id = l.vorlage_id) AS vorlage,
@@ -95,7 +98,7 @@ function zuListe(r: Record<string, unknown>): Preisliste {
     id: String(r.id), name: String(r.name), status: r.status as Status, aktiv: Boolean(r.aktiv), genutzt: Boolean(r.genutzt),
     erstelltAm: iso(r.erstellt_am)!, erstelltVon: (r.erstellt_von as string) ?? null,
     freigegebenAm: iso(r.freigegeben_am), freigegebenVon: (r.freigegeben_von as string) ?? null, archiviertAm: iso(r.archiviert_am),
-    standardFaktor: zahlOder(r.standard_faktor), notiz: (r.notiz as string) ?? null,
+    standardFaktor: zahlOder(r.standard_faktor), aufrunden: Boolean(r.aufrunden), notiz: (r.notiz as string) ?? null,
     gkv: quelleAus(r.gkv_quelle), beihilfe: quelleAus(r.beihilfe_quelle), basis: jsonAus(r.basis), vorlage: jsonAus(r.vorlage),
     positionen: Number(r.positionen), uebernommen: Number(r.uebernommen),
   };
@@ -141,14 +144,16 @@ export interface Vorlage {
   id: string;
   name: string;
   standardFaktor: number | null;
+  aufrunden: boolean;
   positionen: Record<string, { uebernehmen: boolean; faktor?: number | null }>;
   notiz: string | null;
 }
 
 export async function vorlagen(db: Db): Promise<Vorlage[]> {
-  const { rows } = await db.query<Record<string, unknown>>('SELECT id::text, name, standard_faktor::text, positionen, notiz FROM preisvorlage ORDER BY name');
+  // Zuletzt geändertes Muster zuerst – es ist bei „Neu“ vorgewählt
+  const { rows } = await db.query<Record<string, unknown>>('SELECT id::text, name, standard_faktor::text, aufrunden, positionen, notiz FROM preisvorlage ORDER BY geaendert_am DESC, name');
   return rows.map((r) => ({
-    id: String(r.id), name: String(r.name), standardFaktor: zahlOder(r.standard_faktor),
+    id: String(r.id), name: String(r.name), standardFaktor: zahlOder(r.standard_faktor), aufrunden: Boolean(r.aufrunden),
     positionen: (typeof r.positionen === 'string' ? JSON.parse(r.positionen) : r.positionen) as Vorlage['positionen'], notiz: (r.notiz as string) ?? null,
   }));
 }
@@ -176,6 +181,8 @@ export interface NeuEingabe {
   beihilfeQuelleId?: string;
   vorlageId?: string;
   standardFaktor?: number;
+  /** Eigene Preise auf volle Euro aufrunden (sonst wie im Muster) */
+  aufrunden?: boolean;
   wer: string;
 }
 
@@ -187,6 +194,7 @@ export async function anlegen(db: Db, e: NeuEingabe): Promise<string> {
   const vorlage = e.vorlageId ? (await vorlagen(db)).find((v) => v.id === e.vorlageId) : undefined;
   if (e.vorlageId && !vorlage) throw new PreislisteFehler('Diese Vorlage gibt es nicht');
   const standard = e.standardFaktor ?? vorlage?.standardFaktor ?? null;
+  const aufrunden = e.aufrunden || (vorlage?.aufrunden ?? false);
 
   let gkvId = e.gkvQuelleId ?? null;
   let beihilfeId = e.beihilfeQuelleId ?? null;
@@ -223,16 +231,18 @@ export async function anlegen(db: Db, e: NeuEingabe): Promise<string> {
       const v = vorlage.positionen[z.nummer];
       z.uebernehmen = v ? v.uebernehmen : false;
       const f = v?.faktor ?? vorlage.standardFaktor ?? standard;
-      if (f !== null && f !== undefined) [z.faktor, z.eigenerPreis] = [f, z.gkvPreis === null ? null : rund2(z.gkvPreis * f)];
+      if (f !== null && f !== undefined) [z.faktor, z.eigenerPreis] = [f, z.gkvPreis === null ? null : preisRunden(z.gkvPreis * f, aufrunden)];
     } else if (!e.basisPreislisteId && standard !== null) {
-      [z.faktor, z.eigenerPreis] = [standard, z.gkvPreis === null ? null : rund2(z.gkvPreis * standard)];
+      [z.faktor, z.eigenerPreis] = [standard, z.gkvPreis === null ? null : preisRunden(z.gkvPreis * standard, aufrunden)];
     }
+    // Aufgerundet: der Faktor folgt dem Preis
+    if (aufrunden && z.eigenerPreis !== null && z.gkvPreis) z.faktor = rund4(z.eigenerPreis / z.gkvPreis);
   }
 
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO preisliste (name, gkv_quelle_id, beihilfe_quelle_id, basis_preisliste_id, vorlage_id, standard_faktor, erstellt_von)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id::text`,
-    [name, gkvId, beihilfeId, e.basisPreislisteId ?? null, vorlage?.id ?? null, standard, e.wer],
+    `INSERT INTO preisliste (name, gkv_quelle_id, beihilfe_quelle_id, basis_preisliste_id, vorlage_id, standard_faktor, aufrunden, erstellt_von)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id::text`,
+    [name, gkvId, beihilfeId, e.basisPreislisteId ?? null, vorlage?.id ?? null, standard, aufrunden, e.wer],
   );
   const id = rows[0]!.id;
   for (const z of zeilen) {
@@ -264,21 +274,22 @@ const zahlLesen = (s: string): number | null => {
 };
 
 /** Entwurf speichern. Eigener Preis und Faktor bedingen sich: der Preis zählt, der Faktor folgt ihm */
-export async function speichern(db: Db, id: string, e: { name: string; standardFaktor: string; notiz?: string; zeilen: ZeileEingabe[] }, wer: string): Promise<void> {
+export async function speichern(db: Db, id: string, e: { name: string; standardFaktor: string; aufrunden?: boolean; notiz?: string; zeilen: ZeileEingabe[] }, wer: string): Promise<void> {
   const l = await preisliste(db, id);
   if (!l) throw new PreislisteFehler('Diese Preisliste gibt es nicht');
   if (l.status !== 'entwurf') throw new PreislisteFehler('Eine freigegebene Preisliste lässt sich nicht mehr ändern – bitte als neue Preisliste kopieren');
   if (!e.name.trim()) throw new PreislisteFehler('Bitte einen Namen angeben');
   const vorhanden = new Map((await positionen(db, id)).map((p) => [p.nummer, p]));
-  await db.query('UPDATE preisliste SET name = $2, standard_faktor = $3, notiz = $4 WHERE id = $1', [id, e.name.trim().slice(0, 120), zahlLesen(e.standardFaktor), e.notiz?.slice(0, 2000) ?? l.notiz]);
+  const aufrunden = e.aufrunden ?? l.aufrunden;
+  await db.query('UPDATE preisliste SET name = $2, standard_faktor = $3, notiz = $4, aufrunden = $5 WHERE id = $1', [id, e.name.trim().slice(0, 120), zahlLesen(e.standardFaktor), e.notiz?.slice(0, 2000) ?? l.notiz, aufrunden]);
   for (const z of e.zeilen) {
     const p = vorhanden.get(z.nummer);
     if (!p) continue;
     let faktor = zahlLesen(z.faktor);
     let preis = zahlLesen(z.eigenerPreis);
+    if (preis === null && faktor !== null && p.gkvPreis !== null) preis = p.gkvPreis * faktor;
+    if (preis !== null) preis = preisRunden(preis, aufrunden);
     if (preis !== null && p.gkvPreis) faktor = rund4(preis / p.gkvPreis);
-    else if (preis === null && faktor !== null && p.gkvPreis !== null) preis = rund2(p.gkvPreis * faktor);
-    if (preis !== null) preis = rund2(preis);
     await db.query('UPDATE preisliste_position SET uebernehmen = $3, faktor = $4, eigener_preis = $5 WHERE preisliste_id = $1 AND nummer = $2', [id, z.nummer, z.uebernehmen, faktor, preis]);
   }
   await protokolliere(db, { actor: wer, action: 'preisliste_gespeichert', objectType: 'preisliste', objectId: id });
@@ -336,13 +347,58 @@ export async function alsVorlage(db: Db, id: string, name: string, wer: string):
   if (!name.trim()) throw new PreislisteFehler('Bitte einen Namen für die Vorlage angeben');
   const pos = Object.fromEntries((await positionen(db, id)).map((p) => [p.nummer, { uebernehmen: p.uebernehmen, faktor: p.faktor }]));
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO preisvorlage (name, standard_faktor, positionen) VALUES ($1, $2, $3)
-     ON CONFLICT (name) DO UPDATE SET standard_faktor = EXCLUDED.standard_faktor, positionen = EXCLUDED.positionen, geaendert_am = now()
+    `INSERT INTO preisvorlage (name, standard_faktor, aufrunden, positionen) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (name) DO UPDATE SET standard_faktor = EXCLUDED.standard_faktor, aufrunden = EXCLUDED.aufrunden,
+       positionen = EXCLUDED.positionen, geaendert_am = now()
      RETURNING id::text`,
-    [name.trim().slice(0, 120), l.standardFaktor, JSON.stringify(pos)],
+    [name.trim().slice(0, 120), l.standardFaktor, l.aufrunden, JSON.stringify(pos)],
   );
+  // Die Preisliste folgt ab jetzt diesem Muster – sonst fragte das nächste Speichern gleich wieder
+  if (l.status === 'entwurf') await db.query('UPDATE preisliste SET vorlage_id = $2 WHERE id = $1', [id, rows[0]!.id]);
   await protokolliere(db, { actor: wer, action: 'preisvorlage_gespeichert', objectType: 'preisvorlage', objectId: rows[0]!.id, details: { aus: id } });
   return rows[0]!.id;
+}
+
+// ── Muster: Abweichung prüfen, Haken übernehmen ─────────────────────────────
+/**
+ * Weicht die Preisliste von ihrem Muster ab? Verglichen werden Haken, allgemeiner Faktor, Aufrunden
+ * und je übernommener Position der Preis, der sich aus dem Faktor des Musters ergäbe (so stört die
+ * Rundung nicht). undefined = kein Muster oder keine Abweichung.
+ */
+export async function musterAbweichung(db: Db, id: string): Promise<{ muster: Vorlage; unterschiede: number } | undefined> {
+  const l = await preisliste(db, id);
+  if (!l?.vorlage) return undefined;
+  const muster = (await vorlagen(db)).find((v) => v.id === l.vorlage!.id);
+  if (!muster) return undefined;
+  let unterschiede = 0;
+  if ((l.standardFaktor ?? null) !== (muster.standardFaktor ?? null)) unterschiede++;
+  if (l.aufrunden !== muster.aufrunden) unterschiede++;
+  for (const p of await positionen(db, id)) {
+    const m = muster.positionen[p.nummer];
+    if (p.uebernehmen !== (m?.uebernehmen ?? false)) {
+      unterschiede++;
+      continue;
+    }
+    if (!p.uebernehmen || p.gkvPreis === null) continue;
+    const f = m?.faktor ?? muster.standardFaktor;
+    const erwartet = f === null || f === undefined ? null : preisRunden(p.gkvPreis * f, l.aufrunden);
+    if ((p.eigenerPreis ?? null) !== erwartet) unterschiede++;
+  }
+  return unterschiede ? { muster, unterschiede } : undefined;
+}
+
+/** Übernehmen-Haken aus einem Muster setzen (Faktoren und Preise bleiben) */
+export async function musterHakenUebernehmen(db: Db, id: string, musterId: string, wer: string): Promise<string> {
+  const l = await preisliste(db, id);
+  if (!l || l.status !== 'entwurf') throw new PreislisteFehler('Haken lassen sich nur in einem Entwurf übernehmen');
+  const muster = (await vorlagen(db)).find((v) => v.id === musterId);
+  if (!muster) throw new PreislisteFehler('Dieses Muster gibt es nicht');
+  for (const p of await positionen(db, id)) {
+    await db.query('UPDATE preisliste_position SET uebernehmen = $3 WHERE preisliste_id = $1 AND nummer = $2', [id, p.nummer, muster.positionen[p.nummer]?.uebernehmen ?? false]);
+  }
+  await db.query('UPDATE preisliste SET vorlage_id = $2 WHERE id = $1', [id, muster.id]);
+  await protokolliere(db, { actor: wer, action: 'preisliste_muster_haken', objectType: 'preisliste', objectId: id, details: { muster: muster.id } });
+  return muster.name;
 }
 
 // ── Detailansicht einer Position ────────────────────────────────────────────

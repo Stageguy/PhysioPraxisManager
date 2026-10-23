@@ -14,7 +14,7 @@ import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, ueber
 const Q: QuelleKurz = { id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2026', gueltigAb: '2026-01-01', abgerufenAm: '2026-10-23T03:00:00Z', url: 'https://x' };
 const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
   id: '5', name: 'Privat 2026', status: 'entwurf', aktiv: false, genutzt: false, erstelltAm: '2026-10-23T10:00:00Z', erstelltVon: 'lilli',
-  freigegebenAm: null, freigegebenVon: null, archiviertAm: null, standardFaktor: 1.3, notiz: null, gkv: Q, beihilfe: { ...Q, id: '2', art: 'beihilfe', version: 'BBhV Anlage 9' },
+  freigegebenAm: null, freigegebenVon: null, archiviertAm: null, standardFaktor: 1.3, aufrunden: false, notiz: null, gkv: Q, beihilfe: { ...Q, id: '2', art: 'beihilfe', version: 'BBhV Anlage 9' },
   basis: null, vorlage: { id: '1', name: 'GebüTh 15. Auflage' }, positionen: 58, uebernommen: 50, ...o,
 });
 const POS: Position = { id: '9', reihenfolge: 0, nummer: '20501', kuerzel: 'KG', gruppe: 'Krankengymnastik', bezeichnung: 'Allgemeine Krankengymnastik (KG)', regelzeit: '15 bis 25 Minuten',
@@ -56,7 +56,8 @@ const seiten = () => [
   neuSeite({ gkv: [Q], beihilfe: [Q], listen: [PL()], vorlagen: [], vorwahl: {} }, R),
   auswahlSeite([PL()], R),
   auswahlSeite([PL({ status: 'archiviert', archiviertAm: '2026-11-01T00:00:00Z' })], { ...R, titel: 'Archiv', archiv: true }),
-  editorSeite(PL(), [POS], R),
+  editorSeite(PL(), [POS], { ...R, muster: [{ id: '1', name: 'GebüTh 15. Auflage', standardFaktor: 1.3, aufrunden: true, positionen: {}, notiz: null }],
+    abweichung: { muster: { id: '1', name: 'GebüTh 15. Auflage', standardFaktor: 1.3, aufrunden: true, positionen: {}, notiz: null }, unterschiede: 2 } }),
   detailsSeite(PL({ status: 'freigegeben', freigegebenAm: '2026-10-24T10:00:00Z' }), [POS], { patienten: [], rechnungen: [] }, R),
   positionSeite(PL(), { position: POS, gkv: { ...QP, id: '3', nummer: '20501', daten: { positionsnummer: 'X0501', originaltext: 'X0501 …' } }, beihilfe: QP, kandidaten: [{ ...QP, passt: 0.8 }] }, R),
 ];

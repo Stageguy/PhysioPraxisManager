@@ -243,12 +243,21 @@ export const PRAXIS_SKRIPT = String.raw`
 (function () {
   document.documentElement.classList.add('js');
   function zahl(s) { s = String(s || '').replace(/\s/g, '').replace(',', '.'); return s === '' ? NaN : Number(s); }
+  // Mit „Aufrunden“ auf den nächsten vollen Euro, sonst auf Cent
+  function preisRunden(n) {
+    var c = Math.round(n * 100) / 100, auf = document.querySelector('[data-aufrunden]');
+    return auf && auf.checked ? Math.ceil(c - 1e-9) : c;
+  }
   function deutsch(n, stellen) { return n.toLocaleString('de-DE', { minimumFractionDigits: stellen === 2 ? 2 : 0, maximumFractionDigits: stellen, useGrouping: false }); }
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el && el.hasAttribute && el.hasAttribute('data-auto-senden') && el.form) el.form.submit();
     // Preisliste: abgewählte Zeilen blass
     if (el && el.name && el.name.indexOf('z_uebernehmen_') === 0) el.closest('tr').classList.toggle('ab', !el.checked);
+    // Aufrunden an/aus: alle Preise aus ihren Faktoren neu rechnen
+    if (el && el.hasAttribute && el.hasAttribute('data-aufrunden')) {
+      document.querySelectorAll('tr[data-basis] [data-faktor]').forEach(function (fa) { if (!fa.disabled && fa.value) fa.dispatchEvent(new Event('input', { bubbles: true })); });
+    }
   });
   // Faktor und eigener Preis bedingen sich (Grundlage: GKV-Preis der Zeile)
   document.addEventListener('input', function (e) {
@@ -258,7 +267,7 @@ export const PRAXIS_SKRIPT = String.raw`
     if (!(basis > 0)) return;
     if (el.hasAttribute('data-faktor')) {
       var f = zahl(el.value), p = tr.querySelector('[data-preis]');
-      if (p) p.value = isNaN(f) ? '' : deutsch(Math.round(basis * f * 100) / 100, 2);
+      if (p) p.value = isNaN(f) ? '' : deutsch(preisRunden(basis * f), 2);
     } else if (el.hasAttribute('data-preis')) {
       var pr = zahl(el.value), fa = tr.querySelector('[data-faktor]');
       if (fa) fa.value = isNaN(pr) ? '' : deutsch(Math.round(pr / basis * 10000) / 10000, 4);
