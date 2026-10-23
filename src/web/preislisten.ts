@@ -21,7 +21,7 @@ const statusChip = (l: Preisliste) => {
   const [t, f] = STATUS_TEXT(l);
   return `<span class="chip ${f}">${t}</span>${l.aktiv ? ' <span class="chip preset19">aktiv</span>' : ''}`;
 };
-const quelleText = (q: QuelleKurz | null) => (q ? `${esc(q.version)} · abgerufen ${datum(q.abgerufenAm)}` : '–');
+const quelleText = (q: QuelleKurz | null) => (q ? `${esc(q.version)}${/abgerufen/.test(q.version) ? '' : ` · abgerufen ${datum(q.abgerufenAm)}`}` : '–');
 const grundlage = (l: Preisliste) => (l.basis ? `Preisliste „${esc(l.basis.name)}“ · GKV ${quelleText(l.gkv)}` : `GKV ${quelleText(l.gkv)}`);
 
 const form = (aktion: string, inhalt: string, o: { id?: string; zurueck?: string; klasse?: string } = {}) =>
@@ -71,7 +71,7 @@ export function uebersichtSeite(d: UebersichtDaten, o: Rahmen): string {
   const quellen = (['gkv', 'beihilfe', 'gebueth'] as const).map((art) => {
     const q = d.stand[art];
     const name = { gkv: 'GKV-Vergütungsliste', beihilfe: 'Beihilfe-Höchstbeträge', gebueth: 'GebüTh (Buch)' }[art];
-    return `<li data-hilfe="preislisten.quelle.${art}" tabindex="0"><b>${name}</b><span>${q ? `${esc(q.version)} · abgerufen ${datum(q.abgerufenAm)}` : 'noch nicht abgerufen'}</span>
+    return `<li data-hilfe="preislisten.quelle.${art}" tabindex="0"><b>${name}</b><span>${q ? quelleText(q) : 'noch nicht abgerufen'}</span>
       ${q && art !== 'gebueth' ? `<a href="/preislisten/quelle/${q.id}/original" target="_blank" rel="noopener">Original</a>` : ''}</li>`;
   }).join('');
   const pruefung = d.pruefung?.length
@@ -172,7 +172,7 @@ export function editorSeite(l: Preisliste, pos: Position[], o: Rahmen): string {
   const fest = l.status !== 'entwurf';
   const zeilen = pos.map((p) => `<tr data-href="/preislisten/${l.id}/positionen/${p.id}" data-basis="${p.gkvPreis ?? ''}"${p.uebernehmen ? '' : ' class="ab"'}>
     <td class="mitte"><input type="hidden" name="z_nummer" value="${esc(p.nummer)}"><input type="checkbox" name="z_uebernehmen_${esc(p.nummer)}" value="1"${p.uebernehmen ? ' checked' : ''}${fest ? ' disabled' : ''} data-hilfe="preisliste.uebernehmen" aria-label="${esc(p.nummer)} übernehmen"></td>
-    <td><b>${esc(p.nummer)}</b><br><span class="hint">${esc(p.kuerzel ?? '')}</span></td>
+    <td><b>${esc(p.nummer)}</b><br><span class="hint kuerzel">${esc(p.kuerzel ?? '')}</span></td>
     <td><a href="/preislisten/${l.id}/positionen/${p.id}" data-hilfe="preisliste.position">${esc(p.bezeichnung)}</a><br><span class="hint">${zweiteZeile(p)}</span></td>
     <td class="zahlspalte">${euro(p.gkvPreis)}</td>
     <td class="zahlspalte"><input class="zahl-eingabe nur-desktop" name="z_faktor_${esc(p.nummer)}" value="${faktorText(p.faktor)}" inputmode="decimal" data-faktor${fest ? ' disabled' : ''} data-hilfe="preisliste.faktor" aria-label="Faktor ${esc(p.nummer)}"><span class="nur-mobil">${faktorText(p.faktor) || '–'}</span></td>
@@ -187,7 +187,7 @@ ${fest ? `<p class="meldung ok">${symbol('schloss', { groesse: 18 })} Diese Prei
   <div class="tafel editor-kopf">
     <label>Name<input name="name" value="${esc(l.name)}" maxlength="120"${fest ? ' disabled' : ''} data-hilfe="preisliste.feld.name"></label>
     <dl class="liste-dl klein" data-hilfe="preisliste.kopfdaten" tabindex="0">
-      <dt>Grundlage</dt><dd>${grundlage(l)}${l.gkv?.gueltigAb ? ` · gültig ab ${datum(l.gkv.gueltigAb)}` : ''}${l.gkv ? ` · <a href="/preislisten/quelle/${l.gkv.id}/original" target="_blank" rel="noopener">Original</a>` : ''}</dd>
+      <dt>Grundlage</dt><dd>${grundlage(l)}${l.gkv ? ` · <a href="/preislisten/quelle/${l.gkv.id}/original" target="_blank" rel="noopener">Original</a>` : ''}</dd>
       <dt>Beihilfe</dt><dd>${quelleText(l.beihilfe)}</dd>
       <dt>Vorlage</dt><dd>${l.vorlage ? esc(l.vorlage.name) : 'keine'}</dd>
       <dt>Erstellt</dt><dd>${datum(l.erstelltAm)}${l.erstelltVon ? ` von ${esc(l.erstelltVon)}` : ''} <span class="hint">(fest)</span></dd>
@@ -225,7 +225,7 @@ export function detailsSeite(l: Preisliste, pos: Position[], verw: { patienten: 
 <div class="diagramme">
   <section class="tafel" data-hilfe="preisliste.metadaten"><h2>Angaben</h2><dl class="liste-dl">
     <dt>Status</dt><dd>${statusChip(l)}</dd>
-    <dt>Grundlage</dt><dd>${grundlage(l)}${l.gkv?.gueltigAb ? ` · gültig ab ${datum(l.gkv.gueltigAb)}` : ''}${l.gkv ? ` · <a href="/preislisten/quelle/${l.gkv.id}/original" target="_blank" rel="noopener">Original</a>` : ''}</dd>
+    <dt>Grundlage</dt><dd>${grundlage(l)}${l.gkv ? ` · <a href="/preislisten/quelle/${l.gkv.id}/original" target="_blank" rel="noopener">Original</a>` : ''}</dd>
     <dt>Beihilfe</dt><dd>${quelleText(l.beihilfe)}${l.beihilfe ? ` · <a href="/preislisten/quelle/${l.beihilfe.id}/original" target="_blank" rel="noopener">Original</a>` : ''}</dd>
     <dt>Vorlage</dt><dd>${l.vorlage ? esc(l.vorlage.name) : 'keine'}</dd>
     <dt>Allg. Faktor</dt><dd>${faktorText(l.standardFaktor) || '–'}</dd>
