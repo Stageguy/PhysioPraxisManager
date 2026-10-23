@@ -7,6 +7,20 @@ import { HILFE, hilfeSeite, hilfeSkript } from '../src/web/hilfe.ts';
 import { cockpitSeite } from '../src/web/cockpit.ts';
 import { dashboardSeite, rechnungSeite, type KachelRechnung } from '../src/web/rechnungen.ts';
 import type { CockpitDaten } from '../src/cockpit/daten.ts';
+import type { Position, Preisliste, QuelleKurz } from '../src/preise/preislisten.ts';
+import { menueStand } from '../src/web/layout.ts';
+import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from '../src/web/preislisten.ts';
+
+const Q: QuelleKurz = { id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2026', gueltigAb: '2026-01-01', abgerufenAm: '2026-10-23T03:00:00Z', url: 'https://x' };
+const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
+  id: '5', name: 'Privat 2026', status: 'entwurf', aktiv: false, genutzt: false, erstelltAm: '2026-10-23T10:00:00Z', erstelltVon: 'lilli',
+  freigegebenAm: null, freigegebenVon: null, archiviertAm: null, standardFaktor: 1.3, notiz: null, gkv: Q, beihilfe: { ...Q, id: '2', art: 'beihilfe', version: 'BBhV Anlage 9' },
+  basis: null, vorlage: { id: '1', name: 'GebüTh 15. Auflage' }, positionen: 58, uebernommen: 50, ...o,
+});
+const POS: Position = { id: '9', reihenfolge: 0, nummer: '20501', kuerzel: 'KG', gruppe: 'Krankengymnastik', bezeichnung: 'Allgemeine Krankengymnastik (KG)', regelzeit: '15 bis 25 Minuten',
+  gkvPreis: 29.63, beihilfeHoechstbetrag: 29, beihilfeNummer: '4', uebernehmen: true, faktor: 1.35, eigenerPreis: 40, notiz: null };
+const QP = { id: '7', nummer: '4', bezeichnung: 'Krankengymnastik (KG)', preis: 29, gruppe: 'Krankengymnastik', daten: {} };
+const R = { wer: 'lilli@example.org', fassung: '0.0.0' };
 
 const RE: KachelRechnung = {
   id: '7', eingang: '2026-10-20T08:00:00Z', dateiname: 'Rechnung.pdf', absenderName: 'Telekom', absenderAdresse: 'rechnung@telekom.de',
@@ -34,6 +48,17 @@ const seiten = () => [
     filter: { jahr: 2026, stand: 'alle', suche: '' } }, { wer: 'lilli@example.org', fassung: '0.0.0' }),
   rechnungSeite(RE, { wer: 'lilli@example.org', fassung: '0.0.0' }),
   inTest(() => statusseite([], 'christian@example.org', '0.0.0')),
+  menueStand.run({ preislistenNeu: 2 }, () => uebersichtSeite({
+    neu: [{ id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2027', abgerufenAm: '2026-12-01T03:00:00Z' }],
+    listen: [PL(), PL({ id: '6', status: 'freigegeben', aktiv: true, freigegebenAm: '2026-10-24T10:00:00Z' })],
+    stand: { gkv: Q, beihilfe: { ...Q, art: 'beihilfe' }, gebueth: { ...Q, art: 'gebueth', version: '15. Auflage' } },
+  }, R)),
+  neuSeite({ gkv: [Q], beihilfe: [Q], listen: [PL()], vorlagen: [], vorwahl: {} }, R),
+  auswahlSeite([PL()], R),
+  auswahlSeite([PL({ status: 'archiviert', archiviertAm: '2026-11-01T00:00:00Z' })], { ...R, titel: 'Archiv', archiv: true }),
+  editorSeite(PL(), [POS], R),
+  detailsSeite(PL({ status: 'freigegeben', freigegebenAm: '2026-10-24T10:00:00Z' }), [POS], { patienten: [], rechnungen: [] }, R),
+  positionSeite(PL(), { position: POS, gkv: { ...QP, id: '3', nummer: '20501', daten: { positionsnummer: 'X0501', originaltext: 'X0501 …' } }, beihilfe: QP, kandidaten: [{ ...QP, passt: 0.8 }] }, R),
 ];
 /** Eine Seite einmal in der Testumgebung – dort gibt es das Band */
 function inTest<T>(f: () => T): T {

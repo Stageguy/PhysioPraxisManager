@@ -12,7 +12,10 @@ import type { CockpitDaten } from './cockpit/daten.ts';
 import type { Pruefpunkt } from './pruefung.ts';
 import { AktionAbgelehnt, filterAus, type Aktion } from './rechnungen/dashboard.ts';
 import type { RechnungsDienst } from './rechnungen/dienst.ts';
+import { PreislisteFehler, type PreislistenDienst } from './preise/dienst.ts';
 import { cockpitSeite } from './web/cockpit.ts';
+import { menueStand } from './web/layout.ts';
+import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from './web/preislisten.ts';
 import { dashboardSeite, PRAXIS_SKRIPT, rechnungSeite } from './web/rechnungen.ts';
 import { hilfeSeite, hilfeSkript } from './web/hilfe.ts';
 import { esc, seite } from './web/layout.ts';
@@ -25,6 +28,7 @@ export interface DienstOptionen {
   fassung: string;
   cockpit?: (o: { namenZeigen: boolean }) => Promise<CockpitDaten>;
   rechnungen?: RechnungsDienst;
+  preislisten?: PreislistenDienst;
   /**
    * Nur für die Bauphase ohne Tailscale (Zugang per SSH-Tunnel bzw. kubectl port-forward): Anfragen
    * von 127.0.0.1 ohne Tailscale-Kopfzeile gelten als dieses Konto. Nie zusammen mit dem
@@ -125,10 +129,16 @@ ${zeilen}
 export function praxisDienst(opt: DienstOptionen): Server {
   const erlaubt = new Set(opt.erlaubt.map((e) => e.trim().toLowerCase()).filter(Boolean));
   return createServer(async (req, res) => {
+    // Der rote Punkt am Menü braucht je Anfrage die Zahl neuer Preisgrundlagen
+    const neu = req.url?.startsWith('/api/') || !opt.preislisten ? 0 : await opt.preislisten.neueAnzahl().catch(() => 0);
+    await menueStand.run({ preislistenNeu: neu }, () => bedienen(req, res));
+  });
+
+  async function bedienen(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
       const adresse = new URL(req.url ?? '/', 'http://localhost');
       const pfad = adresse.pathname;
-      const istAktion = req.method === 'POST' && /^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad);
+      const istAktion = req.method === 'POST' && (/^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad) || pfad === '/preislisten/aktion');
       if (req.method !== 'GET' && !istAktion) return senden(res, 405, 'text/plain', 'Nur GET');
 
       if (pfad === '/api/health') {
@@ -196,6 +206,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
         return senden(res, 200, 'text/html', rechnungSeite(r, { wer, fassung: opt.fassung, meldung, fehler }));
       }
       if (pfad === '/status') return senden(res, 200, 'text/html', statusseite(await opt.pruefen(), wer, opt.fassung));
+      if (pfad.startsWith('/preislisten')) return await preislistenSeiten(req, res, pfad, adresse, wer, meldung ?? adresse.searchParams.get('meldung')?.slice(0, 300) ?? undefined, fehler);
       if (pfad === '/hilfe') return senden(res, 200, 'text/html', hilfeSeite({ wer, fassung: opt.fassung }));
       if (pfad === '/hilfe.js') return senden(res, 200, 'text/javascript', hilfeSkript());
       if (pfad === '/praxis.js') return senden(res, 200, 'text/javascript', PRAXIS_SKRIPT);
@@ -204,5 +215,58 @@ export function praxisDienst(opt: DienstOptionen): Server {
       console.error('Fehler bei', req.method, req.url, (err as Error).message);
       if (!res.headersSent) senden(res, 500, 'text/plain', 'Interner Fehler');
     }
-  });
+  }
+
+  async function preislistenSeiten(req: IncomingMessage, res: ServerResponse, pfad: string, adresse: URL, wer: string, meldung?: string, fehler?: string): Promise<void> {
+    const d = opt.preislisten;
+    const r = { wer, fassung: opt.fassung, meldung, fehler };
+    if (!d) return senden(res, 503, 'text/plain', 'Preislisten brauchen die Praxis-Datenbank – noch nicht verbunden');
+    if (pfad === '/preislisten/aktion') {
+      if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
+      const f = await formular(req);
+      const zurueck = /^\/preislisten(\/[\w/-]*)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/preislisten';
+      try {
+        const e = await d.aktion(f, wer);
+        return umleiten(res, `${e.ziel}?meldung=${encodeURIComponent(e.meldung)}`);
+      } catch (err) {
+        if (err instanceof PreislisteFehler) return umleiten(res, `${zurueck}?fehler=${encodeURIComponent(err.message)}`);
+        throw err;
+      }
+    }
+    if (pfad === '/preislisten') return senden(res, 200, 'text/html', uebersichtSeite(await d.uebersicht(), r));
+    if (pfad === '/preislisten/neu') {
+      const v = { gkv: adresse.searchParams.get('gkv') ?? undefined, basis: adresse.searchParams.get('basis') ?? undefined };
+      return senden(res, 200, 'text/html', neuSeite(await d.neu(v), r));
+    }
+    if (pfad === '/preislisten/bearbeiten') return senden(res, 200, 'text/html', auswahlSeite(await d.auswahl(false), r));
+    if (pfad === '/preislisten/archiv') return senden(res, 200, 'text/html', auswahlSeite(await d.auswahl(true), { ...r, titel: 'Archiv', archiv: true }));
+    const quelle = /^\/preislisten\/quelle\/(\d+)\/original$/.exec(pfad);
+    if (quelle) {
+      const o = await d.original(quelle[1]!);
+      if (!o) return senden(res, 404, 'text/plain', 'Kein Original gespeichert');
+      // PDF zum Ansehen; fremdes HTML nur als Download – nie unter unserer Adresse ausführen
+      const pdf = o.typ.startsWith('application/pdf');
+      res.writeHead(200, {
+        'Content-Type': pdf ? 'application/pdf' : o.typ, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': `${pdf ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(o.name)}`,
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+      });
+      return void res.end(Buffer.from(o.daten));
+    }
+    const m = /^\/preislisten\/(\d+)(?:\/(bearbeiten)|\/positionen\/(\d+))?$/.exec(pfad);
+    if (m) {
+      const [, id, bearbeiten, posId] = m as unknown as [string, string, string | undefined, string | undefined];
+      if (posId) {
+        const p = await d.position(id, posId);
+        return p ? senden(res, 200, 'text/html', positionSeite(p.liste, p.detail, r)) : senden(res, 404, 'text/plain', 'Diese Position gibt es nicht');
+      }
+      if (bearbeiten) {
+        const e = await d.editor(id);
+        return e ? senden(res, 200, 'text/html', editorSeite(e.liste, e.positionen, r)) : senden(res, 404, 'text/plain', 'Diese Preisliste gibt es nicht');
+      }
+      const det = await d.details(id);
+      return det ? senden(res, 200, 'text/html', detailsSeite(det.liste, det.positionen, det.verwendung, r)) : senden(res, 404, 'text/plain', 'Diese Preisliste gibt es nicht');
+    }
+    return senden(res, 404, 'text/plain', 'Nicht gefunden');
+  }
 }

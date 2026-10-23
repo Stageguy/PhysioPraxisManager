@@ -3,7 +3,11 @@
  * Kein Inline-Skript (Content-Security-Policy): die Hilfe kommt als /hilfe.js.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { umgebung } from '../umgebung.ts';
+
+/** Was das Menü je Anfrage wissen muss – setzt der Server (roter Punkt bei neuen Preisgrundlagen) */
+export const menueStand = new AsyncLocalStorage<{ preislistenNeu: number }>();
 
 export const esc = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -171,13 +175,52 @@ h3{font-size:15px;margin:0 0 8px}
 .knopfreihe{display:flex;gap:8px;flex-wrap:wrap}.knopfreihe form{margin:0}
 .ablehnen{display:grid;gap:8px;margin-top:12px}.ablehnen label,.korrektur label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--grau)}
 .korrektur{display:grid;gap:10px}
+/* Preislisten */
+nav a{position:relative}
+.menue-punkt{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#d93025;color:#fff;
+  font-size:11px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 2px var(--bg)}
+.punkt-rot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#d93025;margin-right:8px}
+.hinweis-neu{border:1px solid #d93025;background:color-mix(in srgb,#d93025 8%,var(--karte));border-radius:12px;padding:12px 16px;margin:12px 0}
+.hinweis-neu p{margin:0 0 6px}.hinweis-neu ul{margin:0 0 8px;padding-left:20px}
+.pruefung{list-style:none;padding:0;margin:8px 0;font-size:14px}.pruefung li{display:flex;gap:6px;align-items:center;padding:2px 0}
+.pk-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:12px 0 8px}
+.pk{display:flex;flex-direction:column;background:var(--karte);border:1px solid var(--rand);border-radius:14px;min-width:0}
+.pk.aktiv{border:2px solid var(--ok)}
+.pk-link{display:flex;flex-direction:column;gap:8px;padding:14px;color:var(--fg);text-decoration:none}
+.pk-link:hover b{text-decoration:underline}
+.pk-kopf{display:flex;gap:8px;align-items:center;color:var(--akzent)}.pk-kopf b{color:var(--fg);overflow-wrap:anywhere}
+.pk-aktiv-form{padding:8px 14px 12px;border-top:1px solid var(--rand);margin-top:auto;display:flex;gap:10px;align-items:center}
+.pk-aktiv{display:flex;gap:8px;align-items:center;min-height:32px;cursor:pointer}.pk-aktiv input{width:20px;height:20px;accent-color:var(--ok)}
+.liste-dl.klein{font-size:13px;gap:3px 10px}
+form.inline{display:inline-flex;gap:8px;align-items:center;margin:0}
+.quellen{list-style:none;margin:8px 0;padding:8px 16px}.quellen li{display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--rand)}
+.quellen li:last-child{border-bottom:0}.quellen li span{color:var(--grau);font-size:14px;flex:1}
+.formular{display:grid;gap:12px;max-width:760px}
+.formular label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--grau)}
+.formular input,.formular select,.editor-kopf input,.vorlage-form input{font:inherit;font-size:15px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:8px 10px;min-height:40px}
+.formular fieldset{border:1px solid var(--rand);border-radius:10px;padding:10px 14px;display:grid;gap:8px}
+.formular .wahl{flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;color:var(--fg);font-size:15px}
+.scrollliste{max-height:62vh;overflow:auto;border:1px solid var(--rand);border-radius:12px;background:var(--karte)}
+.scrollliste thead th{position:sticky;top:0;background:var(--karte);z-index:2;box-shadow:0 1px 0 var(--rand)}
+tr[data-href]{cursor:pointer}tr[data-href]:hover td{background:color-mix(in srgb,var(--akzent) 5%,transparent)}
+tr.ab td{opacity:.5}
+td.mitte{text-align:center}td.mitte input{width:20px;height:20px;accent-color:var(--akzent)}
+.zahl-eingabe{width:7.5em;text-align:right;font:inherit;font-variant-numeric:tabular-nums;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:6px 8px;min-height:36px}
+.warn{color:var(--fehler)}
+.editor-kopf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:16px;align-items:start;margin-bottom:12px}
+.editor-kopf label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--grau)}
+.faktor-alle .zeile{display:flex;gap:8px;align-items:center}.faktor-alle input{width:7em}
+.editor-aktionen{margin-top:12px}.vorlage-form input{min-height:36px}
+.nur-mobil{display:none}
+@media (max-width:640px){.nur-desktop{display:none!important}.nur-mobil{display:inline}p.nur-mobil{display:block}
+  .editor-kopf{grid-template-columns:minmax(0,1fr)}.scrollliste{max-height:none}}
 @media (max-width:900px){.cockpit{grid-template-columns:minmax(0,1fr)}.uebersicht{order:-1}
   .diagramme,.ansicht{grid-template-columns:minmax(0,1fr)}.pdf-rahmen iframe{height:60vh}}
 @media (max-width:640px){th,td{padding:6px}.hilfe-felder{grid-template-columns:1fr}.hilfe-felder dt{padding-top:6px}
   .zaehler{grid-template-columns:repeat(2,1fr)}.kacheln{grid-template-columns:1fr}.protokoll time{min-width:auto}}
 `;
 
-export type Menuepunkt = 'cockpit' | 'status' | 'hilfe';
+export type Menuepunkt = 'cockpit' | 'status' | 'preislisten' | 'hilfe';
 
 export function seite(o: {
   titel: string;
@@ -190,9 +233,13 @@ export function seite(o: {
   /** Breites Raster (Cockpit) statt Lesespalte */
   breit?: boolean;
 }): string {
-  const menue = ([['cockpit', '/', 'Cockpit'], ['status', '/status', 'Status'], ['hilfe', '/hilfe', 'Hilfe']] as const)
-    .map(([key, href, text]) =>
-      `<a href="${href}" data-hilfe="menue.${key}"${o.aktiv === key ? ' aria-current="page"' : ''}>${text}</a>`)
+  const neu = menueStand.getStore()?.preislistenNeu ?? 0;
+  const menue = ([['cockpit', '/', 'Cockpit'], ['status', '/status', 'Status'], ['preislisten', '/preislisten', 'Preislisten'], ['hilfe', '/hilfe', 'Hilfe']] as const)
+    .map(([key, href, text]) => {
+      const punkt = key === 'preislisten' && neu
+        ? `<span class="menue-punkt" data-hilfe="menue.preislisten-neu" role="status" aria-label="${neu} neue Preisgrundlage(n)">${neu}</span>` : '';
+      return `<a href="${href}" data-hilfe="menue.${key}"${o.aktiv === key ? ' aria-current="page"' : ''}>${text}${punkt}</a>`;
+    })
     .join('');
   const skript = o.skriptInline !== undefined ? `<script>${o.skriptInline}</script>` : '<script src="/hilfe.js"></script><script src="/praxis.js"></script>';
   return `<!doctype html>

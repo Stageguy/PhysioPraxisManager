@@ -70,6 +70,7 @@ fi
 echo "→ Datenbank und Dienst"
 manifest postgres.yaml | ssh "$HOST" kubectl apply -f - >/dev/null
 manifest praxis.yaml | sed "s|image: BILD|image: $BILD|" | ssh "$HOST" kubectl apply -f - >/dev/null
+manifest preisquellen.yaml | sed "s|image: BILD|image: $BILD|" | ssh "$HOST" kubectl apply -f - >/dev/null
 ssh "$HOST" "kubectl -n $NS rollout status statefulset/praxis-db --timeout=180s && kubectl -n $NS rollout status deployment/praxis-dienst --timeout=180s"
 
 echo "→ tailscale serve :$SERVE_PORT → 127.0.0.1:$PORT"

@@ -1,0 +1,47 @@
+# Nächtliche Prüfung der Preisgrundlagen (W59): GKV-Vergütungsliste, Beihilfe-Höchstbeträge,
+# GebüTh-Auflage. Neue Fassungen landen in der Datenbank dieser Umgebung → roter Punkt am Menü.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: preisquellen
+  namespace: __NS__
+spec:
+  schedule: "0 3 * * *"
+  timeZone: Europe/Berlin
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+          containers:
+            - name: pruefen
+              image: BILD
+              imagePullPolicy: Never
+              command: ["node", "src/cli/preisquellen.ts", "--ausfuehren"]
+              env:
+                - name: DB_PASSWORT
+                  valueFrom:
+                    secretKeyRef: { name: praxis-db, key: passwort }
+                - name: DATABASE_URL
+                  value: postgres://praxis:$(DB_PASSWORT)@praxis-db.__NS__.svc.cluster.local:5432/praxis
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: tmp, mountPath: /tmp }
+              resources:
+                requests: { cpu: 50m, memory: 96Mi }
+                limits: { memory: 384Mi }
+          volumes:
+            - name: tmp
+              emptyDir: {}

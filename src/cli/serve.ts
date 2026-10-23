@@ -13,6 +13,7 @@ import { GraphClient } from '../graph.ts';
 import { verbindungPruefen } from '../pruefung.ts';
 import { cockpitDaten } from '../cockpit/daten.ts';
 import { ladeEinstellungen } from '../einstellungen.ts';
+import { preislistenDienst } from '../preise/dienst.ts';
 import { rechnungsDienst } from '../rechnungen/dienst.ts';
 import { migriere, verbinde } from '../db/index.ts';
 import { praxisDienst } from '../server.ts';
@@ -55,6 +56,7 @@ const dienst = praxisDienst({
   angemeldet: () => token().then(() => true, () => false),
   cockpit: ({ namenZeigen }) => cockpitDaten({ db, graph, namenZeigen }),
   rechnungen: db ? rechnungsDienst({ db, graph, laufwerk: (await ladeEinstellungen()).rechnungen.laufwerk }) : undefined,
+  preislisten: db ? preislistenDienst({ db }) : undefined,
 });
 
 // Nur 127.0.0.1: von außen ist der Dienst ausschließlich über tailscale serve erreichbar

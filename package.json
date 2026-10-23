@@ -1,6 +1,6 @@
 {
   "name": "physio-praxis-manager",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Praxis Lilli Nebel: Exchange (Mail, Kalender) und OneDrive über MS Graph",
   "private": true,
   "type": "module",
@@ -25,7 +25,8 @@
     "testordner": "node --env-file-if-exists=.env src/cli/testordner.ts",
     "typecheck": "tsc --noEmit",
     "zahlungen": "node --env-file-if-exists=.env src/cli/zahlungen.ts",
-    "rechnungen:nachlesen": "node --env-file-if-exists=.env src/cli/rechnungen-nachlesen.ts"
+    "rechnungen:nachlesen": "node --env-file-if-exists=.env src/cli/rechnungen-nachlesen.ts",
+    "preisquellen": "node --env-file-if-exists=.env src/cli/preisquellen.ts"
   },
   "dependencies": {
     "@azure/msal-node": "^6.0.1",

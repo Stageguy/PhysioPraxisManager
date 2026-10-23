@@ -242,9 +242,43 @@ ${o.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groes
 export const PRAXIS_SKRIPT = String.raw`
 (function () {
   document.documentElement.classList.add('js');
+  function zahl(s) { s = String(s || '').replace(/\s/g, '').replace(',', '.'); return s === '' ? NaN : Number(s); }
+  function deutsch(n, stellen) { return n.toLocaleString('de-DE', { minimumFractionDigits: stellen === 2 ? 2 : 0, maximumFractionDigits: stellen, useGrouping: false }); }
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el && el.hasAttribute && el.hasAttribute('data-auto-senden') && el.form) el.form.submit();
+    // Preisliste: abgewählte Zeilen blass
+    if (el && el.name && el.name.indexOf('z_uebernehmen_') === 0) el.closest('tr').classList.toggle('ab', !el.checked);
+  });
+  // Faktor und eigener Preis bedingen sich (Grundlage: GKV-Preis der Zeile)
+  document.addEventListener('input', function (e) {
+    var el = e.target, tr = el.closest && el.closest('tr[data-basis]');
+    if (!tr) return;
+    var basis = zahl(tr.getAttribute('data-basis'));
+    if (!(basis > 0)) return;
+    if (el.hasAttribute('data-faktor')) {
+      var f = zahl(el.value), p = tr.querySelector('[data-preis]');
+      if (p) p.value = isNaN(f) ? '' : deutsch(Math.round(basis * f * 100) / 100, 2);
+    } else if (el.hasAttribute('data-preis')) {
+      var pr = zahl(el.value), fa = tr.querySelector('[data-faktor]');
+      if (fa) fa.value = isNaN(pr) ? '' : deutsch(Math.round(pr / basis * 10000) / 10000, 4);
+    }
+  });
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    // „auf alle übernommenen anwenden“
+    if (t.closest && t.closest('[data-faktor-alle]')) {
+      var std = document.querySelector('[data-faktor-standard]'), f = zahl(std && std.value);
+      if (isNaN(f)) return;
+      document.querySelectorAll('tr[data-basis]').forEach(function (tr) {
+        var cb = tr.querySelector('input[type=checkbox]'), fa = tr.querySelector('[data-faktor]');
+        if (cb && cb.checked && fa && !fa.disabled) { fa.value = deutsch(f, 4); fa.dispatchEvent(new Event('input', { bubbles: true })); }
+      });
+      return;
+    }
+    // Klick auf eine Tabellenzeile öffnet die Details – nicht auf Eingaben, Links und Knöpfe
+    var tr = t.closest && t.closest('tr[data-href]');
+    if (tr && !t.closest('input,select,textarea,button,a,label')) window.location.href = tr.getAttribute('data-href');
   });
 })();
 `;
