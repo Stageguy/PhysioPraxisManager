@@ -439,7 +439,7 @@ nicht in den Tresor (N16, N27).
 | E11 | Mehrmandantenfähigkeit vorab einbauen? | Christian | nein (N13) |
 | E24 | Identität und Kontaktwege (Name, Geburtsdatum, Adresse, Telefon, Mail) im Klartext in der Datenbank – oder auch verschlüsselt mit Blindindex? | Christian | Empfehlung: **Klartext** – nötig für Suche, Sortierung, Abgleich mit Exchange/Lexware; alles mit Gesundheitsbezug ist verschlüsselt. Der Schutz der Identität kommt aus Zugang (nur Tailnet), Datenbankpasswort und verschlüsselter Sicherung (A25). Vor echten Daten bestätigen |
 | E25 | Fristen für die Kachelfarbe: ab wann „leicht verzögert“ (gelb), ab wann „im Verzug“ (rot)? | Lilli | Vorschlag: gelb ab Fälligkeit, rot 14 Tage nach Fälligkeit oder nach der ersten Mahnung; in `config/praxis.json` einstellbar |
-| E26 | Tresor-Schlüssel: wo liegt die Notfallkopie, und wer darf sie öffnen? Hat Lilli eine sektorale Heilpraktikererlaubnis (Direktzugang ohne Verordnung)? | Lilli + Christian | Notfallkopie ausgedruckt im Praxis-Safe (Umschlag), zweite Kopie bei Christian offline; Erlaubnis: Frage 15 an Lilli |
+| E26 | Tresor-Schlüssel: wo liegt die Notfallkopie, und wer darf sie öffnen? Hat Lilli eine sektorale Heilpraktikererlaubnis (Direktzugang ohne Verordnung)? | Lilli + Christian | Notfallkopie ausgedruckt im Praxis-Safe (Umschlag), zweite Kopie bei Christian offline – **nur für die Produktion** (`praxis`); der Schlüssel von `praxis-test` schützt nur erfundene Daten und wird bei Verlust einfach neu erzeugt (entschieden 24.10.2026). Erlaubnis: Frage 15 an Lilli |
 
 ---
 
