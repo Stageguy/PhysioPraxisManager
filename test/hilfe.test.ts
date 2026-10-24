@@ -10,6 +10,33 @@ import type { CockpitDaten } from '../src/cockpit/daten.ts';
 import type { Position, Preisliste, QuelleKurz } from '../src/preise/preislisten.ts';
 import { menueStand } from '../src/web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from '../src/web/preislisten.ts';
+import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
+import type { Patient } from '../src/kartei/patienten.ts';
+
+const PK = { id: '1', art: 'mobil' as const, wert: '0151 1', normiert: '+491511', bezeichnung: null, primaer: true };
+const PAT: Patient = {
+  id: '1', patientennummer: 'P-1001', status: 'aktiv', anrede: 'Frau', titel: null, vorname: 'Anna', nachname: 'Test', patientSeit: '2026-01-10', ansprache: 'sie/ihr', besonderheiten: 'Hörgerät',
+  telefon: PK, whatsapp: { ...PK, id: '2', art: 'whatsapp' }, email: { ...PK, id: '3', art: 'email', wert: 'a@example.org', normiert: 'a@example.org' },
+  letzteBehandlung: { id: '5', datum: '2026-10-20', fallId: '1' }, naechsterTermin: { id: '7', beginn: '2026-11-02T08:00:00Z', rezept: true }, rechnungsstand: 'gelb', offeneAnrufe: 1,
+  geburtsdatum: '1984-03-12', geburtsname: null, sprache: null, kommunikationshilfe: null, berufBelastung: null, notiz: null, abrechnungsmodus: 'pro_serie', zwischenrechnungQuartale: null,
+  exchangeKontaktId: null, lexwareKundennummer: null, kontakte: [PK, { ...PK, id: '4', primaer: false }],
+  adressen: [{ id: '1', bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kurpromenade', hausnummer: '3', plz: '86825', ort: 'Bad Wörishofen', land: 'DE', rechnungsadresse: true }],
+  bezugspersonen: [{ id: '1', rolle: 'notfallkontakt', name: 'Max', beziehung: 'Bruder', berechtigungsgrund: null, telefon: null, email: null }], versicherungen: [],
+};
+const VERORDNUNG = { id: '1', ausgestelltAm: '2026-10-01', massnahme: 'MT', leistungNummer: '21201', anzahlVerordnet: 6, abgehakt: 2, status: 'aktiv', arzt: 'Dr. B', fallId: '1' };
+const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1' };
+const PATIENT_DATEN = {
+  patient: PAT, gruende: [{ code: 'absage_patient', bezeichnung: 'Absage Patient' }],
+  verlauf: [
+    { id: '1', art: 'anruf_ausgehend', am: '2026-10-24T09:00:00Z', grund: null, notiz: null, offen: true, kontakt: { art: 'mobil' as const, wert: '0151 1' }, erfasstVon: 'lilli' },
+    { id: '2', art: 'whatsapp', am: '2026-10-23T09:00:00Z', grund: { code: 'absage_patient', bezeichnung: 'Absage Patient' }, notiz: 'krank', offen: false, kontakt: null, erfasstVon: 'lilli' },
+  ],
+  termine: [TERMIN], verordnungen: [VERORDNUNG],
+  rechnungen: [{ id: '1', art: 'einzel', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', gemahnt: false }],
+};
+const AKTE = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', steuerklasse: 'heilbehandlung_steuerfrei', bezeichnung: 'Schulter', anlass: 'Schmerz', diagnoseArzt: 'M75.1', begonnenAm: '2026-10-01', abgeschlossenAm: null,
+  behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
+const NEU_AKTION = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', bezeichnung: 'Schulter' }], verordnungen: [VERORDNUNG], termine: [TERMIN] };
 
 const Q: QuelleKurz = { id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2026', gueltigAb: '2026-01-01', abgerufenAm: '2026-10-23T03:00:00Z', url: 'https://x' };
 const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
@@ -60,6 +87,15 @@ const seiten = () => [
     abweichung: { muster: { id: '1', name: 'GebüTh 15. Auflage', standardFaktor: 1.3, aufrunden: true, positionen: {}, notiz: null }, unterschiede: 2 } }),
   detailsSeite(PL({ status: 'freigegeben', freigegebenAm: '2026-10-24T10:00:00Z' }), [POS], { patienten: [], rechnungen: [] }, R),
   positionSeite(PL(), { position: POS, gkv: { ...QP, id: '3', nummer: '20501', daten: { positionsnummer: 'X0501', originaltext: 'X0501 …' } }, beihilfe: QP, kandidaten: [{ ...QP, passt: 0.8 }] }, R),
+  listeSeite({ patienten: [PAT, { ...PAT, id: '2', status: 'archiviert', telefon: null, whatsapp: null, email: null, letzteBehandlung: null, naechsterTermin: null, rechnungsstand: 'rot', offeneAnrufe: 0 }], suche: '' }, R),
+  listeSeite({ patienten: [], suche: 'x', archiv: true }, R),
+  patientNeuSeite(R),
+  patientSeite(PATIENT_DATEN, R),
+  patientSeite({ ...PATIENT_DATEN, patient: { ...PAT, status: 'archiviert' } }, R),
+  akteSeite(AKTE, R),
+  terminNeuSeite(NEU_AKTION, R),
+  behandlungNeuSeite(NEU_AKTION, R),
+  rezeptNeuSeite(NEU_AKTION, R),
 ];
 /** Eine Seite einmal in der Testumgebung – dort gibt es das Band */
 function inTest<T>(f: () => T): T {

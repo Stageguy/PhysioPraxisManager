@@ -13,7 +13,9 @@ import type { Pruefpunkt } from './pruefung.ts';
 import { AktionAbgelehnt, filterAus, type Aktion } from './rechnungen/dashboard.ts';
 import type { RechnungsDienst } from './rechnungen/dienst.ts';
 import { PreislisteFehler, type PreislistenDienst } from './preise/dienst.ts';
+import { KarteiFehler, type KarteiDienst } from './kartei/dienst.ts';
 import { cockpitSeite } from './web/cockpit.ts';
+import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from './web/patienten.ts';
 import { menueStand } from './web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from './web/preislisten.ts';
 import { dashboardSeite, PRAXIS_SKRIPT, rechnungSeite } from './web/rechnungen.ts';
@@ -29,6 +31,7 @@ export interface DienstOptionen {
   cockpit?: (o: { namenZeigen: boolean }) => Promise<CockpitDaten>;
   rechnungen?: RechnungsDienst;
   preislisten?: PreislistenDienst;
+  kartei?: KarteiDienst;
   /**
    * Nur für die Bauphase ohne Tailscale (Zugang per SSH-Tunnel bzw. kubectl port-forward): Anfragen
    * von 127.0.0.1 ohne Tailscale-Kopfzeile gelten als dieses Konto. Nie zusammen mit dem
@@ -138,7 +141,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     try {
       const adresse = new URL(req.url ?? '/', 'http://localhost');
       const pfad = adresse.pathname;
-      const istAktion = req.method === 'POST' && (/^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad) || pfad === '/preislisten/aktion');
+      const istAktion = req.method === 'POST' && (/^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad) || pfad === '/preislisten/aktion' || pfad === '/patienten/aktion');
       if (req.method !== 'GET' && !istAktion) return senden(res, 405, 'text/plain', 'Nur GET');
 
       if (pfad === '/api/health') {
@@ -206,7 +209,9 @@ export function praxisDienst(opt: DienstOptionen): Server {
         return senden(res, 200, 'text/html', rechnungSeite(r, { wer, fassung: opt.fassung, meldung, fehler }));
       }
       if (pfad === '/status') return senden(res, 200, 'text/html', statusseite(await opt.pruefen(), wer, opt.fassung));
-      if (pfad.startsWith('/preislisten')) return await preislistenSeiten(req, res, pfad, adresse, wer, meldung ?? adresse.searchParams.get('meldung')?.slice(0, 300) ?? undefined, fehler);
+      const freieMeldung = meldung ?? adresse.searchParams.get('meldung')?.slice(0, 300) ?? undefined;
+      if (pfad.startsWith('/preislisten')) return await preislistenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
+      if (pfad.startsWith('/patienten')) return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad === '/hilfe') return senden(res, 200, 'text/html', hilfeSeite({ wer, fassung: opt.fassung }));
       if (pfad === '/hilfe.js') return senden(res, 200, 'text/javascript', hilfeSkript());
       if (pfad === '/praxis.js') return senden(res, 200, 'text/javascript', PRAXIS_SKRIPT);
@@ -215,6 +220,44 @@ export function praxisDienst(opt: DienstOptionen): Server {
       console.error('Fehler bei', req.method, req.url, (err as Error).message);
       if (!res.headersSent) senden(res, 500, 'text/plain', 'Interner Fehler');
     }
+  }
+
+  async function patientenSeiten(req: IncomingMessage, res: ServerResponse, pfad: string, adresse: URL, wer: string, meldung?: string, fehler?: string): Promise<void> {
+    const d = opt.kartei;
+    const r = { wer, fassung: opt.fassung, meldung, fehler };
+    if (!d) return senden(res, 503, 'text/plain', 'Die Patientenkartei braucht die Praxis-Datenbank und den Tresor-Schlüssel – noch nicht verbunden');
+    if (pfad === '/patienten/aktion') {
+      if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
+      const f = await formular(req);
+      const zurueck = /^\/patienten(\/[\w/-]*)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
+      try {
+        const e = await d.aktion(f, wer);
+        const [pfadTeil, anker] = e.ziel.split('#');
+        return umleiten(res, `${pfadTeil}${pfadTeil!.includes('?') ? '&' : '?'}meldung=${encodeURIComponent(e.meldung)}${anker ? `#${anker}` : ''}`);
+      } catch (err) {
+        if (err instanceof KarteiFehler) return umleiten(res, `${zurueck}?fehler=${encodeURIComponent(err.message)}`);
+        throw err;
+      }
+    }
+    const suche = adresse.searchParams.get('suche')?.slice(0, 80) ?? '';
+    if (pfad === '/patienten') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche }), suche }, r));
+    if (pfad === '/patienten/archiv') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche, archiv: true }), suche, archiv: true }, r));
+    if (pfad === '/patienten/neu') return senden(res, 200, 'text/html', patientNeuSeite(r));
+    const m = /^\/patienten\/(\d+)(?:\/(akte)|\/neu\/(termin|behandlung|rezept))?$/.exec(pfad);
+    if (!m) return senden(res, 404, 'text/plain', 'Nicht gefunden');
+    const [, id, akte, neu] = m as unknown as [string, string, string | undefined, string | undefined];
+    if (akte) {
+      const a = await d.akte(id, wer);
+      return a ? senden(res, 200, 'text/html', akteSeite(a, r)) : senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
+    }
+    if (neu) {
+      const n = await d.neuAktion(id);
+      if (!n) return senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
+      const html = neu === 'termin' ? terminNeuSeite(n, r) : neu === 'behandlung' ? behandlungNeuSeite(n, r) : rezeptNeuSeite(n, r);
+      return senden(res, 200, 'text/html', html);
+    }
+    const p = await d.patient(id);
+    return p ? senden(res, 200, 'text/html', patientSeite(p, r)) : senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
   }
 
   async function preislistenSeiten(req: IncomingMessage, res: ServerResponse, pfad: string, adresse: URL, wer: string, meldung?: string, fehler?: string): Promise<void> {

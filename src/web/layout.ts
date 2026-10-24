@@ -226,9 +226,49 @@ label.haken input{width:20px;height:20px;min-height:0;accent-color:var(--akzent)
   .diagramme,.ansicht{grid-template-columns:minmax(0,1fr)}.pdf-rahmen iframe{height:60vh}}
 @media (max-width:640px){th,td{padding:6px}.hilfe-felder{grid-template-columns:1fr}.hilfe-felder dt{padding-top:6px}
   .zaehler{grid-template-columns:repeat(2,1fr)}.kacheln{grid-template-columns:1fr}.protokoll time{min-width:auto}}
+/* Patienten */
+.patienten-filter{align-items:flex-end}
+.pat-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin:12px 0 20px}
+.pat{position:relative;display:flex;flex-direction:column;gap:8px;background:var(--karte);border:1px solid var(--rand);border-left:6px solid var(--rand);border-radius:14px;padding:12px 14px;min-width:0}
+.pat.gelb{border-left-color:#f2d43a}.pat.rot{border-left-color:#d93025}
+.pat.kopf{margin-top:8px}.pat.kopf h1{font-size:22px;margin:0}
+.pat-kopf{display:flex;gap:10px;align-items:center}.pat-name{color:var(--fg);text-decoration:none;font-size:17px;min-width:0;overflow-wrap:anywhere}.pat-name:hover b{text-decoration:underline}
+.pat-nr{color:var(--grau);font-size:13px;margin-left:auto;white-space:nowrap}
+.pat-hinweise{margin:0;display:flex;gap:6px;flex-wrap:wrap}.marke.warn-marke{border-color:#ff9a2e;color:var(--fg)}
+.pat-kontakte{display:flex;gap:6px;flex-wrap:wrap}
+.pat-kontakt{display:inline-flex;gap:6px;align-items:center;min-height:44px;padding:6px 12px;border-radius:999px;border:1px solid var(--rand);color:var(--akzent);text-decoration:none;font-size:15px;max-width:100%}
+.pat-kontakt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var(--akzent) 10%,transparent)}
+.pat-kontakt.fehlt{color:var(--grau);border-style:dashed}
+.pat-fuss{margin:0;display:flex;gap:6px;flex-wrap:wrap;min-height:0}.pat-fuss:empty{display:none}.pat-fuss a.chip{text-decoration:none}
+.plus{position:relative;flex:none}.plus summary{list-style:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--akzent);color:var(--bg);font-size:26px;line-height:1;cursor:pointer}
+.plus summary::-webkit-details-marker{display:none}
+.plus-menue{position:absolute;right:0;top:46px;z-index:20;display:grid;gap:2px;min-width:230px;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.plus-menue a,.plus-menue .aus{display:flex;gap:8px;align-items:center;min-height:44px;padding:6px 10px;border-radius:8px;text-decoration:none;color:var(--fg)}
+.plus-menue a:hover{background:color-mix(in srgb,var(--akzent) 10%,transparent)}.plus-menue .aus{color:var(--grau)}.plus-menue small{margin-left:auto;font-size:11px}
+.pat-aktionen{margin:12px 0}
+.pat-abschnitt{margin-top:24px}.pat-abschnitt h2{display:flex;gap:8px;align-items:center;margin:0 0 10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.wahl-chip{display:inline-flex;gap:6px;align-items:center;min-height:40px;padding:4px 12px;border-radius:999px;border:1px solid var(--rand);cursor:pointer;font-size:15px}
+.wahl-chip:has(input:checked){background:var(--akzent);color:var(--bg);border-color:var(--akzent)}.wahl-chip input{accent-color:var(--akzent)}
+.formular textarea{font:inherit;font-size:15px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:8px 10px}
+.formular .zwei{display:grid;grid-template-columns:1fr 1fr;gap:12px}.formular input.kurz{max-width:8em}
+.formular.zeile{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end}.formular.zeile .haken{grid-column:1/-1}.formular.zeile .knopf{grid-column:1/-1;justify-self:start}
+.mehr-form summary{display:inline-flex;list-style:none;margin-top:8px}.mehr-form summary::-webkit-details-marker{display:none}.mehr-form .formular{margin-top:10px}
+.adr-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.adr{background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.adr.aktiv{border:2px solid var(--ok)}.adr p{margin:0}.adr-fuss{display:flex;gap:8px;align-items:center;margin-top:auto}
+.adr.neu summary{cursor:pointer;color:var(--akzent);min-height:36px;display:flex;align-items:center}.adr.neu .formular{margin-top:8px}
+.rezepte{list-style:none;margin:0;padding:0;display:grid;gap:8px}.rezepte li{background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:10px 14px}
+.stempel{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:6px}.stempel i{width:14px;height:14px;border-radius:50%;border:1px solid var(--akzent)}.stempel i.voll{background:var(--akzent)}
+.stempel span{margin-left:6px;font-size:13px;color:var(--grau)}
+.stammdaten summary{cursor:pointer;list-style:none}.stammdaten summary::-webkit-details-marker{display:none}.stammdaten summary h2{display:inline-flex}
+.stammdaten summary h2::after{content:' ▸';color:var(--grau)}.stammdaten[open] summary h2::after{content:' ▾'}
+.fall{margin-top:16px}.behandlungen{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
+.behandlungen li{border-top:1px solid var(--rand);padding:10px 0}.b-kopf{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px}
+@media (max-width:640px){.pat-raster{grid-template-columns:1fr}.formular .zwei{grid-template-columns:1fr}}
 `;
 
-export type Menuepunkt = 'cockpit' | 'status' | 'preislisten' | 'hilfe';
+export type Menuepunkt = 'cockpit' | 'patienten' | 'status' | 'preislisten' | 'hilfe';
 
 export function seite(o: {
   titel: string;
@@ -242,7 +282,7 @@ export function seite(o: {
   breit?: boolean;
 }): string {
   const neu = menueStand.getStore()?.preislistenNeu ?? 0;
-  const menue = ([['cockpit', '/', 'Cockpit'], ['status', '/status', 'Status'], ['preislisten', '/preislisten', 'Preislisten'], ['hilfe', '/hilfe', 'Hilfe']] as const)
+  const menue = ([['cockpit', '/', 'Cockpit'], ['patienten', '/patienten', 'Patienten'], ['status', '/status', 'Status'], ['preislisten', '/preislisten', 'Preislisten'], ['hilfe', '/hilfe', 'Hilfe']] as const)
     .map(([key, href, text]) => {
       const punkt = key === 'preislisten' && neu
         ? `<span class="menue-punkt" data-hilfe="menue.preislisten-neu" role="status" aria-label="${neu} neue Preisgrundlage(n)">${neu}</span>` : '';

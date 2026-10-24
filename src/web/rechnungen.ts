@@ -249,9 +249,21 @@ export const PRAXIS_SKRIPT = String.raw`
     return auf && auf.checked ? Math.ceil(c - 1e-9) : c;
   }
   function deutsch(n, stellen) { return n.toLocaleString('de-DE', { minimumFractionDigits: stellen === 2 ? 2 : 0, maximumFractionDigits: stellen, useGrouping: false }); }
+  // Patientenkachel: Tipp auf Telefon/WhatsApp/Mail vermerkt den Kontakt im Verlauf, der Link selbst läuft weiter (W67)
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest && e.target.closest('a[data-anruf]');
+    if (!a || !navigator.sendBeacon) return;
+    var daten = new URLSearchParams({ aktion: 'anruf', id: a.getAttribute('data-anruf'), kontakt_id: a.getAttribute('data-kontakt') || '', zurueck: '/patienten' });
+    navigator.sendBeacon('/patienten/aktion', new Blob([daten.toString()], { type: 'application/x-www-form-urlencoded' }));
+  });
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el && el.hasAttribute && el.hasAttribute('data-auto-senden') && el.form) el.form.submit();
+    // Behandlung erfassen: Felder für einen neuen Fall nur zeigen, wenn „neuer Fall“ gewählt ist
+    if (el && el.hasAttribute && el.hasAttribute('data-fall-wahl')) {
+      var nf = document.querySelector('[data-neuer-fall]');
+      if (nf) nf.hidden = el.value !== 'neu';
+    }
     // Preisliste: abgewählte Zeilen blass
     if (el && el.name && el.name.indexOf('z_uebernehmen_') === 0) el.closest('tr').classList.toggle('ab', !el.checked);
     // Aufrunden an/aus: alle Preise aus ihren Faktoren neu rechnen
