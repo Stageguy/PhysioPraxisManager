@@ -125,6 +125,7 @@ h3{font-size:15px;margin:0 0 8px}
 .knopf.warnend{border-color:var(--fehler);color:var(--fehler)}
 .knopf:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--akzent);outline-offset:2px}
 .meldung{display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:10px;margin:12px 0}
+.meldung[hidden]{display:none}
 .meldung.ok{background:color-mix(in srgb,var(--ok) 14%,transparent)}.meldung.fehler{background:color-mix(in srgb,var(--fehler) 14%,transparent)}
 .rk-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin:12px 0 20px}
 .rk{position:relative;display:flex;flex-direction:column;background:var(--karte);border:1px solid var(--rand);border-radius:14px;min-width:0}
