@@ -278,6 +278,7 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .verlauf-fenster{max-height:360px;overflow:auto;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:4px 14px}
 details.stammdaten.tafel{padding:10px 16px;margin:0 0 12px}details.stammdaten.tafel>summary{display:inline-flex;gap:6px;align-items:center;min-height:36px;color:var(--akzent);font-weight:600}
 details.stammdaten.tafel[open]>summary{margin-bottom:8px}
+.js details.stammdaten.tafel:not([open]){display:none}
 /* Rezepte als Kacheln */
 .rz-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:8px 0 12px}
 .rz{display:flex;flex-direction:column;gap:6px;background:var(--karte);border:1px solid var(--rand);border-radius:14px;padding:12px 14px;min-width:0}
