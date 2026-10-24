@@ -86,6 +86,36 @@ eine kurze Entscheidungsvorlage zum Datenschutz. (E8)
 
 > Antwort:
 
+## Patientenkartei
+
+**14. Woher kommen deine heutigen Patientendaten?** Lexware-Kunden, eine Excel-Liste, Karteikarten?
+Dann übernehmen wir sie einmalig – mit den vorhandenen Kundennummern. (§4b, A19c)
+
+> Antwort:
+
+**15. Behandelst du auch ohne ärztliche Verordnung?** Dafür braucht es die sektorale
+Heilpraktikererlaubnis (Physiotherapie). Wenn ja: seit wann, welche Behörde? Ohne Erlaubnis bleibt
+„ohne Rezept“ auf Prävention und Wellness beschränkt. (E26)
+
+> Antwort:
+
+**16. Welche Gesprächsgründe brauchst du nach einem Anruf?** Vorschlag: Terminvereinbarung,
+Terminverschiebung, Absage Patient, Absage Praxis, Erinnerung, Rückfrage zur Behandlung, Rückfrage
+zur Rechnung, Nicht erreicht, Sonstiges. Fehlt etwas? (W67)
+
+> Antwort:
+
+**17. Ab wann ist eine Rechnung „leicht verzögert“ (gelb) und ab wann „im Verzug“ (rot)?**
+Vorschlag: gelb ab dem Fälligkeitstag, rot 14 Tage danach oder nach der ersten Mahnung. (E25)
+
+> Antwort:
+
+**18. Welche Unterlagen gibst du Patienten heute?** Datenschutzinformation, Kosteninformation,
+Behandlungsvertrag, Einwilligung WhatsApp/E-Mail – bitte je ein Exemplar, damit die Fassungen in
+der Akte vermerkt werden können. (§4b)
+
+> Antwort:
+
 ## Zugang und Ablage
 
 **12. Ein Konto oder zwei?** Heute arbeitest du und das System mit praxis@lilli-nebel.de. Reicht

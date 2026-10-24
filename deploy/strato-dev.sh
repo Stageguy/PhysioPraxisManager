@@ -62,6 +62,12 @@ manifest namespace.yaml | ssh "$HOST" kubectl apply -f - >/dev/null
   [ "$ZIEL_UMGEBUNG" = prod ] && grep -E '^LEXWARE_API_KEY=.+' .env || true
 } | ssh "$HOST" "kubectl -n $NS create secret generic praxis-env --from-env-file=/dev/stdin --dry-run=client -o yaml | kubectl apply -f - >/dev/null"
 ssh "$HOST" "kubectl -n $NS get secret praxis-db >/dev/null 2>&1 || kubectl -n $NS create secret generic praxis-db --from-literal=passwort=\$(openssl rand -hex 24) >/dev/null"
+# Hauptschlüssel des Patienten-Tresors: einmalig je Umgebung, danach nie mehr neu erzeugen (§4b).
+# Notfallkopie: ssh $HOST kubectl -n $NS get secret praxis-tresor -o jsonpath='{.data.PRAXIS_TRESOR_SCHLUESSEL}' | base64 -d
+if ! ssh "$HOST" "kubectl -n $NS get secret praxis-tresor >/dev/null 2>&1"; then
+  echo "→ Tresor-Schlüssel für $NS neu erzeugt – Notfallkopie sichern (siehe deploy/strato-dev.sh)"
+  node src/cli/tresor-schluessel.ts | ssh "$HOST" "kubectl -n $NS create secret generic praxis-tresor --from-env-file=/dev/stdin >/dev/null"
+fi
 if ! ssh "$HOST" "kubectl -n $NS get secret praxis-anmeldung >/dev/null 2>&1"; then
   ssh "$HOST" "kubectl -n $NS create secret generic praxis-anmeldung --from-file=token-cache.json=/dev/stdin >/dev/null" < .data/token-cache.json
   echo "  Microsoft-Anmeldung übernommen"

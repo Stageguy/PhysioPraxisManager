@@ -8,6 +8,8 @@
  * 4. Rechnungen, Kategorien, Ablage und Zahlungsabgleich schreibt nur die Produktion
  * 5. (mit 1) Die Produktion ignoriert Mails von Testadressen
  * 6. Entwürfe aus der Testumgebung tragen die Kategorie „TEST“
+ * 7. Patientenkontakte (Hybrid mit Exchange, §4b) nur im eigenen Kontaktordner: „Patienten-Test“
+ *    statt „Patienten“ – und nur mit Testadressen
  *
  * PRAXIS_UMGEBUNG=test schaltet die Testumgebung ein (sonst Produktion);
  * TEST_ADRESSEN: Testadressen, durch Komma getrennt (Plus-Varianten zählen mit).
@@ -18,6 +20,8 @@ export type Umgebung = 'prod' | 'test';
 
 export const TEST_KATEGORIE = 'TEST';
 export const TEST_KALENDER = 'Praxis-Test';
+export const KONTAKTORDNER = 'Patienten';
+export const TEST_KONTAKTORDNER = 'Patienten-Test';
 
 export const umgebung = (env: NodeJS.ProcessEnv = process.env): Umgebung => (env.PRAXIS_UMGEBUNG === 'test' ? 'test' : 'prod');
 
@@ -61,6 +65,9 @@ export function patientenpostZulassen(absender: string, u: Umgebung = umgebung()
   const test = istTestadresse(absender, liste);
   return u === 'test' ? test : !test;
 }
+
+/** Schranke 7: Name des Kontaktordners, in dem diese Umgebung Patienten spiegelt */
+export const kontaktordnerName = (u: Umgebung = umgebung()): string => (u === 'test' ? TEST_KONTAKTORDNER : KONTAKTORDNER);
 
 /** Schranke 6: Kategorien für einen Entwurf */
 export const entwurfKategorien = (u: Umgebung = umgebung()): string[] => (u === 'test' ? [TEST_KATEGORIE] : []);

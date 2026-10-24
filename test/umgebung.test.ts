@@ -7,7 +7,7 @@ import { kategorienAnlegen } from '../src/mail/kategorien.ts';
 import { AktionAbgelehnt, ausfuehren } from '../src/rechnungen/dashboard.ts';
 import { rechnungseingang } from '../src/rechnungen/eingang.ts';
 import {
-  istTestadresse, kalenderBasis, normiereAdresse, nurProduktion, patientenpostZulassen, pruefeEmpfaenger, SchrankeVerletzt,
+  istTestadresse, kalenderBasis, kontaktordnerName, normiereAdresse, nurProduktion, patientenpostZulassen, pruefeEmpfaenger, SchrankeVerletzt,
 } from '../src/umgebung.ts';
 import { postfach, textAusAttrappe } from './postfach-attrappe.ts';
 
@@ -28,6 +28,11 @@ test('Testadressen: Groß/klein und Plus-Varianten zählen mit', () => {
   assert.equal(normiereAdresse(' Shopping+Anna@2LATE.de '), 'shopping@2late.de');
   assert.ok(istTestadresse('shopping+bernd@2late.de', T));
   assert.ok(!istTestadresse('erika@example.org', T));
+});
+
+test('Schranke 7: Testumgebung spiegelt Patienten nur im Ordner „Patienten-Test“', () => {
+  assert.equal(kontaktordnerName('test'), 'Patienten-Test');
+  assert.equal(kontaktordnerName('prod'), 'Patienten');
 });
 
 test('Schranke 2: Test schreibt nur an Testadressen; Produktion frei', () => {

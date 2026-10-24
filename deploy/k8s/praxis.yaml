@@ -65,6 +65,9 @@ spec:
             - name: DB_PASSWORT
               valueFrom:
                 secretKeyRef: { name: praxis-db, key: passwort }
+            - name: PRAXIS_TRESOR_SCHLUESSEL
+              valueFrom:
+                secretKeyRef: { name: praxis-tresor, key: PRAXIS_TRESOR_SCHLUESSEL }
             - name: DATABASE_URL
               value: postgres://praxis:$(DB_PASSWORT)@praxis-db.__NS__.svc.cluster.local:5432/praxis
           securityContext:

@@ -1,6 +1,6 @@
 # Requirements – Digitalisierung Praxis Lilli Nebel
 
-Stand: 20.10.2026 · lebendes Dokument, wird bei jedem Schritt fortgeschrieben.
+Stand: 24.10.2026 · lebendes Dokument, wird bei jedem Schritt fortgeschrieben.
 
 **Wozu diese Datei:** Hier stehen Christians Wünsche (W), der Abgleich mit der Prompt-Sammlung
 und dem tatsächlichen Stand (N), die Aufgaben in Reihenfolge (A) und was noch zu entscheiden ist (E).
@@ -80,6 +80,12 @@ Neue Ideen bekommen eine W-Nummer und werden sofort mit den Prompts abgeglichen.
 | W60 | Im Kopf bei „Allgemeiner Faktor“ ein Haken „Aufrunden“ (eigene Preise auf ganze Euro aufrunden), mit Rechtsklick-Erklärung | – | ✅ 0.7.0 (Test): je Preisliste und im Muster gespeichert; Faktor folgt dem gerundeten Preis (Migration 006) |
 | W61 | Beim Speichern fragen, ob es ein neues Muster geben soll – nur wenn sich zum bisherigen Muster etwas geändert hat | – | ✅ 0.7.0: Vergleich von Haken, Faktoren (über den daraus folgenden Preis, damit Rundung keinen Fehlalarm gibt), allgemeinem Faktor und Aufrunden; Antworten: neues Muster · bestehendes aktualisieren · nein |
 | W62 | Die Übernehmen-Haken sollen von einem Muster vorbelegt sein | – | ✅ 0.7.0: bei „Neu“ ist das zuletzt geänderte Muster vorgewählt; in der Bearbeitung „Haken aus Muster übernehmen“. In der Oberfläche heißt es wieder „Muster“ (statt „Vorlage“) |
+| W63 | **Patientenstammdaten als Hybrid:** Kontaktdaten als Exchange-Kontakte (am Handy schnell anrufen oder anschreiben) plus die notwendigen Patientendaten in der eigenen Datenbank | 11, 12 | ▶ Datenmodell 0.8.0 (Migration 007, §4b); Abgleich mit Exchange: A19b |
+| W64 | **Patientenkachel:** Vorname Name; immer primäre Telefonnummer, WhatsApp-Kontakt und Mailadresse; Patient seit; letzte Behandlung (Klick öffnet den Behandlungsverlauf); nächster Termin (Rezept oder Individual); gelb/rot bei leicht verzögerter bzw. überfälliger Rechnung; „+“ für neue Aktivität (Rezept, Behandlung, Rechnung, Termin) | 10, 12, 14 | vorgemerkt – Datenmodell deckt alles ab (§4b); Oberfläche: A19c; Fristen gelb/rot: E25 |
+| W65 | Gendern/Ansprache nur auf Wunsch, als eigenes Feld in den Stammdaten; andere Besonderheiten auf der Kachel anzeigen | – | ✅ Felder `ansprache_hinweis`, `besonderheiten` (verschlüsselt) |
+| W66 | Adresse als Knopf: mehrere Adressen je Patient als Kacheln, darin ein Radio „Rechnungsadresse“ – nur eine kann es sein | 11 | ✅ `patient_adresse`, erzwungen durch die Datenbank |
+| W67 | Klick auf die Telefonnummer startet am Handy den Anruf; der Anruf landet in der Patientenhistorie; danach schnell den Gesprächsgrund eintragen – Standardbegriffe wie „Terminverschiebung“, „Absage Patient“, „Absage Praxis“ | 12, 13 | ✅ `patient_kontaktverlauf` mit `offen` + Tabelle `gespraechsgrund` (9 Begriffe, erweiterbar); Oberfläche: A19c |
+| W68 | Grundlage der Patientendaten sind die geltenden Gesetze (§ 630f BGB u. a. – selbst ergänzt: § 630c, § 630d/e, § 630g, § 14 UStG, § 4 Nr. 14 UStG, Art. 9 DSGVO) | Anhang | ✅ eingearbeitet in §4b |
 | W37 | Hilfeseite, die Kategorien und spätere Funktionen erklärt; Rechtsklick-Erklärungen an Schaltflächen und Eingabefeldern wie in den mondre-Projekten | 10 | ✅ 20.10.2026: `/hilfe`, `/hilfe.js`, Vorschau `npm run hilfe:vorschau` |
 | W36 | Postfach durchlesen: wie viele Mails enthalten Rechnungen, die für das Geschäftsjahr 2026 relevant sind? | 4 | ✅ gezählt 20.10.2026, N21 |
 
@@ -116,6 +122,7 @@ gilt es vor dem jeweiligen Prompt.
 | N27 | **Bereitstellung Bauphase** (20.10.2026) | Prompt 9: Docker Compose hinter Caddy; eigener Tailscale-Knoten | k3s auf `strato-dev` läuft mit **Docker als Laufzeit** (`--docker`), Speicher `local-path`. Namespace `praxis`: PostgreSQL 16 (StatefulSet, 5 GiB) und Praxisdienst (Deployment, 1 GiB für die Microsoft-Anmeldung). Secrets: `praxis-env` (aus `.env`), `praxis-db` (Passwort, einmal erzeugt), `praxis-anmeldung` (nur beim ersten Mal). Der Dienst nutzt das Netz des Servers und hört nur auf 127.0.0.1:3300; **`tailscale serve` des Servers** (bestehendes Tailnet, HTTP auf Port 10000, da dort keine HTTPS-Zertifikate eingeschaltet sind) setzt die Kopfzeile Tailscale-User-Login; erlaubt ist nur `mondre.net@icloud.com`. Von außen nicht erreichbar (geprüft). Wiederholbar mit `deploy/strato-dev.sh`. | **Umhängen später ohne Programmänderung:** im Deployment `hostNetwork` durch einen Tailscale-Sidecar ersetzen (eigener Knoten im Praxis-Tailnet, wie `docker-compose.yml`), `tailscale serve` des Servers entfernen. **Nötig ist der eigene Tailnet erst**, bevor Lilli Zugang bekommt (sie soll nicht in den mondre-Tailnet) und bevor echte Patientendaten in den Tresor kommen. Offen für die Härtung (A25): NetworkPolicy für die Datenbank (der hostNetwork-Pod kommt von der Knotenadresse), Sicherung der Volumes, Bild-Fassungen anpinnen. |
 | N28 | **Testumgebung und Produktion** (21.10.2026) | – | Zwei Namespaces auf strato-dev: `praxis` = **Produktion** (echte Daten; heute 16 Lieferantenrechnungen), `praxis-test` = **Testumgebung** (eigene Datenbank, erfundene Patienten, Band „TESTUMGEBUNG“). Beide nutzen das **echte** Postfach praxis@lilli-nebel.de (W58). Dieselbe Fassung erst nach Test, nach Lillis Abnahme unverändert nach Produktion. | Harte Schranken, weil beide am echten Postfach hängen: (1) Test verarbeitet Patientenpost nur von Christians Testadressen (Absender-Allowlist), (2) Test schreibt nur an Testadressen (Empfänger-Allowlist, sonst Abbruch), (3) Test-Termine nur im eigenen Kalender „Praxis-Test“ von praxis@, (4) Rechnungseingang schreibt nur die Produktion – Test zeigt Finanzen höchstens an, (5) Produktion ignoriert Mails von Testadressen, (6) Test-Entwürfe tragen die Kategorie „TEST“. Nie Echtdaten nach Test kopieren. Abnahme je Funktion mit Checkliste, Ergebnis hier mit Datum. |
 | N29 | **GebüTh und Preisgrundlagen** (Recherche 23.10.2026) | „GebüTh herunterladen, alle Daten speichern“ | Die **GebüTh ist ein gekauftes Buch** (Buchner & Partner GmbH, Kiel; „GebüTh – Gebührenübersicht für Physiotherapeuten“, 15. Auflage, ISBN 978-3-9828028-0-0, 16,82 € zzgl. MwSt.) – kein PDF, kein Download, keine Schnittstelle; Kopien auf Praxisseiten wären Urheberrechtsverstöße. Sie rechnet „GKV-Preis × Steigerungssatz“ und nennt einen Minutenpreiskorridor. **Öffentlich und maschinell lesbar** sind ihre Grundlagen: (1) **GKV-Vergütungsliste** Physiotherapie, Anlage 2 zum Vertrag nach § 125 SGB V, GKV-Spitzenverband (PDF, 58 Positionen: Pos.-Nr. X…, Leistung, Regelbehandlungszeit, Preis, Zuzahlung; „Lesefassung gültig ab 01.01.2026“), (2) **Beihilfe-Höchstbeträge**, Anlage 9 BBhV, gesetze-im-internet.de (HTML, 132 Einträge mit Unterpunkten; ohne Stand – neue Fassung am Inhalt erkannt). | Entschieden (Christian): Preislisten auf **GKV + Beihilfe**, GebüTh-Empfehlungen von Hand über eine **Vorlage** (Begriff statt „Muster“). Nachts 3 Uhr (CronJob je Umgebung) Prüfung aller drei – GebüTh nur „neue Auflage erschienen“ (Produktseite des Herausgebers). Jede neue Fassung wird mit **Originaldokument** und allen gelesenen Feldern gespeichert („alle Daten“). Faktor = eigener Preis ÷ GKV-Preis; beim Speichern zählt der Preis. Beihilfe-Zuordnung je Position automatisch vorgeschlagen (27 von 58 sicher), sonst von Hand. Hinweis zur Quelle: gesetze-im-internet.de kann der BVA-Fassung nachlaufen. Fundstelle eines Lesefehlers: Hinweiszeilen „X9933 in X9950 umbenannt“ – behoben und getestet. |
+| N30 | **Patientenkartei: Datenmodell** (24.10.2026) | Prompt 3: `tenant_id`, pgcrypto, FastAPI; Prompt 11: `service_catalog`, `billing_position`; Prompt 12: `episode` + `episode_phase_log`; Prompt 14: `prescription`, `appointment_prescription` (n:m), `treatment_checkoff`, `invoice_run` | Migration **007** legt alles in deutscher Benennung an (§4b): `patient` + Kontaktwege, Adressen, Bezugspersonen, Versicherung · `behandlungsfall` (= episode) mit Phasenprotokoll · `anamnese`, `befund`, `behandlung` (unveränderlich, neue Fassungen) · `verordnung`, `termin`, `behandlung_leistung` (= checkoff + billing_position in einem) · `patient_erklaerung`, `dokument` (Tresor) · `patient_kontaktverlauf` · `rechnung` + `rechnung_position` (= invoice_run). Verschlüsselung in der **App** (`src/tresor.ts`, AES-256-GCM mit Umschlag), nicht pgcrypto – so sieht auch die Datenbank keinen Klartext und PGlite-Tests laufen ohne Erweiterung. | Abweichungen: kein `tenant_id` (N13); `service_catalog` ersetzt durch die **Preislisten** (W59) – Leistung, Preis und Steuerklasse werden je Sitzung festgehalten; `appointment_prescription` vereinfacht zu `termin.verordnung_id` (eine Sitzung mit zwei Rezepten läuft über zwei Haken in `behandlung_leistung`); `patient.zwischenrechnung_quartale` wie Prompt 14. **Schranke 7** (N28): die Testumgebung spiegelt Kontakte nur in den Ordner „Patienten-Test“ und nur mit Testadressen. Für den Abgleich fehlt noch das Recht **Contacts.ReadWrite** (A19b). |
 | N15 | **Vorhandener Strato-Server** | – | `strato-dev` ist der Entwicklungsserver von **mondre**: Docker, k3s, Plesk, Host im mondre-Tailnet | Der Praxis-Container kann dort mit eigenem Tailscale-Knoten im Praxis-Tailnet laufen, unabhängig vom Tailnet des Hosts. Trotzdem teilt er sich dann Rechner, Root-Zugang und Sicherungen mit mondre. Für Gesundheitsdaten (spätestens mit dem Patienten-Tresor, A19) ist ein **eigener Strato-Server für die Praxis** sauberer, Vertragspartner Lilli (E6). |
 | N11 | **Tailscale-Anleitung** | Backlog #3 verweist auf `tailscale-graph-cockpit-anleitung.md` | Datei liegt nicht im Projekt | Falls vorhanden, nach `konzept/` legen; sonst gilt der Abschnitt im README. |
 | N12 | **Lexware** | API erst ab Tarif XL; Basis `https://api.lexware.io/v1`; 2 Anfragen/s | ungeprüft | Vor A13 gegen developers.lexware.io prüfen (steht so auch in Prompt 5). |
@@ -229,6 +236,86 @@ Quellen: [HiDrive Objektspeicher](https://www.strato.de/cloud-speicher/hidrive-s
 
 ---
 
+## 4b. Patientenkartei – Datenmodell (W63–W68, Migration 007)
+
+Stand 24.10.2026, Arbeitsgrundlage, keine Rechtsberatung. Prüfung von Christians Vorschlag
+(Stammdaten-Tabelle und § 630f-Herleitung vom 24.10.2026) – **der Vorschlag ist tragfähig**; unten steht,
+was übernommen, was anders gelöst und was ergänzt wurde.
+
+**Gesetzliche Grundlage (selbst ergänzt, W68):**
+
+| Norm | Was daraus folgt | Wo im Modell |
+|---|---|---|
+| § 630f Abs. 1 BGB – Dokumentation zeitnah; Änderungen nur so, dass der ursprüngliche Inhalt und der Zeitpunkt erkennbar bleiben | Dokumentation ist **unveränderlich**: Inhalte werden nie geändert oder gelöscht, sondern durch eine neue Fassung ersetzt (`vorgaenger_id`, `ersetzt_am`); ein Trigger erzwingt das | `anamnese`, `befund`, `behandlung` |
+| § 630f Abs. 2 – Anamnese, Diagnosen, Untersuchungen, Befunde, Therapien und Wirkungen, Eingriffe, Einwilligungen, Aufklärungen; Arztbriefe | je ein Bereich, ärztliche Diagnose und eigener Befund getrennt | `behandlungsfall`, `anamnese`, `befund`, `behandlung`, `patient_erklaerung`, `dokument` |
+| § 630f Abs. 3 – zehn Jahre aufbewahren | kein DELETE: Patienten mit Akte werden archiviert, Dokumente nur „ungültig“ mit Grund; `aufbewahren_bis` je Fall | Trigger `patient_nicht_loeschen`, `nur_markieren` |
+| § 630c Abs. 3 – wirtschaftliche Information in Textform, wenn die Kostenübernahme nicht gesichert ist | eigene Erklärung „Kosteninformation“ mit Datum, Fassung und Dokument | `patient_erklaerung.art = kosteninformation` |
+| § 630d/§ 630e – Einwilligung nach Aufklärung | Aufklärung und Einwilligung getrennt, je Fall, mit Form (mündlich/schriftlich …) | `patient_erklaerung` |
+| § 630g – Einsicht in die Akte | alles lesbar exportierbar (später: Export je Patient) | – (A19d) |
+| § 14 Abs. 4 UStG, § 33/§ 34a UStDV – Rechnungsangaben; § 4 Nr. 14 UStG – steuerfreie Heilbehandlung | vollständige, personenbezogene Rechnungen als Normalfall; Steuerklasse je Fall, nie gemischt | `rechnung`, `behandlungsfall.steuerklasse`, `behandlung_leistung.steuerklasse` |
+| Art. 9 DSGVO, § 22 BDSG – Gesundheitsdaten; DSK: keine erzwungene Unterschrift unter die Datenschutzinformation | Verarbeitung aus dem Behandlungsvertrag, keine Pauschal-Einwilligung; Aushändigung der Information nur **vermerken**; freiwillige Einwilligungen (Mail, WhatsApp, Erinnerung, Foto) einzeln mit Widerruf | `patient_erklaerung.art = datenschutzinformation`, `einwilligung_*` |
+| § 203 StGB, §4a | Gesundheitsdaten verschlüsselt die App vor dem Speichern | `src/tresor.ts`, alle `bytea`-Spalten |
+| BVerwG 3 C 19.08 – sektorale Heilpraktikererlaubnis Physiotherapie | „Selbstzahler“ sagt nichts über die Grundlage: je Fall `grundlage` = verordnung · direktzugang · praevention | `behandlungsfall.grundlage` (E26) |
+
+**Stammdaten – Christians Tabelle, Bewertung:**
+
+| Feld aus dem Vorschlag | Übernommen? | Lösung |
+|---|---|---|
+| Patienten-ID | ✅ | `patientennummer` „P-1001“ fortlaufend, nie wiederverwendet; beim Import aus Lexware vorgebbar |
+| Vor-/Nachname, Geburtsdatum | ✅ | Klartext (gesucht, sortiert, abgeglichen) – E24; zusätzlich `geburtsname` |
+| Adresse mit Land | ✅ erweitert | **mehrere Adressen** als Kacheln, genau eine `rechnungsadresse` (W66) |
+| Telefon, E-Mail | ✅ erweitert | `patient_kontakt`: mobil · telefon · whatsapp · email · sonstige, je Art ein `primaer`; `normiert` (E.164 bzw. klein) für `tel:`/`wa.me`-Links und die Wiedererkennung in der Poststelle |
+| Anrede, Titel | ✅ | `anrede`, `titel`; dazu `ansprache_hinweis` für Gendern auf Wunsch (W65) |
+| Geschlecht im Stammdatensatz | ❌ bewusst nicht | wie im Vorschlag: gehört, wenn fachlich nötig, in die Anamnese |
+| Abweichender Vertragspartner / Rechnungsempfänger, Vertretung mit Berechtigungsgrund, Notfallkontakt | ✅ | `patient_bezugsperson` mit `rolle`; je Patient höchstens ein Vertragspartner und ein Rechnungsempfänger; Vertretung braucht `berechtigungsgrund` |
+| Hausarzt / behandelnde Ärzte | ✅ anders | eigene Tabelle `arzt` (mit LANR), `patient.hausarzt_id`, `verordnung.arzt_id` – Ärzte wiederholen sich |
+| Beruf / Belastung | ✅ | `beruf_belastung` verschlüsselt (fachlich relevant → Gesundheitsbezug) |
+| Sprache / Unterstützungsbedarf | ✅ | `sprache`, `kommunikationshilfe` |
+| Versicherung, Tarif, Selbstbehalt, Erstattungssatz, Beihilfe | ✅ optional | `patient_versicherung` (0..n): pkv · beihilfe · gkv · sonstige – Beihilfe und PKV sind oft **beides** |
+
+**Ergänzt (fehlte im Vorschlag):** Besonderheiten für die Kachel (W65) · `patient_seit` (W64) · Abrechnungsmodus und
+Zwischenrechnungs-Quartale je Patient (Prompt 12/14) · Exchange- und Lexware-Verweise für den Hybrid (W63) ·
+`status` aktiv/inaktiv/archiviert · **Kontaktverlauf** mit Gesprächsgründen (W67) · **Termine** mit Rezeptbezug und
+Exchange-Spiegel · **Ausgangsrechnungen** mit Fälligkeit, Erinnerung, Mahnung (für gelb/rot, W64) ·
+Phasenprotokoll des Patientenwegs (Prompt 12).
+
+**Behandlungsdokumentation – Christians Herleitung, Bewertung:** alle zwölf Bereiche sind abgebildet.
+Anders gelöst: *Diagnose/ICD* liegt am **Fall** (ärztlich mitgeteilt) und an der **Verordnung** (wie auf dem
+Rezept), nicht an jeder Sitzung; *Therapieziele/Plan* am Fall; *Untersuchungen/Befunde* als eigene Tabelle mit
+**Messwerten als verschlüsseltes JSON nach ICF-Gliederung** (Körperfunktion, Aktivität, Teilhabe, Umwelt);
+*durchgeführte Behandlung* in zwei Teilen – Text (`massnahmen`) und **abrechenbare Leistungen** mit Preis aus
+der Preisliste zum Behandlungstag (`behandlung_leistung`; mit `verordnung_id` ist das zugleich der Haken auf
+der Rezept-Stempelkarte). Die technischen Felder (Autor, Zeitpunkt, Änderungen mit Ursprung) sind drin.
+
+**Verschlüsselt (bytea, `src/tresor.ts`):** Anlass, Bezeichnung, Diagnosen, ICD, Ziele, Plan, Abschlussbefund,
+Anamnese, Befunde, Maßnahmen, Verlauf, Reaktionen, Übungen, Notizen, Besonderheiten, Ansprache, Beruf,
+Erklärungsinhalte, Dokumente samt Titel und Dateiname. **Klartext:** Identität, Kontaktwege, Adressen,
+Bezugspersonen, Versicherung, Termine (Zeit), Rechnungen (Beträge, Status), Leistungsnummern/-bezeichnungen.
+
+**Tresor:** AES-256-GCM, je Wert ein eigener Datenschlüssel, eingepackt mit dem Hauptschlüssel
+`PRAXIS_TRESOR_SCHLUESSEL` (Secret `praxis-tresor`, je Umgebung eigener, wird von `deploy/strato-dev.sh`
+einmalig erzeugt). Der Spaltenname ist Teil der Prüfung – ein Wert lässt sich nicht in eine andere Spalte
+schieben. Schlüsselwechsel: neue Nummer, alte Schlüssel bleiben zum Lesen hinterlegt. **Notfallkopie offline
+bei Lilli** – ohne Schlüssel sind die Akten weg (E26).
+
+**Hybrid mit Exchange (W63, A19b):** Die Datenbank ist Master. Je Patient ein Kontakt im Ordner „Patienten“
+(Test: „Patienten-Test“, Schranke 7) mit Name, Telefon, Mobil, WhatsApp-Nummer, Mail, Rechnungsadresse und
+Patientennummer – **nichts** mit Gesundheitsbezug. Änderungen am Handy (neue Nummer) fließen beim nächsten
+Abgleich zurück (`exchange_abgleich_hash` erkennt, wer sich geändert hat; bei beidseitiger Änderung gewinnt
+die Datenbank, der Konflikt wird protokolliert). Braucht das Recht Contacts.ReadWrite.
+
+**Kachel (W64) – woher die Werte kommen:** Name, Ansprache, Besonderheiten → `patient`; Telefon/WhatsApp/Mail →
+`patient_kontakt` (primär); Patient seit → `patient_seit`; letzte Behandlung → `behandlung` (neueste, nicht
+ersetzt); nächster Termin → `termin` (Status bestätigt, `verordnung_id` gesetzt = Rezept); Farbe → `rechnung`
+mit Status gesendet und `faellig_am` < heute (gelb bis Frist, rot darüber oder nach Mahnung, E25); „+“ legt
+Verordnung, Behandlung, Rechnung oder Termin an.
+
+**Noch nicht gebaut:** Oberfläche (A19c), Exchange-Abgleich (A19b), Export nach § 630g (A19d), Löschlauf
+nach Ablauf der Aufbewahrung (A19e), Protokoll „wer hat welche Akte geöffnet“ in `audit_event` (gehört in
+A19c).
+
+---
+
 ## 5. Aufgaben (A) – Schritt für Schritt
 
 Status: ✅ erledigt · ▶ als Nächstes · ⏳ wartet (auf Entscheidung oder Vorleistung) · ○ später
@@ -290,6 +377,11 @@ Status: ✅ erledigt · ▶ als Nächstes · ⏳ wartet (auf Entscheidung oder V
 | # | Aufgabe | Bezug | Status |
 |---|---|---|---|
 | A19 | Poststelle, Patienten-Tresor (App-Verschlüsselung + HiDrive-Objektspeicher, §4a), Ausgangsrechnungen als Lexware-Entwurf | W11, W12, W27, Prompt 11 | ○ E9, E14, E15 |
+| A19a | Patientenkartei: Datenmodell (Migration 007), Tresor-Verschlüsselung, Unveränderlichkeit der Dokumentation, Tests | W63–W68, §4b | ✅ 24.10.2026 (0.8.0) |
+| A19b | Hybrid mit Exchange-Kontakten: Ordner „Patienten“/„Patienten-Test“, Abgleich in beide Richtungen, Recht Contacts.ReadWrite | W63, N30 | ○ nach A19c |
+| A19c | Patientenseiten: Liste, Kachel (W64), Stammdaten mit Adress-Kacheln (W66), Kontaktverlauf mit Anruf und Gesprächsgrund (W67), Akte lesen (Protokoll in `audit_event`), „+“-Aktionen; Hilfe und Rechtsklick-Erklärungen | W64–W67 | ▶ nächster Schritt, zusammen mit A09e (Testdaten) |
+| A19d | Einsicht/Export der Akte nach § 630g (PDF je Patient) | W68 | ○ |
+| A19e | Löschlauf nach Ablauf der Aufbewahrung (zehn Jahre nach Abschluss, nur mit Bestätigung) | W68 | ○ |
 | A20 | Patientenweg mit Phasen + Pinnwand | W13–W15, Prompt 12 | ○ |
 | A21 | Schnellaktionen: Mail-Entwürfe aus der Pinnwand | W17, Prompt 13 | ○ |
 | A22 | Rezepte, Terminregeln, Zwischen- und Abschlussrechnungen | W18–W20, Prompt 14 | ○ E7, E10 |
@@ -345,6 +437,9 @@ nicht in den Tresor (N16, N27).
 | E9 | Leistungskatalog und Steuerklassen (Heilbehandlung / Wellness) | Lilli + Steuerberatung | – |
 | E10 | Standard für Zwischenrechnungen: nach wie vielen Quartalen? | Lilli | offen (pro Patient überschreibbar) |
 | E11 | Mehrmandantenfähigkeit vorab einbauen? | Christian | nein (N13) |
+| E24 | Identität und Kontaktwege (Name, Geburtsdatum, Adresse, Telefon, Mail) im Klartext in der Datenbank – oder auch verschlüsselt mit Blindindex? | Christian | Empfehlung: **Klartext** – nötig für Suche, Sortierung, Abgleich mit Exchange/Lexware; alles mit Gesundheitsbezug ist verschlüsselt. Der Schutz der Identität kommt aus Zugang (nur Tailnet), Datenbankpasswort und verschlüsselter Sicherung (A25). Vor echten Daten bestätigen |
+| E25 | Fristen für die Kachelfarbe: ab wann „leicht verzögert“ (gelb), ab wann „im Verzug“ (rot)? | Lilli | Vorschlag: gelb ab Fälligkeit, rot 14 Tage nach Fälligkeit oder nach der ersten Mahnung; in `config/praxis.json` einstellbar |
+| E26 | Tresor-Schlüssel: wo liegt die Notfallkopie, und wer darf sie öffnen? Hat Lilli eine sektorale Heilpraktikererlaubnis (Direktzugang ohne Verordnung)? | Lilli + Christian | Notfallkopie ausgedruckt im Praxis-Safe (Umschlag), zweite Kopie bei Christian offline; Erlaubnis: Frage 15 an Lilli |
 
 ---
 
