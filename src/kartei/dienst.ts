@@ -1,15 +1,17 @@
 /**
- * Kartei-Dienst für den Praxisdienst: Seitendaten und Aktionen (W63–W68). Schreibt nur in die
- * eigene Datenbank – in Test und Produktion gleichermaßen erlaubt (die Testdatenbank enthält nur
+ * Kartei-Dienst für den Praxisdienst: Seitendaten und Aktionen (W63–W68, W73–W74). Schreibt nur in
+ * die eigene Datenbank – in Test und Produktion gleichermaßen erlaubt (die Testdatenbank enthält nur
  * erfundene Patienten, N28).
  */
 import type { Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
 import {
-  adresseLoeschen, adresseSpeichern, akte, anrufBeginnen, behandlungErfassen, gespraechsgruende, KarteiFehler, kontaktLoeschen, kontaktSpeichern, kontaktverlauf,
-  offeneFaelle, patientAnlegen, patientenListe, patientLesen, rechnungen, rechnungsadresseSetzen, stammdatenSpeichern, statusSetzen, terminAnlegen, terminStatus,
-  termine, verlaufAbschliessen, verlaufEintragen, verlaufVerwerfen, verordnungAnlegen, verordnungen,
-  type Fall, type Gespraechsgrund, type Kontaktart, type Patient, type PatientKurz, type RechnungKurz, type TerminKurz, type VerlaufEintrag, type VerordnungKurz,
+  adresseLoeschen, adresseSpeichern, akte, anrufBeginnen, behandlungErfassen, fallAnlegen, gespraechsgruende, KarteiFehler, kontaktLoeschen, kontaktSpeichern, kontaktverlauf,
+  offeneFaelle, patientAnlegen, patientenListe, patientLesen, rechnungen, rechnungsadresseSetzen, serieAbschliessen, serien, stammdatenSpeichern, statusSetzen, terminAnlegen,
+  terminStatus, termine, verlaufAbschliessen, verlaufEintragen, verlaufVerwerfen, verordnungAbbrechen, verordnungAnlegen, verordnungen, wellnessAktiv, wellnessLeistungen,
+  wellnessSpeichern, zweitschriftVermerken,
+  type Fall, type Gespraechsgrund, type Kontaktart, type Patient, type PatientKurz, type RechnungKurz, type Serie, type TerminKurz, type VerlaufEintrag, type VerordnungKurz,
+  type WellnessLeistung,
 } from './patienten.ts';
 
 export { KarteiFehler };
@@ -20,6 +22,7 @@ export interface PatientSeiteDaten {
   gruende: Gespraechsgrund[];
   termine: TerminKurz[];
   verordnungen: VerordnungKurz[];
+  serien: Serie[];
   rechnungen: RechnungKurz[];
 }
 
@@ -31,8 +34,18 @@ export interface AkteDaten {
 export interface NeuAktionDaten {
   patient: Patient;
   faelle: { id: string; nummer: number; grundlage: string; bezeichnung: string | null }[];
+  /** aktive Rezepte (Abhaken, Termine) */
   verordnungen: VerordnungKurz[];
+  /** alle Rezepte (Vorgänger bei Folgerezept/Korrektur) */
+  alleVerordnungen: VerordnungKurz[];
   termine: TerminKurz[];
+  wellness: WellnessLeistung[];
+}
+
+export interface RezepteDaten {
+  verordnungen: VerordnungKurz[];
+  serien: Serie[];
+  filter: 'aktiv' | 'alle';
 }
 
 export interface KarteiDienst {
@@ -40,6 +53,8 @@ export interface KarteiDienst {
   patient(id: string): Promise<PatientSeiteDaten | undefined>;
   akte(id: string, wer: string): Promise<AkteDaten | undefined>;
   neuAktion(id: string): Promise<NeuAktionDaten | undefined>;
+  rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
+  wellness(): Promise<WellnessLeistung[]>;
   gruende(): Promise<Gespraechsgrund[]>;
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
 }
@@ -57,8 +72,8 @@ export function karteiDienst(q: { db: Db; tresor: Tresor }): KarteiDienst {
       const patient = await patientLesen(db, t, id);
       if (!patient) return undefined;
       return {
-        patient, verlauf: await kontaktverlauf(db, t, id), gruende: await gespraechsgruende(db),
-        termine: await termine(db, id, { kommend: true }), verordnungen: await verordnungen(db, id), rechnungen: await rechnungen(db, id),
+        patient, verlauf: await kontaktverlauf(db, t, id), gruende: await gespraechsgruende(db), termine: await termine(db, id, { kommend: true }),
+        verordnungen: await verordnungen(db, { patientId: id }), serien: await serien(db, t, { patientId: id }), rechnungen: await rechnungen(db, id),
       };
     },
     async akte(id, wer) {
@@ -68,8 +83,16 @@ export function karteiDienst(q: { db: Db; tresor: Tresor }): KarteiDienst {
     async neuAktion(id) {
       const patient = await patientLesen(db, t, id);
       if (!patient) return undefined;
-      return { patient, faelle: await offeneFaelle(db, t, id), verordnungen: (await verordnungen(db, id)).filter((v) => v.status === 'aktiv'), termine: await termine(db, id) };
+      const alle = await verordnungen(db, { patientId: id });
+      return {
+        patient, faelle: await offeneFaelle(db, t, id), verordnungen: alle.filter((v) => v.status === 'aktiv'), alleVerordnungen: alle,
+        termine: await termine(db, id), wellness: await wellnessLeistungen(db),
+      };
     },
+    async rezepte(filter) {
+      return { verordnungen: await verordnungen(db, { nurAktiv: filter === 'aktiv' }), serien: await serien(db, t, { nurOffen: filter === 'aktiv' }), filter };
+    },
+    wellness: () => wellnessLeistungen(db, { alle: true }),
     gruende: () => gespraechsgruende(db),
     async aktion(f, wer) {
       const id = f.get('id') ?? '';
@@ -90,6 +113,15 @@ export function karteiDienst(q: { db: Db; tresor: Tresor }): KarteiDienst {
           adresse: { bezeichnung: g('adresse_bezeichnung') ?? 'Zuhause', zusatz: null, strasse: g('strasse') ?? null, hausnummer: g('hausnummer') ?? null, plz: g('plz') ?? null, ort: g('ort') ?? null, land: g('land') },
         }, wer);
         return nach(`/patienten/${neu}`, 'Patient angelegt.');
+      }
+      // Wellness-Katalog (W74) – ohne Patient
+      if (aktion === 'wellness_speichern') {
+        await wellnessSpeichern(db, { id: g('wellness_id'), code: g('code') ?? '', bezeichnung: g('bezeichnung') ?? '', dauerMin: ganz(f.get('dauer_min')) || undefined, preis: g('preis') ?? '' }, wer);
+        return nach('/rezepte/wellness', 'Wellness-Leistung gespeichert.');
+      }
+      if (aktion === 'wellness_aktiv') {
+        await wellnessAktiv(db, g('wellness_id') ?? '', f.get('aktiv') === '1');
+        return nach('/rezepte/wellness', f.get('aktiv') === '1' ? 'Leistung wieder anbietbar.' : 'Leistung ausgeblendet – bestehende Serien bleiben.');
       }
       if (!istId(id)) throw new KarteiFehler('Unbekannter Patient');
       switch (aktion) {
@@ -136,12 +168,29 @@ export function karteiDienst(q: { db: Db; tresor: Tresor }): KarteiDienst {
         case 'termin_status':
           await terminStatus(db, id, g('termin_id') ?? '', g('status') ?? '', wer);
           return nach(`${seite}#termine`, 'Termin geändert.');
-        case 'verordnung_anlegen':
+        case 'verordnung_anlegen': {
+          const art = g('art') ?? 'erst';
           await verordnungAnlegen(db, t, id, {
             ausgestelltAm: g('ausgestellt_am') ?? '', arzt: g('arzt'), massnahme: g('massnahme') ?? '', leistungNummer: g('leistung_nummer'), anzahl: ganz(f.get('anzahl')),
-            frequenz: g('frequenz'), diagnose: g('diagnose'), gueltigBis: g('gueltig_bis'), fallId: g('fall_id'),
+            frequenz: g('frequenz'), diagnose: g('diagnose'), gueltigBis: g('gueltig_bis'), fallId: g('fall_id') || undefined,
+            art, langzeit: f.has('langzeit'), vorgaengerId: art === 'erst' ? undefined : g('vorgaenger_id') || undefined, notiz: g('notiz'),
           }, wer);
-          return nach(`${seite}#rezepte`, 'Rezept angelegt.');
+          return nach(`${seite}#rezepte`, art === 'korrektur' ? 'Korrektur angelegt – das alte Rezept gilt als ersetzt, seine Haken zählen weiter.' : 'Rezept angelegt.');
+        }
+        case 'zweitschrift':
+          await zweitschriftVermerken(db, id, g('verordnung_id') ?? '', g('datum'), wer);
+          return nach(`${seite}#rezepte`, 'Zweitschrift vermerkt – kein neues Kontingent.');
+        case 'verordnung_abbrechen':
+          await verordnungAbbrechen(db, id, g('verordnung_id') ?? '', g('grund') ?? '', wer);
+          return nach(`${seite}#rezepte`, 'Rezept abgebrochen. Die Abschlussrechnung kommt mit der Abrechnung (Prompt 14).');
+        case 'serie_anlegen': {
+          const grundlage = g('grundlage') === 'praevention' ? 'praevention' : 'direktzugang';
+          await fallAnlegen(db, t, id, { grundlage, bezeichnung: g('bezeichnung'), anlass: g('anlass'), begonnenAm: g('begonnen_am'), wellnessLeistungId: g('wellness_id') }, wer);
+          return nach(`${seite}#rezepte`, grundlage === 'praevention' ? 'Wellness-Serie angelegt.' : 'Behandlungsserie ohne Rezept angelegt.');
+        }
+        case 'serie_abschliessen':
+          await serieAbschliessen(db, id, g('fall_id') ?? '', wer);
+          return nach(`${seite}#rezepte`, 'Serie abgeschlossen.');
         case 'behandlung_erfassen': {
           const neu = g('fall_id') === 'neu';
           const e = await behandlungErfassen(db, t, id, {

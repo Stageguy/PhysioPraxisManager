@@ -267,6 +267,38 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .fall{margin-top:16px}.behandlungen{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
 .behandlungen li{border-top:1px solid var(--rand);padding:10px 0}.b-kopf{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px}
 @media (max-width:640px){.pat-raster{grid-template-columns:1fr}.formular .zwei{grid-template-columns:1fr}}
+/* Rezepte als Kacheln */
+.rz-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:8px 0 12px}
+.rz{display:flex;flex-direction:column;gap:6px;background:var(--karte);border:1px solid var(--rand);border-radius:14px;padding:12px 14px;min-width:0}
+.rz.aktiv{border-color:var(--ok)}.rz.ersetzt,.rz.abgebrochen{opacity:.7}
+.rz-kopf{display:flex;gap:8px;align-items:center;color:var(--akzent);flex-wrap:wrap}.rz-kopf b{color:var(--fg);flex:1;min-width:0;overflow-wrap:anywhere}
+.rz-patient{font-size:15px}.rz-marken{margin:0;display:flex;gap:6px;flex-wrap:wrap}.rz-marken a.marke{text-decoration:none}
+.rz-mehr summary{list-style:none;display:inline-flex;margin-top:4px}.rz-mehr summary::-webkit-details-marker{display:none}
+.rz-aktionen{display:grid;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--rand)}.rz-aktionen form{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.rz-aktionen input{font:inherit;font-size:14px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:4px 8px;min-height:32px;flex:1 1 140px}
+/* Rückmeldungen: Fähnchen und Fenster */
+.rm-marke{position:absolute;z-index:1100;display:none;place-items:center;width:16px;height:16px;padding:0;border-radius:50%;border:1px solid var(--akzent);background:var(--karte);color:var(--akzent);cursor:pointer;opacity:.85}
+.rm-marke:hover{opacity:1;transform:scale(1.25)}
+.rm-seite{position:fixed;left:10px;bottom:10px;z-index:900;display:grid;place-items:center;width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--rand);background:var(--karte);color:var(--grau);cursor:pointer}
+.rm-seite:hover{color:var(--akzent);border-color:var(--akzent)}
+.rm-dialog{border:1px solid var(--rand);border-radius:14px;padding:0;width:min(720px,calc(100vw - 24px));max-height:calc(100vh - 24px);background:var(--karte);color:var(--fg);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.rm-dialog::backdrop{background:rgba(0,0,0,.45)}
+.rm-form{display:grid;gap:12px;padding:16px;margin:0}
+.rm-kopf{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.rm-kopf strong{display:inline-flex;gap:6px;align-items:center;font-size:17px;color:var(--akzent)}.rm-kopf .hilfe-schliessen{margin-left:auto}
+.rm-bild{max-width:100%;max-height:40vh;object-fit:contain;border:1px solid var(--rand);border-radius:10px;background:var(--bg)}
+.rm-art{display:flex;gap:8px}
+.rm-werkzeuge{display:flex;gap:4px}.rm-werkzeuge button{font:inherit;min-width:36px;min-height:32px;border:1px solid var(--rand);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.rm-text-eingabe{min-height:120px;max-height:40vh;overflow:auto;padding:10px 12px;border:1px solid var(--rand);border-radius:8px;background:var(--bg);font-size:15px;line-height:1.5}
+.rm-text-eingabe:empty::before{content:attr(data-platzhalter);color:var(--grau)}
+.rm-status:empty{display:none}
+.rm-eintrag{background:var(--karte);border:1px solid var(--rand);border-radius:14px;padding:12px 16px;margin:12px 0}
+.rm-eintrag.erledigt{opacity:.7}
+.rm-eintrag header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.rm-eintrag header .rechts{margin-left:auto}
+.rm-inhalt{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:16px;align-items:start}
+.rm-inhalt img{max-width:100%;border:1px solid var(--rand);border-radius:8px;background:var(--bg)}
+.rm-text p{margin:0 0 6px}.rm-antwort{border-top:1px solid var(--rand);padding-top:6px}
+.rm-fuss{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}.rm-fuss input{flex:1 1 220px;font:inherit;font-size:14px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:6px 10px;min-height:32px}
+@media (max-width:640px){.rm-inhalt{grid-template-columns:1fr}}
 `;
 
 export type Menuepunkt = 'cockpit' | 'patienten' | 'status' | 'preislisten' | 'hilfe';
@@ -290,7 +322,7 @@ export function seite(o: {
       return `<a href="${href}" data-hilfe="menue.${key}"${o.aktiv === key ? ' aria-current="page"' : ''}>${text}${punkt}</a>`;
     })
     .join('');
-  const skript = o.skriptInline !== undefined ? `<script>${o.skriptInline}</script>` : '<script src="/hilfe.js"></script><script src="/praxis.js"></script>';
+  const skript = o.skriptInline !== undefined ? `<script>${o.skriptInline}</script>` : '<script src="/hilfe.js"></script><script src="/praxis.js"></script><script src="/rueckmeldung.js"></script>';
   return `<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${umgebung() === 'test' ? 'TEST · ' : ''}${esc(o.titel)}</title>

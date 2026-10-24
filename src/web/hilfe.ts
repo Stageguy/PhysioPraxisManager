@@ -445,9 +445,6 @@ export const HILFE: Record<string, HilfeEintrag> = {
   'termin.status': { seite: 'Patient', titel: 'Termin ändern',
     loest_aus: 'Setzt den Termin auf abgesagt (Patient oder Praxis) oder „nicht erschienen“.', bezug: 'Ein bestätigter Termin. Die 24-Stunden-Regel und Ausfallgebühr (E7) kommen mit Prompt 14.',
     aendert: 'Status des Termins; Protokolleintrag.', ergebnis: 'Der Termin verschwindet aus „nächster Termin“ auf der Kachel.', rueckweg: 'Neuen Termin anlegen – ein abgesagter wird nicht zurückgeholt.' },
-  'rezepte.liste': { seite: 'Patient', titel: 'Rezept (Stempelkarte)',
-    loest_aus: AUSKUNFT, bezug: 'Eine Verordnung: Maßnahme, Anzahl, Ärztin/Arzt. Jeder Punkt ist eine Behandlung; voll = abgehakt.',
-    aendert: 'Nichts hier – abgehakt wird beim Erfassen einer Behandlung mit diesem Rezept.', ergebnis: 'Sind alle Punkte voll, ist das Rezept abgeschlossen.', rueckweg: KEIN_RUECKWEG },
   'rechnungen.liste': { seite: 'Patient', titel: 'Rechnungen des Patienten',
     loest_aus: AUSKUNFT, bezug: 'Ausgangsrechnungen an diesen Patienten mit Status; fällige sind gelb, gemahnte rot.', aendert: NICHTS,
     ergebnis: 'Dieselbe Einstufung färbt den Rand der Kachel.', rueckweg: KEIN_RUECKWEG },
@@ -513,6 +510,81 @@ export const HILFE: Record<string, HilfeEintrag> = {
   'rezept.anlegen': { seite: 'Neues Rezept', titel: 'Rezept anlegen',
     loest_aus: 'Speichert das Rezept.', bezug: 'Das Formular.', aendert: 'Rezept in der Kartei, Protokolleintrag.', ergebnis: 'Zurück zur Patientenseite, Abschnitt Rezepte.', rueckweg: 'Siehe Formular.' },
 
+  // ── Rezepte als Kacheln (W73, W74) ────────────────────────────────────────
+  'rezepte.kachel': { seite: 'Rezepte', titel: 'Rezept-Kachel',
+    loest_aus: AUSKUNFT, bezug: 'Eine Verordnung: Maßnahme, Rezeptart (Erst, Folge unverändert/angepasst, Wiederaufnahme, Korrektur), Langzeit, Ärztin/Arzt, Nummer in der Preisliste, Gültigkeit, Fall; die Stempelkarte zählt die Haken – bei einer Korrektur über die ganze Kette.',
+    aendert: NICHTS, ergebnis: 'Grüner Rahmen = aktiv; „ersetzt“ heißt: es gibt eine Korrektur, die gilt.', rueckweg: KEIN_RUECKWEG },
+  'rezept.mehr': { seite: 'Rezepte', titel: 'mehr …',
+    loest_aus: 'Klappt die Aktionen zum Rezept auf: Zweitschrift, Abbrechen, Folgerezept/Korrektur.', bezug: 'Ein aktives Rezept.', aendert: 'Noch nichts.', ergebnis: 'Drei Knöpfe.', rueckweg: 'Noch einmal tippen.' },
+  'rezept.zweitschrift': { seite: 'Rezepte', titel: 'Zweitschrift vermerken',
+    loest_aus: 'Vermerkt, dass es eine Zweitschrift (Ersatz für ein verlorenes Rezept) gibt.', bezug: 'Dieses Rezept – die Zweitschrift ist kein neues Rezept und bringt kein neues Kontingent.',
+    aendert: 'Datum der Zweitschrift am Rezept; Protokolleintrag.', ergebnis: 'Die Kachel zeigt „Zweitschrift <Datum>“.', rueckweg: 'Bleibt vermerkt; bei Irrtum Christian Bescheid geben.' },
+  'rezept.abbrechen': { seite: 'Rezepte', titel: 'Rezept abbrechen',
+    loest_aus: 'Beendet das Rezept vorzeitig – der Grund ist Pflicht.', bezug: 'Ein aktives Rezept, das nicht zu Ende behandelt wird (Patient bricht ab, Arzt ändert die Therapie).',
+    aendert: 'Status „abgebrochen“ mit Grund und Datum; Protokolleintrag. Die Abschlussrechnung über die erbrachten Einheiten kommt mit der Abrechnung (Prompt 14).',
+    ergebnis: 'Die Kachel wird blass; keine Haken mehr möglich.', rueckweg: 'Nicht rücknehmbar – bei Bedarf ein neues Rezept anlegen.' },
+  'rezept.folge': { seite: 'Rezepte', titel: 'Folgerezept / Korrektur',
+    loest_aus: 'Öffnet das Rezeptformular mit diesem Rezept als Vorgänger.', bezug: 'Dieses Rezept.', aendert: 'Noch nichts.',
+    ergebnis: 'Im Formular ist die Rezeptart „Folgerezept – unverändert“ vorgewählt; Korrektur oder angepasst lässt sich wählen.', rueckweg: 'Zurück ohne Speichern.' },
+  'rezept.art': { seite: 'Neues Rezept', titel: 'Rezeptart',
+    loest_aus: 'Legt fest, was dieses Rezept ist.', bezug: 'Erstrezept (neuer Fall) · Folgerezept unverändert (gleiche Maßnahmen, eigenes Kontingent) · Folgerezept angepasst (andere Therapie, Dauer, Häufigkeit, Anzahl) · erneute Verordnung bei Wiederaufnahme (nach Abschluss oder Pause; Fall fortführen oder neu) · Korrektur (berichtigt ein Rezept, kein neues Kontingent).',
+    aendert: 'Beim Anlegen: die Art am Rezept; bei Korrektur wird der Vorgänger „ersetzt“.', ergebnis: 'Die Kachel zeigt die Art als Marke.', rueckweg: 'Vor dem Speichern anders wählen.' },
+  'rezept.vorgaenger': { seite: 'Neues Rezept', titel: 'Vorheriges Rezept',
+    loest_aus: 'Verknüpft das neue Rezept mit dem vorherigen.', bezug: 'Pflicht bei Folgerezept, Wiederaufnahme und Korrektur. Folgerezepte und Korrekturen übernehmen den Fall des Vorgängers, wenn kein anderer gewählt ist.',
+    aendert: 'Die Verknüpfung; bei Korrektur zählen die Haken des Vorgängers weiter.', ergebnis: 'Die Kachel zeigt „↑ Vorgänger“.', rueckweg: 'Vor dem Speichern anders wählen.' },
+  'rezept.langzeit': { seite: 'Neues Rezept', titel: 'Langzeitbehandlung',
+    loest_aus: 'Markiert das Rezept als Dauerverordnung.', bezug: 'Chronische oder länger anhaltende Problematik; kann mit Erst- und Folgerezepten vorkommen. Umfang und Erstattung richten sich nach Verordnung und Tarif.',
+    aendert: 'Ein Zusatzmerkmal am Rezept.', ergebnis: 'Grüne Marke „Langzeitbehandlung“ auf der Kachel.', rueckweg: 'Vor dem Speichern abwählen.' },
+  'rezepte.filter': { seite: 'Rezepte', titel: 'Anzeigen: aktive / alle',
+    loest_aus: 'Wechselt zwischen aktiven Rezepten und laufenden Serien oder allem, auch abgeschlossenem.', bezug: 'Alle Patienten.', aendert: NICHTS, ergebnis: 'Die Kacheln darunter.', rueckweg: 'Zurückschalten.' },
+  'rezepte.patient-waehlen': { seite: 'Rezepte', titel: 'Neu: beim Patienten über „+“',
+    loest_aus: 'Führt zur Patientenliste – ein Rezept gehört immer zu einem Patienten und wird dort über „+“ angelegt.', bezug: 'Die Kartei.', aendert: NICHTS, ergebnis: 'Die Patientenliste.', rueckweg: KEIN_RUECKWEG },
+  'rezepte.wellness-katalog': { seite: 'Rezepte', titel: 'Wellness-Katalog',
+    loest_aus: 'Öffnet die Liste der Wellness-Leistungen.', bezug: 'Leistungen ohne Krankheitsbezug, nicht aus der GKV-Liste, 19 % USt.', aendert: NICHTS, ergebnis: 'Tabelle und Formular zum Anlegen.', rueckweg: KEIN_RUECKWEG },
+  'plus.direktzugang': { seite: 'Patienten', titel: 'Behandlung ohne Rezept',
+    loest_aus: 'Öffnet das Formular für eine Behandlungsserie ohne ärztliche Verordnung (Direktzugang).', bezug: 'Eigenverantwortliche Behandlung einer Erkrankung – braucht die sektorale Heilpraktikererlaubnis (Frage 15). Keine Rezeptart, sondern eine eigene Behandlungsgrundlage.',
+    aendert: 'Noch nichts.', ergebnis: 'Kurzbezeichnung, Anlass, Beginn.', rueckweg: 'Zurück ohne Speichern.' },
+  'plus.wellness': { seite: 'Patienten', titel: 'Wellness',
+    loest_aus: 'Öffnet das Formular für eine Wellness-Serie.', bezug: 'Leistung aus dem Wellness-Katalog, ohne Krankheitsbezug, 19 % USt, nie mit Heilbehandlung auf einer Rechnung gemischt.',
+    aendert: 'Noch nichts.', ergebnis: 'Leistung wählen, Beginn.', rueckweg: 'Zurück ohne Speichern.' },
+  'serie.direktzugang': { seite: 'Rezepte', titel: 'Serie: Behandlung ohne Rezept',
+    loest_aus: AUSKUNFT, bezug: 'Ein Behandlungsfall mit Grundlage „Direktzugang“: Kurzbezeichnung, Beginn, Zahl der Behandlungen. Steuerfrei als Heilbehandlung.',
+    aendert: NICHTS, ergebnis: 'Grüner Rahmen = laufend.', rueckweg: KEIN_RUECKWEG },
+  'serie.wellness': { seite: 'Rezepte', titel: 'Serie: Wellness',
+    loest_aus: AUSKUNFT, bezug: 'Ein Behandlungsfall mit Grundlage „Prävention/Wellness“ und der gewählten Leistung aus dem Katalog; jede Behandlung darin übernimmt Leistung und Preis (19 %).',
+    aendert: NICHTS, ergebnis: 'Grüner Rahmen = laufend.', rueckweg: KEIN_RUECKWEG },
+  'serie.abschliessen': { seite: 'Rezepte', titel: 'Serie abschließen',
+    loest_aus: 'Beendet die Serie.', bezug: 'Eine laufende Serie ohne Rezept.', aendert: 'Abschlussdatum und Phase „Abschluss“ am Fall; Protokoll.', ergebnis: 'Kachel wird „abgeschlossen“; bei „alle“ weiter sichtbar.', rueckweg: 'Neue Serie anlegen.' },
+  'serie.direktzugang.formular': { seite: 'Behandlung ohne Rezept', titel: 'Formular Behandlung ohne Rezept',
+    loest_aus: 'Nichts, bis „anlegen“ gedrückt wird.', bezug: 'Kurzbezeichnung (Pflicht), Anlass, Beginn.', aendert: 'Beim Anlegen: ein Fall mit Grundlage Direktzugang, steuerfrei.',
+    ergebnis: 'Eine Serien-Kachel beim Patienten und unter Rezepte.', rueckweg: '„Serie abschließen“ auf der Kachel.' },
+  'serie.direktzugang.anlegen': { seite: 'Behandlung ohne Rezept', titel: 'Behandlung ohne Rezept anlegen',
+    loest_aus: 'Speichert die Serie.', bezug: 'Das Formular.', aendert: 'Fall, Phasenprotokoll, Protokoll.', ergebnis: 'Zurück zum Patienten, Abschnitt Rezepte.', rueckweg: '„Serie abschließen“.' },
+  'serie.wellness.formular': { seite: 'Wellness-Serie', titel: 'Formular Wellness-Serie',
+    loest_aus: 'Nichts, bis „anlegen“ gedrückt wird.', bezug: 'Leistung aus dem Katalog (Pflicht), Kurzbezeichnung, Anlass, Beginn.', aendert: 'Beim Anlegen: ein Fall mit Grundlage Wellness, 19 % USt, Leistung am Fall.',
+    ergebnis: 'Eine Serien-Kachel.', rueckweg: '„Serie abschließen“.' },
+  'serie.wellness.anlegen': { seite: 'Wellness-Serie', titel: 'Wellness-Serie anlegen',
+    loest_aus: 'Speichert die Serie.', bezug: 'Das Formular.', aendert: 'Fall, Phasenprotokoll, Protokoll.', ergebnis: 'Zurück zum Patienten.', rueckweg: '„Serie abschließen“.' },
+  'wellness.zeile': { seite: 'Wellness-Katalog', titel: 'Wellness-Leistung',
+    loest_aus: AUSKUNFT, bezug: 'Kürzel, Bezeichnung, Dauer, Bruttopreis (19 %).', aendert: NICHTS, ergebnis: 'Blass = ausgeblendet, nicht mehr wählbar.', rueckweg: KEIN_RUECKWEG },
+  'wellness.aktiv': { seite: 'Wellness-Katalog', titel: 'ausblenden / anbieten',
+    loest_aus: 'Blendet die Leistung aus oder bietet sie wieder an.', bezug: 'Eine Leistung des Katalogs; bestehende Serien bleiben unberührt.', aendert: 'Das Merkmal „aktiv“.', ergebnis: 'Ausgeblendete fehlen bei „Wellness“ am Patienten.', rueckweg: 'Derselbe Knopf.' },
+  'wellness.speichern': { seite: 'Wellness-Katalog', titel: 'Leistung speichern',
+    loest_aus: 'Legt die Leistung an oder ändert die mit demselben Kürzel.', bezug: 'Kürzel (2–12 Zeichen), Bezeichnung, Dauer, Preis.', aendert: 'Katalog; Protokoll.', ergebnis: 'Zeile in der Tabelle.', rueckweg: '„ausblenden“ – gelöscht wird nicht, weil Serien darauf verweisen.' },
+
+  // ── Rückmeldungen (W72) ───────────────────────────────────────────────────
+  'rueckmeldungen.eintrag': { seite: 'Rückmeldungen', titel: 'Rückmeldung',
+    loest_aus: AUSKUNFT, bezug: 'Was über das kleine Fähnchen gemeldet wurde: Hinweis oder Fehler, Seite und Element, Screenshot, Text, Fassung, Browser.',
+    aendert: NICHTS, ergebnis: 'Offene zuerst; erledigte blass.', rueckweg: KEIN_RUECKWEG },
+  'rueckmeldungen.bild': { seite: 'Rückmeldungen', titel: 'Screenshot',
+    loest_aus: 'Öffnet den Screenshot in voller Größe.', bezug: 'Der Kasten, in dem das gemeldete Element lag, so wie der Browser ihn beim Melden sah.', aendert: NICHTS, ergebnis: 'Das Bild in einem neuen Tab.', rueckweg: 'Tab schließen.' },
+  'rueckmeldungen.erledigt': { seite: 'Rückmeldungen', titel: 'Erledigt',
+    loest_aus: 'Markiert die Rückmeldung als erledigt, mit optionaler Antwort.', bezug: 'Eine offene Rückmeldung.', aendert: 'Status, Zeitpunkt, wer; die Antwort steht darunter.', ergebnis: 'Verschwindet aus „offen“.', rueckweg: '„Wieder öffnen“ unter „erledigt“ oder „alle“.' },
+  'rueckmeldungen.offen': { seite: 'Rückmeldungen', titel: 'Wieder öffnen',
+    loest_aus: 'Setzt die Rückmeldung zurück auf offen.', bezug: 'Eine erledigte Rückmeldung.', aendert: 'Status.', ergebnis: 'Steht wieder unter „offen“.', rueckweg: '„Erledigt“.' },
+  'rueckmeldungen.filter': { seite: 'Rückmeldungen', titel: 'Stand',
+    loest_aus: 'Zeigt offene, erledigte oder alle Rückmeldungen.', bezug: 'Die Entwicklungs-Datenbank.', aendert: NICHTS, ergebnis: 'Die Liste darunter.', rueckweg: 'Zurückschalten.' },
+
   // ── Outlook-Kategorien (aus src/mail/kategorien.ts) ──────────────────────
   ...Object.fromEntries(
     Object.entries(KATEGORIEN).map(([key, k]) => [
@@ -548,7 +620,7 @@ const CLIENT = String.raw`
     return '<div class="hilfe-karte" id="hilfeKarte" role="dialog" aria-label="Erklärung: ' + esc(e.titel) + '">' +
       '<div class="hilfe-kopf"><strong>' + esc(e.titel) + '</strong><button class="hilfe-schliessen" aria-label="Schließen">×</button></div>' +
       '<dl class="hilfe-felder">' + FELDER.map(function (f) { return '<dt>' + f[1] + '</dt><dd>' + esc(e[f[0]]) + '</dd>'; }).join('') + '</dl>' +
-      '<div class="hilfe-fuss">Esc schließt · <a href="/hilfe#hilfe-' + esc(key.replace(/\./g, '-')) + '">in der Hilfe ansehen</a></div></div>';
+      '<div class="hilfe-fuss">Esc schließt · <a href="/hilfe#hilfe-' + esc(key.replace(/\./g, '-')) + '">in der Hilfe ansehen</a> · <a href="#" data-rm-melden="' + esc(key) + '">Hinweis oder Fehler melden</a></div></div>';
   }
   function setzen(k, el) {
     var r = el.getBoundingClientRect(), b = k.offsetWidth || 420, h = k.offsetHeight || 280;
@@ -608,6 +680,8 @@ const FUNKTIONEN: { name: string; was: string; stand: 'jetzt' | 'später'; woher
   { name: 'Cockpit', was: 'Startseite: Finanzen und Patienten mit ihren Seiten, Termine heute, neue Rechnungen, Anfragen, Änderungen der Woche.', stand: 'jetzt', woher: 'erste Fassung, Prompt 10' },
   { name: 'Rechnungs-Dashboard', was: 'Neue Rechnungen als Kacheln, PDF-Ansicht, Freigabe, Haken „privat“, Summen je Monat und Lieferant, Suche.', stand: 'jetzt', woher: 'Prompt 15' },
   { name: 'Preislisten', was: 'Eigene Preise je Leistung auf Grundlage der GKV-Liste, mit Faktor, Aufrunden, Beihilfe-Vergleich, Mustern (z. B. GebüTh), Freigabe, „aktiv“ und Archiv; nachts Prüfung auf neue Grundlagen mit rotem Punkt.', stand: 'jetzt', woher: 'W59' },
+  { name: 'Rezepte und Serien', was: 'Rezepte als Kacheln mit sieben Rezeptarten (Erst, Folge unverändert/angepasst, Wiederaufnahme, Korrektur, Zweitschrift, Langzeit), Behandlung ohne Rezept (Direktzugang) und Wellness-Serien aus dem eigenen Katalog.', stand: 'jetzt', woher: 'W73, W74' },
+  { name: 'Rückmeldungen', was: 'Kleines Fähnchen an jedem erklärten Element und an jeder Seite: Hinweis oder Fehler mit Screenshot und Text melden – landet in einer eigenen Entwicklungs-Datenbank, Sammelseite /rueckmeldungen.', stand: 'jetzt', woher: 'W72' },
   { name: 'Patientenkartei', was: 'Kacheln mit Anrufen, WhatsApp, Mail, letzter Behandlung und nächstem Termin; Kontaktverlauf mit Gesprächsgrund; Adressen mit Rechnungsadresse; Akte nach § 630f (unveränderlich, verschlüsselt); Termine, Rezepte als Stempelkarte.', stand: 'jetzt', woher: 'W63–W68' },
   { name: 'Statusseite', was: 'Zeigt, ob die Verbindung zu Postfach, Kalender und OneDrive steht.', stand: 'jetzt', woher: 'diese Seiten' },
   { name: 'Outlook-Kategorien', was: 'Fünf farbige Kategorien zeigen in Outlook, was mit einer Mail passiert ist.', stand: 'jetzt', woher: 'angelegt am 20.10.2026' },
@@ -658,6 +732,10 @@ Antworten vor. <b>Entscheiden tust du.</b> Nichts geht an Patienten, ohne dass d
 (wie man es zurücknimmt).</p>
 <p class="hint"><kbd>Esc</kbd> schließt die Erklärung. Tastatur: <kbd>?</kbd> oder <kbd>F1</kbd> auf einem
 ausgewählten Element. Umschalt + Rechtsklick öffnet das normale Browser-Menü.</p>
+<p><b>Etwas melden:</b> Fährst du über ein erklärtes Element, erscheint an seiner Ecke ein winziges <b>Fähnchen</b>; unten links
+steht eines für die ganze Seite, und jede Erklärung hat den Link „Hinweis oder Fehler melden“. Ein Klick macht einen Screenshot des
+Kastens, fragt <b>Hinweis oder Fehler</b> und nimmt deinen Text auf. Alles landet in einer eigenen Entwicklungs-Datenbank –
+<a href="/rueckmeldungen">alle Rückmeldungen</a>.</p>
 </div>
 
 <h2>Das Cockpit</h2>

@@ -30,7 +30,7 @@ export const PATIENTEN: Kachel[] = [
   { key: 'patienten.kartei', symbol: 'patient', titel: 'Patienten', text: 'Kartei mit Kacheln: anrufen, WhatsApp, Mail, letzte Behandlung, nächster Termin, Akte.', href: '/patienten' },
   { key: 'patienten.anfragen', symbol: 'anfrage', titel: 'Terminanfragen', text: 'Anfragen aus Mail, WhatsApp und Telefon, mit Terminvorschlägen als Entwurf.', spaeter: 'kommt mit Prompt 6' },
   { key: 'patienten.pinnwand', symbol: 'pinnwand', titel: 'Patienten-Pinnwand', text: 'Wer steht in welcher Phase – von der Anfrage bis zur Nachsorge.', spaeter: 'kommt mit Prompt 12' },
-  { key: 'patienten.rezepte', symbol: 'rezept', titel: 'Rezepte', text: 'Stempelkarte je Rezept, Abhaken nach jeder Behandlung.', spaeter: 'kommt mit Prompt 14' },
+  { key: 'patienten.rezepte', symbol: 'rezept', titel: 'Rezepte', text: 'Alle Rezepte und Behandlungsserien als Kacheln, Stempelkarte je Rezept, Wellness-Katalog.', href: '/rezepte' },
   { key: 'patienten.schnellaktionen', symbol: 'blitz', titel: 'Schnellaktionen', text: 'Mit einem Tipp eine fertige Mail als Entwurf.', spaeter: 'kommt mit Prompt 13' },
 ];
 

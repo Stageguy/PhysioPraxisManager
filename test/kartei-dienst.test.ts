@@ -178,3 +178,71 @@ test('Testdaten: nur einmal, erfundene Adressen, verschiedene Kachelzustände', 
   assert.ok(liste.some((p) => p.offeneAnrufe === 1));
   assert.ok(liste.some((p) => p.naechsterTermin?.rezept) && liste.some((p) => p.letzteBehandlung));
 });
+
+test('Rezeptarten: Folgerezept, Korrektur (Haken zählen weiter, kein neues Kontingent), Zweitschrift, Abbruch', async () => {
+  const p = await post({ aktion: 'anlegen', vorname: 'Rita', nachname: 'Rezept' });
+  const rid = /\/patienten\/(\d+)/.exec(ziel(p))![1]!;
+  await post({ aktion: 'verordnung_anlegen', id: rid, ausgestellt_am: '2026-09-01', massnahme: 'KG', anzahl: '3', art: 'erst', langzeit: '1' });
+  const erst = (await db.query<{ id: string }>('SELECT id::text FROM verordnung WHERE patient_id = $1', [rid])).rows[0]!.id;
+  // Folgerezept braucht den Vorgänger
+  assert.match(ziel(await post({ aktion: 'verordnung_anlegen', id: rid, ausgestellt_am: '2026-10-01', massnahme: 'KG', anzahl: '6', art: 'folge_unveraendert' })), /fehler=.*vorherige Rezept/);
+  // Zwei Behandlungen auf dem Erstrezept, dann Korrektur mit 4 statt 3
+  await post({ aktion: 'behandlung_erfassen', id: rid, fall_id: 'neu', grundlage: 'verordnung', datum: '2026-09-05', verordnung_id: erst, massnahmen: 'KG 1' });
+  const fall = (await db.query<{ id: string }>('SELECT id::text FROM behandlungsfall WHERE patient_id = $1', [rid])).rows[0]!.id;
+  await post({ aktion: 'behandlung_erfassen', id: rid, fall_id: fall, datum: '2026-09-08', verordnung_id: erst, massnahmen: 'KG 2' });
+  assert.match(ziel(await post({ aktion: 'verordnung_anlegen', id: rid, ausgestellt_am: '2026-09-09', massnahme: 'KG', anzahl: '4', art: 'korrektur', vorgaenger_id: erst })), /Korrektur angelegt/);
+  const korr = (await db.query<{ id: string; status: string }>("SELECT id::text, status::text FROM verordnung WHERE patient_id = $1 AND art = 'korrektur'", [rid])).rows[0]!;
+  assert.equal((await db.query<{ s: string }>('SELECT status::text AS s FROM verordnung WHERE id = $1', [erst])).rows[0]!.s, 'ersetzt');
+  let html = await seite(`/patienten/${rid}`);
+  assert.match(html, /2 von 4/, 'die Korrektur zählt die beiden Haken des Originals mit');
+  assert.match(html, /ersetzt \(korrigiert\)/);
+  // Das ersetzte Rezept nimmt keine Haken mehr; die Korrektur schon – bis 4
+  assert.match(ziel(await post({ aktion: 'behandlung_erfassen', id: rid, fall_id: fall, datum: '2026-09-12', verordnung_id: erst, massnahmen: 'x' })), /fehler=.*korrigiert/);
+  await post({ aktion: 'behandlung_erfassen', id: rid, fall_id: fall, datum: '2026-09-12', verordnung_id: korr.id, massnahmen: 'KG 3' });
+  await post({ aktion: 'behandlung_erfassen', id: rid, fall_id: fall, datum: '2026-09-15', verordnung_id: korr.id, massnahmen: 'KG 4' });
+  assert.equal((await db.query<{ s: string }>('SELECT status::text AS s FROM verordnung WHERE id = $1', [korr.id])).rows[0]!.s, 'abgeschlossen');
+  // Folgerezept unverändert, mit Zweitschrift und Abbruch
+  await post({ aktion: 'verordnung_anlegen', id: rid, ausgestellt_am: '2026-10-01', massnahme: 'KG', anzahl: '6', art: 'folge_unveraendert', vorgaenger_id: korr.id });
+  const folge = (await db.query<{ id: string; fall_id: string }>("SELECT id::text, fall_id::text FROM verordnung WHERE patient_id = $1 AND art = 'folge_unveraendert'", [rid])).rows[0]!;
+  assert.equal(folge.fall_id, fall, 'das Folgerezept übernimmt den Fall des Vorgängers');
+  assert.match(ziel(await post({ aktion: 'zweitschrift', id: rid, verordnung_id: folge.id, datum: '2026-10-03' })), /Zweitschrift vermerkt/);
+  assert.match(ziel(await post({ aktion: 'verordnung_abbrechen', id: rid, verordnung_id: folge.id, grund: '' })), /fehler=.*Grund/);
+  await post({ aktion: 'verordnung_abbrechen', id: rid, verordnung_id: folge.id, grund: 'Patientin verzogen' });
+  html = await seite('/rezepte?filter=alle');
+  assert.match(html, /Zweitschrift 03\.10\.2026/);
+  assert.match(html, /abgebrochen/);
+  assert.match(html, /Langzeitbehandlung/);
+  assert.match(html, /Rita Rezept/);
+  assert.doesNotMatch(await seite('/rezepte'), /Rita Rezept/, 'nur aktive: nichts mehr aktiv');
+});
+
+test('Wellness-Katalog und Serien ohne Rezept: Behandlung übernimmt Leistung und Preis (19 %)', async () => {
+  const p = await post({ aktion: 'anlegen', vorname: 'Willi', nachname: 'Wellness' });
+  const wid = /\/patienten\/(\d+)/.exec(ziel(p))![1]!;
+  assert.match(ziel(await post({ aktion: 'serie_anlegen', id: wid, grundlage: 'praevention' })), /fehler=.*Wellness-Katalog/);
+  assert.match(ziel(await post({ aktion: 'wellness_speichern', code: 'w', bezeichnung: 'x', preis: '1' })), /fehler=.*Kürzel/);
+  assert.match(ziel(await post({ aktion: 'wellness_speichern', code: 'wm60', bezeichnung: 'Wellnessmassage 60 Minuten', dauer_min: '60', preis: '65,00' })), /rezepte\/wellness\?meldung=/);
+  const w = (await db.query<{ id: string; code: string }>('SELECT id::text, code FROM wellness_leistung')).rows[0]!;
+  assert.equal(w.code, 'WM60');
+  assert.match(ziel(await post({ aktion: 'serie_anlegen', id: wid, grundlage: 'praevention', wellness_id: w.id })), /Wellness-Serie angelegt/);
+  const fall = (await db.query<{ id: string; steuerklasse: string }>('SELECT id::text, steuerklasse::text FROM behandlungsfall WHERE patient_id = $1', [wid])).rows[0]!;
+  assert.equal(fall.steuerklasse, 'wellness_19');
+  await post({ aktion: 'behandlung_erfassen', id: wid, fall_id: fall.id, datum: '2026-10-20', massnahmen: 'Wellnessmassage' });
+  const l = (await db.query<{ nummer: string; einzelpreis: string; steuerklasse: string }>('SELECT bl.nummer, bl.einzelpreis::text, bl.steuerklasse::text FROM behandlung_leistung bl JOIN behandlung b ON b.id = bl.behandlung_id WHERE b.fall_id = $1', [fall.id])).rows[0]!;
+  assert.deepEqual(l, { nummer: 'WM60', einzelpreis: '65.00', steuerklasse: 'wellness_19' });
+  let html = await seite(`/patienten/${wid}`);
+  assert.match(html, /Wellness · 19 % USt/);
+  assert.match(html, /Wellnessmassage 60 Minuten · 65,00/);
+  // Direktzugang braucht eine Bezeichnung; dann abschließen
+  await post({ aktion: 'serie_anlegen', id: wid, grundlage: 'direktzugang', bezeichnung: 'Nacken' });
+  html = await seite('/rezepte');
+  assert.match(html, /Direktzugang · Heilpraktikererlaubnis/);
+  const dz = (await db.query<{ id: string }>("SELECT id::text FROM behandlungsfall WHERE patient_id = $1 AND grundlage = 'direktzugang'", [wid])).rows[0]!.id;
+  assert.match(ziel(await post({ aktion: 'serie_abschliessen', id: wid, fall_id: dz })), /Serie abgeschlossen/);
+  assert.doesNotMatch(await seite('/rezepte'), /Nacken/);
+  assert.match(await seite('/rezepte?filter=alle'), /Nacken/);
+  // Katalog ausblenden: Leistung verschwindet aus der Auswahl
+  await post({ aktion: 'wellness_aktiv', wellness_id: w.id, aktiv: '0' });
+  assert.doesNotMatch(await seite(`/patienten/${wid}/neu/wellness`), /option value="1">Wellnessmassage/);
+  assert.match(await seite('/rezepte/wellness'), /anbieten/);
+});

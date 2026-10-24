@@ -5,7 +5,7 @@
  */
 import type { Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
-import { anrufBeginnen, behandlungErfassen, patientAnlegen, terminAnlegen, verlaufEintragen, verordnungAnlegen, type Kontaktart } from './patienten.ts';
+import { anrufBeginnen, behandlungErfassen, fallAnlegen, patientAnlegen, terminAnlegen, verlaufEintragen, verordnungAnlegen, wellnessSpeichern, type Kontaktart } from './patienten.ts';
 
 const PERSONEN: { vorname: string; nachname: string; anrede: string; geboren: string; ort: string; strasse: string; plz: string; besonderheiten?: string; ansprache?: string; sprache?: string }[] = [
   { vorname: 'Anna', nachname: 'Beispiel', anrede: 'Frau', geboren: '1984-03-12', ort: 'Bad Wörishofen', strasse: 'Kurpromenade 3', plz: '86825' },
@@ -29,6 +29,11 @@ const tag = (versatz: number) => {
 export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; behandlungen: number; termine: number; rechnungen: number }> {
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1001'")).rows.length) return { uebersprungen: true, patienten: 0, behandlungen: 0, termine: 0, rechnungen: 0 };
   const [lokal, domain] = o.adresse.split('@');
+  // Wellness-Katalog (W74) – erfundene Beispiele, Lilli ersetzt sie (Frage 10)
+  const wellness: string[] = [];
+  for (const w of [['WM30', 'Wellnessmassage 30 Minuten', 30, '42,00'], ['WM60', 'Wellnessmassage 60 Minuten', 60, '75,00'], ['HOT', 'Hot-Stone-Massage 50 Minuten', 50, '79,00']] as const) {
+    wellness.push(await wellnessSpeichern(db, { code: w[0], bezeichnung: w[1], dauerMin: w[2], preis: w[3] }, o.wer));
+  }
   let behandlungen = 0;
   let termine = 0;
   let rechnungen = 0;
@@ -82,6 +87,26 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
     } else if (i === 8) {
       await terminAnlegen(db, id, { datum: tag(5), zeit: '15:00', dauerMin: 30, art: 'erstgespraech' }, wer);
       termine++;
+    } else {
+      // Jonas: Wellness-Serie und eine Behandlung ohne Rezept (Direktzugang)
+      const wf = await fallAnlegen(db, t, id, { grundlage: 'praevention', wellnessLeistungId: wellness[1], begonnenAm: tag(-20) }, wer);
+      await behandlungErfassen(db, t, id, { fallId: wf, datum: tag(-20), dauerMin: 60, massnahmen: 'Wellnessmassage Rücken/Nacken (erfunden)', behandeltVon: 'Lilli' }, wer);
+      await behandlungErfassen(db, t, id, { fallId: wf, datum: tag(-6), dauerMin: 60, massnahmen: 'Wellnessmassage Ganzkörper (erfunden)', behandeltVon: 'Lilli' }, wer);
+      behandlungen += 2;
+      const df = await fallAnlegen(db, t, id, { grundlage: 'direktzugang', bezeichnung: 'Nacken, Verspannung', anlass: 'Verspannung nach Bildschirmarbeit (erfunden)', begonnenAm: tag(-10) }, wer);
+      await behandlungErfassen(db, t, id, { fallId: df, datum: tag(-10), dauerMin: 30, leistungNummer: '21201', massnahmen: 'Manuelle Therapie HWS (erfunden)', behandeltVon: 'Lilli' }, wer);
+      behandlungen++;
+      await terminAnlegen(db, id, { datum: tag(4), zeit: '11:00', dauerMin: 60, fallId: wf }, wer);
+      termine++;
+    }
+    // Greta: Folgerezept mit Langzeit und Zweitschrift, Hakim: Korrektur
+    if (i === 6 || i === 7) {
+      const alt = (await db.query<{ id: string }>('SELECT id::text FROM verordnung WHERE patient_id = $1 ORDER BY id DESC LIMIT 1', [id])).rows[0]!.id;
+      await verordnungAnlegen(db, t, id, {
+        ausgestelltAm: tag(-3), arzt: 'Dr. med. Erika Beispielarzt, Orthopädie Bad Wörishofen', massnahme: i === 6 ? 'Manuelle Lymphdrainage 45 Min.' : 'Klassische Massagetherapie', leistungNummer: i === 6 ? '20201' : '20106',
+        anzahl: i === 6 ? 10 : 6, art: i === 6 ? 'folge_unveraendert' : 'korrektur', vorgaengerId: alt, langzeit: i === 6, notiz: i === 6 ? 'Dauerverordnung laut Arzt' : 'Anzahl auf dem Rezept berichtigt',
+      }, wer);
+      if (i === 6) await db.query('UPDATE verordnung SET zweitschrift_am = $2 WHERE patient_id = $1 AND langzeit', [id, tag(-1)]);
     }
 
     // Rechnungen: bezahlt, gelb (überfällig), rot (gemahnt) – für die Kachelfarbe

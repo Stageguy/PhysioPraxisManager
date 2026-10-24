@@ -16,6 +16,7 @@ import { ladeEinstellungen } from '../einstellungen.ts';
 import { preislistenDienst } from '../preise/dienst.ts';
 import { karteiDienst } from '../kartei/dienst.ts';
 import { tresor } from '../tresor.ts';
+import { entwicklungsDb } from '../entwicklung/rueckmeldung.ts';
 import { rechnungsDienst } from '../rechnungen/dienst.ts';
 import { migriere, verbinde } from '../db/index.ts';
 import { praxisDienst } from '../server.ts';
@@ -50,6 +51,16 @@ if (lokalerZugang) {
   if (!erlaubt.map((e) => e.trim().toLowerCase()).includes(lokalerZugang.toLowerCase())) erlaubt.push(lokalerZugang);
 }
 
+// Rückmeldungen (W72) in eigener Entwicklungs-Datenbank auf demselben Server
+let entwicklung: Awaited<ReturnType<typeof entwicklungsDb>> | undefined;
+if (process.env.DATABASE_URL) {
+  try {
+    entwicklung = await entwicklungsDb(process.env.DATABASE_URL);
+  } catch (err) {
+    console.warn(`⚠ Entwicklungs-Datenbank nicht erreichbar – Rückmeldungen bleiben aus (${(err as Error).message})`);
+  }
+}
+
 const dienst = praxisDienst({
   erlaubt,
   fassung: version,
@@ -60,9 +71,10 @@ const dienst = praxisDienst({
   rechnungen: db ? rechnungsDienst({ db, graph, laufwerk: (await ladeEinstellungen()).rechnungen.laufwerk }) : undefined,
   preislisten: db ? preislistenDienst({ db }) : undefined,
   kartei: db && process.env.PRAXIS_TRESOR_SCHLUESSEL ? karteiDienst({ db, tresor: tresor() }) : undefined,
+  entwicklung,
 });
 if (db && !process.env.PRAXIS_TRESOR_SCHLUESSEL) console.warn('⚠ PRAXIS_TRESOR_SCHLUESSEL fehlt – die Patientenkartei bleibt aus');
 
 // Nur 127.0.0.1: von außen ist der Dienst ausschließlich über tailscale serve erreichbar
 dienst.listen(port, '127.0.0.1', () => console.log(`Praxisdienst ${version} auf 127.0.0.1:${port}`));
-for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => dienst.close(() => void db?.ende().finally(() => process.exit(0))));
+for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => dienst.close(() => void Promise.all([db?.ende(), entwicklung?.ende()]).finally(() => process.exit(0))));

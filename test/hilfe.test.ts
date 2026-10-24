@@ -11,6 +11,8 @@ import type { Position, Preisliste, QuelleKurz } from '../src/preise/preislisten
 import { menueStand } from '../src/web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from '../src/web/preislisten.ts';
 import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
+import { rezepteSeite, serieNeuSeite, wellnessSeite } from '../src/web/rezepte.ts';
+import { rueckmeldungenSeite } from '../src/web/rueckmeldung.ts';
 import type { Patient } from '../src/kartei/patienten.ts';
 
 const PK = { id: '1', art: 'mobil' as const, wert: '0151 1', normiert: '+491511', bezeichnung: null, primaer: true };
@@ -23,7 +25,10 @@ const PAT: Patient = {
   adressen: [{ id: '1', bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kurpromenade', hausnummer: '3', plz: '86825', ort: 'Bad Wörishofen', land: 'DE', rechnungsadresse: true }],
   bezugspersonen: [{ id: '1', rolle: 'notfallkontakt', name: 'Max', beziehung: 'Bruder', berechtigungsgrund: null, telefon: null, email: null }], versicherungen: [],
 };
-const VERORDNUNG = { id: '1', ausgestelltAm: '2026-10-01', massnahme: 'MT', leistungNummer: '21201', anzahlVerordnet: 6, abgehakt: 2, status: 'aktiv', arzt: 'Dr. B', fallId: '1' };
+const VERORDNUNG = { id: '1', patientId: '1', patientName: 'Anna Test', art: 'erst' as const, langzeit: true, ausgestelltAm: '2026-10-01', gueltigBis: '2026-12-31', massnahme: 'MT', leistungNummer: '21201', frequenz: '2×/Woche',
+  anzahlVerordnet: 6, abgehakt: 2, status: 'aktiv', arzt: 'Dr. B', fallId: '1', fallNummer: 1, vorgaengerId: null, zweitschriftAm: '2026-10-05', notiz: 'x' };
+const SERIE = { id: '2', patientId: '1', patientName: 'Anna Test', nummer: 2, grundlage: 'praevention' as const, bezeichnung: 'Entspannung', wellness: { id: '1', bezeichnung: 'Wellnessmassage 60', preis: 65 }, begonnenAm: '2026-10-01', abgeschlossenAm: null, behandlungen: 2, letzteAm: '2026-10-20' };
+const WELLNESS = { id: '1', code: 'WM60', bezeichnung: 'Wellnessmassage 60', dauerMin: 60, preis: 65, aktiv: true };
 const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1' };
 const PATIENT_DATEN = {
   patient: PAT, gruende: [{ code: 'absage_patient', bezeichnung: 'Absage Patient' }],
@@ -31,12 +36,13 @@ const PATIENT_DATEN = {
     { id: '1', art: 'anruf_ausgehend', am: '2026-10-24T09:00:00Z', grund: null, notiz: null, offen: true, kontakt: { art: 'mobil' as const, wert: '0151 1' }, erfasstVon: 'lilli' },
     { id: '2', art: 'whatsapp', am: '2026-10-23T09:00:00Z', grund: { code: 'absage_patient', bezeichnung: 'Absage Patient' }, notiz: 'krank', offen: false, kontakt: null, erfasstVon: 'lilli' },
   ],
-  termine: [TERMIN], verordnungen: [VERORDNUNG],
+  termine: [TERMIN], verordnungen: [VERORDNUNG, { ...VERORDNUNG, id: '3', art: 'korrektur' as const, status: 'ersetzt', vorgaengerId: '1' }], serien: [SERIE, { ...SERIE, id: '4', grundlage: 'direktzugang' as const, wellness: null, abgeschlossenAm: '2026-10-22' }],
   rechnungen: [{ id: '1', art: 'einzel', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', gemahnt: false }],
 };
 const AKTE = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', steuerklasse: 'heilbehandlung_steuerfrei', bezeichnung: 'Schulter', anlass: 'Schmerz', diagnoseArzt: 'M75.1', begonnenAm: '2026-10-01', abgeschlossenAm: null,
   behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
-const NEU_AKTION = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', bezeichnung: 'Schulter' }], verordnungen: [VERORDNUNG], termine: [TERMIN] };
+const NEU_AKTION = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', bezeichnung: 'Schulter' }], verordnungen: [VERORDNUNG], alleVerordnungen: [VERORDNUNG], termine: [TERMIN], wellness: [WELLNESS] };
+const RM = { id: '1', art: 'fehler' as const, status: 'offen' as const, seite: '/patienten', element: 'kachel.plus', elementTitel: '„+“', textHtml: '<p>Der Knopf <b>fehlt</b></p>', hatBild: true, fassung: '0.9.0', umgebung: 'test', browser: 'Safari', fenster: '393×852', von: 'lilli', erstelltAm: '2026-10-24T10:00:00Z', erledigtAm: null, erledigtVon: null, antwort: null };
 
 const Q: QuelleKurz = { id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2026', gueltigAb: '2026-01-01', abgerufenAm: '2026-10-23T03:00:00Z', url: 'https://x' };
 const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
@@ -95,7 +101,14 @@ const seiten = () => [
   akteSeite(AKTE, R),
   terminNeuSeite(NEU_AKTION, R),
   behandlungNeuSeite(NEU_AKTION, R),
-  rezeptNeuSeite(NEU_AKTION, R),
+  rezeptNeuSeite(NEU_AKTION, { ...R, vorgaenger: '1' }),
+  rezepteSeite({ verordnungen: [VERORDNUNG], serien: [SERIE], filter: 'aktiv' }, R),
+  rezepteSeite({ verordnungen: [], serien: [], filter: 'alle' }, R),
+  wellnessSeite([WELLNESS, { ...WELLNESS, id: '2', aktiv: false }], R),
+  wellnessSeite([], R),
+  serieNeuSeite(NEU_AKTION, 'direktzugang', R),
+  serieNeuSeite({ ...NEU_AKTION, wellness: [] }, 'praevention', R),
+  rueckmeldungenSeite({ liste: [RM, { ...RM, id: '2', status: 'erledigt', hatBild: false, antwort: 'behoben', erledigtAm: '2026-10-25T10:00:00Z' }], status: 'alle', offen: 1 }, R),
 ];
 /** Eine Seite einmal in der Testumgebung – dort gibt es das Band */
 function inTest<T>(f: () => T): T {

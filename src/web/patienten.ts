@@ -5,7 +5,8 @@
  * echte Links (tel:, wa.me, mailto:), /praxis.js vermerkt den Anruf im Verlauf.
  */
 import type { AkteDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
-import type { Adresse, Kontakt, Patient, PatientKurz, VerordnungKurz } from '../kartei/patienten.ts';
+import { VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz } from '../kartei/patienten.ts';
+import { rezeptKachel, serieKachel, serienKnoepfe } from './rezepte.ts';
 import { esc, seite } from './layout.ts';
 import { symbol, type Symbol } from './symbole.ts';
 
@@ -60,6 +61,8 @@ function plusMenue(p: Pick<PatientKurz, 'id'>): string {
     <a href="/patienten/${p.id}/neu/termin" data-hilfe="plus.termin">${symbol('kalender', { groesse: 18 })} Neuer Termin</a>
     <a href="/patienten/${p.id}/neu/behandlung" data-hilfe="plus.behandlung">${symbol('protokoll', { groesse: 18 })} Neue Behandlung</a>
     <a href="/patienten/${p.id}/neu/rezept" data-hilfe="plus.rezept">${symbol('rezept', { groesse: 18 })} Neues Rezept</a>
+    <a href="/patienten/${p.id}/neu/direktzugang" data-hilfe="plus.direktzugang">${symbol('freigabe', { groesse: 18 })} Behandlung ohne Rezept</a>
+    <a href="/patienten/${p.id}/neu/wellness" data-hilfe="plus.wellness">${symbol('wellness', { groesse: 18 })} Wellness</a>
     <span class="aus" data-hilfe="plus.rechnung" tabindex="0">${symbol('rechnung', { groesse: 18 })} Neue Rechnung <small>kommt mit Lexware XL</small></span>
   </div></details>`;
 }
@@ -144,13 +147,6 @@ function adresseKachel(p: Patient, a: Adresse): string {
   </article>`;
 }
 
-function stempelkarte(v: VerordnungKurz): string {
-  const punkte = Array.from({ length: Math.min(v.anzahlVerordnet, 30) }, (_, i) => `<i class="${i < v.abgehakt ? 'voll' : ''}"></i>`).join('');
-  return `<li data-hilfe="rezepte.liste" tabindex="0"><div><b>${esc(v.massnahme)}</b> <span class="hint">${v.leistungNummer ? `Nr. ${esc(v.leistungNummer)} · ` : ''}vom ${datum(v.ausgestelltAm)}${v.arzt ? ` · ${esc(v.arzt)}` : ''}</span>
-    <span class="chip ${v.status === 'aktiv' ? 'preset4' : v.status === 'abgeschlossen' ? 'preset19' : 'preset12'}">${esc(v.status)}</span></div>
-    <div class="stempel" aria-label="${v.abgehakt} von ${v.anzahlVerordnet}">${punkte}<span>${v.abgehakt} von ${v.anzahlVerordnet}</span></div></li>`;
-}
-
 export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
   const p = d.patient;
   const zurueck = `/patienten/${p.id}`;
@@ -206,9 +202,11 @@ ${kachel(p, { kopf: true })}
   <p><a class="knopf klein" href="/patienten/${p.id}/neu/termin" data-hilfe="plus.termin">Neuer Termin</a></p>
 </section>
 
-<section class="pat-abschnitt" id="rezepte"><h2>${symbol('rezept')} Rezepte</h2>
-  ${d.verordnungen.length ? `<ul class="rezepte">${d.verordnungen.map(stempelkarte).join('')}</ul>` : '<p class="leer">Kein Rezept hinterlegt.</p>'}
-  <p><a class="knopf klein" href="/patienten/${p.id}/neu/rezept" data-hilfe="plus.rezept">Neues Rezept</a></p>
+<section class="pat-abschnitt" id="rezepte"><h2>${symbol('rezept')} Rezepte und Behandlungsserien</h2>
+  ${d.verordnungen.length || d.serien.length
+    ? `<div class="rz-raster">${d.verordnungen.map((v) => rezeptKachel(v, { zurueck })).join('')}${d.serien.map((s) => serieKachel(s, { zurueck })).join('')}</div>`
+    : '<p class="leer">Kein Rezept und keine Serie hinterlegt.</p>'}
+  ${serienKnoepfe(p.id)}
 </section>
 
 <section class="pat-abschnitt" id="rechnungen"><h2>${symbol('euro')} Rechnungen</h2>
@@ -334,21 +332,28 @@ export function behandlungNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
   });
 }
 
-export function rezeptNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
+export function rezeptNeuSeite(d: NeuAktionDaten, o: Rahmen & { vorgaenger?: string }): string {
   const p = d.patient;
   const faelle = d.faelle.map((f) => `<option value="${f.id}">Fall ${f.nummer}${f.bezeichnung ? ` – ${esc(f.bezeichnung)}` : ''}</option>`).join('');
+  const vorgaenger = d.alleVerordnungen.filter((v) => v.status !== 'ersetzt').map((v) => `<option value="${v.id}"${v.id === o.vorgaenger ? ' selected' : ''}>${esc(v.massnahme)} vom ${datum(v.ausgestelltAm)} – ${v.abgehakt} von ${v.anzahlVerordnet} (${esc(v.status)})</option>`).join('');
+  const arten = Object.entries(VERORDNUNG_ARTEN).map(([k, t]) => `<option value="${k}"${o.vorgaenger && k === 'folge_unveraendert' ? ' selected' : ''}>${esc(t)}</option>`).join('');
   return seite({
     titel: 'Neues Rezept', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: `${kopfzeile(p, 'Neues Rezept', 'rezept')}${meldungen(o)}
 <form method="post" action="/patienten/aktion" class="tafel formular" data-hilfe="rezept.formular">
   <input type="hidden" name="aktion" value="verordnung_anlegen"><input type="hidden" name="id" value="${p.id}"><input type="hidden" name="zurueck" value="/patienten/${p.id}/neu/rezept">
+  <div class="zwei"><label>Rezeptart<select name="art" data-hilfe="rezept.art">${arten}</select></label>
+    <label>Vorheriges Rezept (bei Folge, Wiederaufnahme, Korrektur)<select name="vorgaenger_id" data-hilfe="rezept.vorgaenger"><option value="">keins</option>${vorgaenger}</select></label></div>
+  <label class="haken"><input type="checkbox" name="langzeit" value="1" data-hilfe="rezept.langzeit"> Langzeitbehandlung (chronische oder länger anhaltende Problematik)</label>
+  <p class="hint">Korrektur: ersetzt das gewählte Rezept, die bisherigen Haken zählen weiter – kein neues Kontingent. Zweitschrift: nicht hier, sondern auf der Rezept-Kachel unter „mehr …“ vermerken.</p>
   <div class="zwei"><label>Ausgestellt am<input type="date" name="ausgestellt_am" required value="${heute()}"></label><label>Gültig bis<input type="date" name="gueltig_bis"></label></div>
   <label>Verordnende Ärztin / Arzt<input name="arzt" maxlength="120" placeholder="Name, Praxis"></label>
   <div class="zwei"><label>Verordnete Maßnahme<input name="massnahme" required maxlength="120" placeholder="z. B. Manuelle Therapie"></label><label>Nr. in der Preisliste<input name="leistung_nummer" maxlength="12" placeholder="z. B. 21201"></label></div>
   <div class="zwei"><label>Anzahl Behandlungen<input type="number" name="anzahl" required min="1" max="99" value="6"></label><label>Frequenz<input name="frequenz" placeholder="z. B. 2× pro Woche" maxlength="40"></label></div>
   <label>Diagnose laut Rezept<input name="diagnose" maxlength="200"></label>
-  <label>Behandlungsfall<select name="fall_id"><option value="">später zuordnen</option>${faelle}</select></label>
-  <p class="hint">Das Foto des Rezepts kommt mit dem Dokumenten-Tresor (A19).</p>
+  <label>Behandlungsfall<select name="fall_id"><option value="">wie der Vorgänger bzw. später zuordnen</option>${faelle}</select></label>
+  <label>Notiz<input name="notiz" maxlength="200"></label>
+  <p class="hint">Das Foto des Rezepts kommt mit dem Dokumenten-Tresor (W69).</p>
   <button class="knopf primaer" data-hilfe="rezept.anlegen">Rezept anlegen</button>
 </form>`,
   });

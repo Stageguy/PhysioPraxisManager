@@ -7,7 +7,12 @@
  * mit dem angemeldeten Tailnet-Konto. Hereingelassen wird, wer in ERLAUBTE_NUTZER steht.
  * /api/health sagt nur ok oder nicht ok und braucht keine Anmeldung (für den Docker-Healthcheck).
  */
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { Db } from './db/index.ts';
+import { offeneRueckmeldungen, rueckmeldungBild, rueckmeldungen, RueckmeldungFehler, rueckmeldungSpeichern, rueckmeldungStatus } from './entwicklung/rueckmeldung.ts';
+import { RUECKMELDUNG_SKRIPT, rueckmeldungenSeite } from './web/rueckmeldung.ts';
 import type { CockpitDaten } from './cockpit/daten.ts';
 import type { Pruefpunkt } from './pruefung.ts';
 import { AktionAbgelehnt, filterAus, type Aktion } from './rechnungen/dashboard.ts';
@@ -16,6 +21,7 @@ import { PreislisteFehler, type PreislistenDienst } from './preise/dienst.ts';
 import { KarteiFehler, type KarteiDienst } from './kartei/dienst.ts';
 import { cockpitSeite } from './web/cockpit.ts';
 import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from './web/patienten.ts';
+import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
 import { menueStand } from './web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from './web/preislisten.ts';
 import { dashboardSeite, PRAXIS_SKRIPT, rechnungSeite } from './web/rechnungen.ts';
@@ -32,6 +38,8 @@ export interface DienstOptionen {
   rechnungen?: RechnungsDienst;
   preislisten?: PreislistenDienst;
   kartei?: KarteiDienst;
+  /** Entwicklungs-Datenbank für Rückmeldungen (W72) – getrennt von den Patientendaten */
+  entwicklung?: Db;
   /**
    * Nur für die Bauphase ohne Tailscale (Zugang per SSH-Tunnel bzw. kubectl port-forward): Anfragen
    * von 127.0.0.1 ohne Tailscale-Kopfzeile gelten als dieses Konto. Nie zusammen mit dem
@@ -64,14 +72,20 @@ export function gleicheHerkunft(req: IncomingMessage): boolean {
   }
 }
 
-async function formular(req: IncomingMessage): Promise<URLSearchParams> {
+async function rumpf(req: IncomingMessage, max: number): Promise<string> {
   let text = '';
   for await (const teil of req) {
     text += teil;
-    if (text.length > 64 * 1024) throw new AktionAbgelehnt('Formular zu groß');
+    if (text.length > max) throw new AktionAbgelehnt('Formular zu groß');
   }
-  return new URLSearchParams(text);
+  return text;
 }
+
+const formular = async (req: IncomingMessage): Promise<URLSearchParams> => new URLSearchParams(await rumpf(req, 64 * 1024));
+
+/** html2canvas für die Screenshots der Rückmeldungen – aus node_modules, einmal gelesen */
+let html2canvasQuelle: Promise<string> | undefined;
+const html2canvas = () => (html2canvasQuelle ??= readFile(createRequire(import.meta.url).resolve('html2canvas/dist/html2canvas.min.js'), 'utf8'));
 
 function aktionAus(f: URLSearchParams): Aktion {
   switch (f.get('aktion')) {
@@ -104,7 +118,7 @@ function senden(res: ServerResponse, status: number, typ: string, inhalt: string
     'Content-Type': `${typ}; charset=utf-8`,
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
-    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'self'",
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'self'",
     'Referrer-Policy': 'no-referrer',
   });
   res.end(inhalt);
@@ -141,7 +155,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     try {
       const adresse = new URL(req.url ?? '/', 'http://localhost');
       const pfad = adresse.pathname;
-      const istAktion = req.method === 'POST' && (/^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad) || pfad === '/preislisten/aktion' || pfad === '/patienten/aktion');
+      const istAktion = req.method === 'POST' && (/^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad) || ['/preislisten/aktion', '/patienten/aktion', '/rueckmeldung', '/rueckmeldungen/aktion'].includes(pfad));
       if (req.method !== 'GET' && !istAktion) return senden(res, 405, 'text/plain', 'Nur GET');
 
       if (pfad === '/api/health') {
@@ -211,7 +225,10 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (pfad === '/status') return senden(res, 200, 'text/html', statusseite(await opt.pruefen(), wer, opt.fassung));
       const freieMeldung = meldung ?? adresse.searchParams.get('meldung')?.slice(0, 300) ?? undefined;
       if (pfad.startsWith('/preislisten')) return await preislistenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
-      if (pfad.startsWith('/patienten')) return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
+      if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte')) return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
+      if (pfad === '/rueckmeldung.js') return senden(res, 200, 'text/javascript', RUECKMELDUNG_SKRIPT);
+      if (pfad === '/html2canvas.js') return senden(res, 200, 'text/javascript', await html2canvas());
+      if (pfad.startsWith('/rueckmeldung')) return await rueckmeldungSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad === '/hilfe') return senden(res, 200, 'text/html', hilfeSeite({ wer, fassung: opt.fassung }));
       if (pfad === '/hilfe.js') return senden(res, 200, 'text/javascript', hilfeSkript());
       if (pfad === '/praxis.js') return senden(res, 200, 'text/javascript', PRAXIS_SKRIPT);
@@ -222,6 +239,47 @@ export function praxisDienst(opt: DienstOptionen): Server {
     }
   }
 
+  async function rueckmeldungSeiten(req: IncomingMessage, res: ServerResponse, pfad: string, adresse: URL, wer: string, meldung?: string, fehler?: string): Promise<void> {
+    const db = opt.entwicklung;
+    const json = (status: number, inhalt: unknown) => senden(res, status, 'application/json', JSON.stringify(inhalt));
+    if (!db) return pfad === '/rueckmeldung' ? json(503, { ok: false, fehler: 'Rückmeldungen sind hier nicht eingerichtet' }) : senden(res, 503, 'text/plain', 'Rückmeldungen sind hier nicht eingerichtet');
+    if (pfad === '/rueckmeldung') {
+      if (!gleicheHerkunft(req)) return json(403, { ok: false, fehler: 'Nur von den Seiten der Praxis-Assistenz' });
+      try {
+        const daten = JSON.parse(await rumpf(req, 6 * 1024 * 1024)) as Parameters<typeof rueckmeldungSpeichern>[1];
+        return json(200, { ok: true, id: await rueckmeldungSpeichern(db, daten, wer) });
+      } catch (err) {
+        if (err instanceof RueckmeldungFehler || err instanceof AktionAbgelehnt || err instanceof SyntaxError) return json(400, { ok: false, fehler: err.message });
+        throw err;
+      }
+    }
+    if (pfad === '/rueckmeldungen/aktion') {
+      if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
+      const f = await formular(req);
+      const zurueck = /^\/rueckmeldungen(\?status=\w+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/rueckmeldungen';
+      try {
+        const status = f.get('aktion') === 'offen' ? 'offen' : 'erledigt';
+        await rueckmeldungStatus(db, f.get('id') ?? '', status, wer, f.get('antwort') ?? undefined);
+        return umleiten(res, `${zurueck}${zurueck.includes('?') ? '&' : '?'}meldung=${encodeURIComponent(status === 'erledigt' ? 'Als erledigt markiert.' : 'Wieder geöffnet.')}`);
+      } catch (err) {
+        if (err instanceof RueckmeldungFehler) return umleiten(res, `${zurueck}${zurueck.includes('?') ? '&' : '?'}fehler=${encodeURIComponent(err.message)}`);
+        throw err;
+      }
+    }
+    const bild = /^\/rueckmeldungen\/(\d+)\/bild$/.exec(pfad);
+    if (bild) {
+      const b = await rueckmeldungBild(db, bild[1]!);
+      if (!b) return senden(res, 404, 'text/plain', 'Kein Screenshot');
+      res.writeHead(200, { 'Content-Type': b.typ, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; sandbox" });
+      return void res.end(Buffer.from(b.daten));
+    }
+    if (pfad === '/rueckmeldungen') {
+      const status = (['offen', 'erledigt', 'alle'] as const).find((x) => x === adresse.searchParams.get('status')) ?? 'offen';
+      return senden(res, 200, 'text/html', rueckmeldungenSeite({ liste: await rueckmeldungen(db, { status }), status, offen: await offeneRueckmeldungen(db) }, { wer, fassung: opt.fassung, meldung, fehler }));
+    }
+    return senden(res, 404, 'text/plain', 'Nicht gefunden');
+  }
+
   async function patientenSeiten(req: IncomingMessage, res: ServerResponse, pfad: string, adresse: URL, wer: string, meldung?: string, fehler?: string): Promise<void> {
     const d = opt.kartei;
     const r = { wer, fassung: opt.fassung, meldung, fehler };
@@ -229,21 +287,23 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (pfad === '/patienten/aktion') {
       if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
       const f = await formular(req);
-      const zurueck = /^\/patienten(\/[\w/-]*)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
+      const zurueck = /^\/(patienten|rezepte)(\/[\w/-]*)?(\?filter=\w+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
       try {
         const e = await d.aktion(f, wer);
-        const [pfadTeil, anker] = e.ziel.split('#');
+        const [pfadTeil, anker] = (f.get('zurueck')?.startsWith('/rezepte') ? zurueck : e.ziel).split('#');
         return umleiten(res, `${pfadTeil}${pfadTeil!.includes('?') ? '&' : '?'}meldung=${encodeURIComponent(e.meldung)}${anker ? `#${anker}` : ''}`);
       } catch (err) {
         if (err instanceof KarteiFehler) return umleiten(res, `${zurueck}?fehler=${encodeURIComponent(err.message)}`);
         throw err;
       }
     }
+    if (pfad === '/rezepte') return senden(res, 200, 'text/html', rezepteSeite(await d.rezepte(adresse.searchParams.get('filter') === 'alle' ? 'alle' : 'aktiv'), r));
+    if (pfad === '/rezepte/wellness') return senden(res, 200, 'text/html', wellnessSeite(await d.wellness(), r));
     const suche = adresse.searchParams.get('suche')?.slice(0, 80) ?? '';
     if (pfad === '/patienten') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche }), suche }, r));
     if (pfad === '/patienten/archiv') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche, archiv: true }), suche, archiv: true }, r));
     if (pfad === '/patienten/neu') return senden(res, 200, 'text/html', patientNeuSeite(r));
-    const m = /^\/patienten\/(\d+)(?:\/(akte)|\/neu\/(termin|behandlung|rezept))?$/.exec(pfad);
+    const m = /^\/patienten\/(\d+)(?:\/(akte)|\/neu\/(termin|behandlung|rezept|direktzugang|wellness))?$/.exec(pfad);
     if (!m) return senden(res, 404, 'text/plain', 'Nicht gefunden');
     const [, id, akte, neu] = m as unknown as [string, string, string | undefined, string | undefined];
     if (akte) {
@@ -253,7 +313,9 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (neu) {
       const n = await d.neuAktion(id);
       if (!n) return senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
-      const html = neu === 'termin' ? terminNeuSeite(n, r) : neu === 'behandlung' ? behandlungNeuSeite(n, r) : rezeptNeuSeite(n, r);
+      const html = neu === 'termin' ? terminNeuSeite(n, r) : neu === 'behandlung' ? behandlungNeuSeite(n, r)
+        : neu === 'direktzugang' ? serieNeuSeite(n, 'direktzugang', r) : neu === 'wellness' ? serieNeuSeite(n, 'praevention', r)
+        : rezeptNeuSeite(n, { ...r, vorgaenger: adresse.searchParams.get('vorgaenger') ?? undefined });
       return senden(res, 200, 'text/html', html);
     }
     const p = await d.patient(id);
