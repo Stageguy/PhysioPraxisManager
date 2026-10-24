@@ -249,7 +249,8 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .pat-aktionen{margin:12px 0}
 .pat-abschnitt{margin-top:24px}.pat-abschnitt h2{display:flex;gap:8px;align-items:center;margin:0 0 10px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}.wahl-chip{display:inline-flex;gap:6px;align-items:center;min-height:40px;padding:4px 12px;border-radius:999px;border:1px solid var(--rand);cursor:pointer;font-size:15px}
-.wahl-chip:has(input:checked){background:var(--akzent);color:var(--bg);border-color:var(--akzent)}.wahl-chip input{accent-color:var(--akzent)}
+.formular label.wahl-chip{flex-direction:row;color:var(--fg);font-size:15px;gap:6px}
+.wahl-chip:has(input:checked){background:var(--akzent);color:var(--bg);border-color:var(--akzent)}.wahl-chip input{accent-color:var(--akzent);min-height:0;width:18px;height:18px}
 .formular textarea{font:inherit;font-size:15px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:8px 10px}
 .formular .zwei{display:grid;grid-template-columns:1fr 1fr;gap:12px}.formular input.kurz{max-width:8em}
 .formular.zeile{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end}.formular.zeile .haken{grid-column:1/-1}.formular.zeile .knopf{grid-column:1/-1;justify-self:start}
