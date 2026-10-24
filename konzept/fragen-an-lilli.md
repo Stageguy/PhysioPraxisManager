@@ -116,6 +116,13 @@ der Akte vermerkt werden können. (§4b)
 
 > Antwort:
 
+**19. Rezepte fotografieren – nur über den Knopf in der Praxis-Assistenz?** Dann landet das Foto
+verschlüsselt in der Akte und nicht in der Fotomediathek des iPhones (von dort ginge es in iCloud-Fotos,
+ein US-Dienst). Fotografierst du heute Rezepte mit der Kamera-App? Ist iCloud-Fotos auf dem
+Praxis-iPhone an? (W69)
+
+> Antwort:
+
 ## Zugang und Ablage
 
 **12. Ein Konto oder zwei?** Heute arbeitest du und das System mit praxis@lilli-nebel.de. Reicht
