@@ -13,6 +13,7 @@ import {
   type Fall, type Gespraechsgrund, type Kontaktart, type Patient, type PatientKurz, type RechnungKurz, type Serie, type TerminKurz, type VerlaufEintrag, type VerordnungKurz,
   type WellnessLeistung,
 } from './patienten.ts';
+import { anamneseErfassen, befundErfassen, erklaerungErfassen, erklaerungWiderrufen, fallDetails, phaseSetzen, PHASEN, pinnwand, type FallDetails, type Phase, type Spalte } from './pinnwand.ts';
 
 export { KarteiFehler };
 
@@ -50,6 +51,8 @@ export interface RezepteDaten {
 
 export interface KarteiDienst {
   liste(o: { suche?: string; archiv?: boolean }): Promise<PatientKurz[]>;
+  pinnwand(o: { archiv?: boolean }): Promise<Spalte[]>;
+  fall(patientId: string, fallId: string, wer: string): Promise<{ patient: Patient; details: FallDetails; verordnungen: VerordnungKurz[]; termine: TerminKurz[]; rechnungen: RechnungKurz[] } | undefined>;
   patient(id: string): Promise<PatientSeiteDaten | undefined>;
   akte(id: string, wer: string): Promise<AkteDaten | undefined>;
   neuAktion(id: string): Promise<NeuAktionDaten | undefined>;
@@ -63,11 +66,19 @@ const ARTEN: Kontaktart[] = ['mobil', 'telefon', 'whatsapp', 'email', 'sonstige'
 const kontaktart = (s: string | null): Kontaktart => (ARTEN.includes(s as Kontaktart) ? (s as Kontaktart) : 'sonstige');
 const ganz = (s: string | null, standard = 0) => (s && /^\d+$/.test(s.trim()) ? Number(s) : standard);
 const istId = (s: string) => /^\d+$/.test(s);
+const PHASEN_NAME = (p: Phase) => ({ anfrage: 'Anfrage', aufnahme: 'Aufnahme', anamnese: 'Anamnese', befund_start: 'Befund', behandlung: 'Behandlung', abschluss: 'Abschluss', rechnung: 'Rechnung', nachsorge: 'Nachsorge', archiviert: 'Archiv' })[p];
 
 export function karteiDienst(q: { db: Db; tresor: Tresor }): KarteiDienst {
   const { db, tresor: t } = q;
   return {
     liste: (o) => patientenListe(db, t, o),
+    pinnwand: (o) => pinnwand(db, t, o),
+    async fall(patientId, fallId, wer) {
+      const patient = await patientLesen(db, t, patientId);
+      const details = patient ? await fallDetails(db, t, patientId, fallId, wer) : undefined;
+      if (!patient || !details) return undefined;
+      return { patient, details, verordnungen: (await verordnungen(db, { patientId })).filter((v) => v.fallId === fallId), termine: await termine(db, patientId, { kommend: true }), rechnungen: (await rechnungen(db, patientId)) };
+    },
     async patient(id) {
       const patient = await patientLesen(db, t, id);
       if (!patient) return undefined;
@@ -124,7 +135,31 @@ export function karteiDienst(q: { db: Db; tresor: Tresor }): KarteiDienst {
         return nach('/rezepte/wellness', f.get('aktiv') === '1' ? 'Leistung wieder anbietbar.' : 'Leistung ausgeblendet – bestehende Serien bleiben.');
       }
       if (!istId(id)) throw new KarteiFehler('Unbekannter Patient');
+      const fallSeite = (fallId: string) => `/patienten/${id}/faelle/${fallId}`;
       switch (aktion) {
+        case 'fall_anlegen': {
+          const grundlage = g('grundlage') ?? 'verordnung';
+          const fallId = await fallAnlegen(db, t, id, { grundlage, bezeichnung: g('bezeichnung'), anlass: g('anlass'), diagnoseArzt: g('diagnose_arzt'), wellnessLeistungId: g('wellness_id'), phase: 'anfrage' }, wer);
+          return nach(fallSeite(fallId), 'Fall angelegt – er steht auf der Pinnwand unter „Anfrage“.');
+        }
+        case 'phase': {
+          const nachPhase = g('nach') as Phase;
+          if (!PHASEN.includes(nachPhase)) throw new KarteiFehler('Unbekannte Phase');
+          await phaseSetzen(db, id, g('fall_id') ?? '', nachPhase, wer, g('grund'));
+          return nach(g('zurueck')?.startsWith('/pinnwand') ? g('zurueck')! : fallSeite(g('fall_id') ?? ''), `Verschoben nach „${PHASEN_NAME(nachPhase)}“.`);
+        }
+        case 'anamnese_erfassen':
+          await anamneseErfassen(db, t, id, g('fall_id') ?? '', { erhobenAm: g('erhoben_am'), art: g('art'), beschwerden: g('beschwerden'), vorgeschichte: g('vorgeschichte'), medikamente: g('medikamente'), allergien: g('allergien'), risiken: g('risiken'), sonstiges: g('sonstiges') }, wer);
+          return nach(`${fallSeite(g('fall_id') ?? '')}#anamnese`, 'Anamnese gespeichert.');
+        case 'befund_erfassen':
+          await befundErfassen(db, t, id, g('fall_id') ?? '', { erhobenAm: g('erhoben_am'), art: g('art') ?? '', text: g('text'), messwerte: g('messwerte') }, wer);
+          return nach(`${fallSeite(g('fall_id') ?? '')}#befunde`, 'Befund gespeichert.');
+        case 'erklaerung_erfassen':
+          await erklaerungErfassen(db, t, id, { fallId: g('fall_id'), art: g('art') ?? '', am: g('am'), form: g('form'), inhalt: g('inhalt'), fassung: g('fassung'), gueltigBis: g('gueltig_bis') }, wer);
+          return nach(g('fall_id') ? `${fallSeite(g('fall_id')!)}#erklaerungen` : seite, 'Erklärung gespeichert.');
+        case 'erklaerung_widerrufen':
+          await erklaerungWiderrufen(db, id, g('erklaerung_id') ?? '', g('grund') ?? '', wer);
+          return nach(g('fall_id') ? `${fallSeite(g('fall_id')!)}#erklaerungen` : seite, 'Erklärung widerrufen.');
         case 'stammdaten':
           await stammdatenSpeichern(db, t, id, {
             anrede: g('anrede'), titel: g('titel'), vorname: g('vorname') ?? '', nachname: g('nachname') ?? '', geburtsname: g('geburtsname'), geburtsdatum: g('geburtsdatum'),

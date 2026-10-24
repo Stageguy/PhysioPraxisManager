@@ -9,6 +9,7 @@
 import { protokolliere, type Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
 import { berlinMitternachtUtc } from '../zeit.ts';
+import { phaseVorruecken, type Phase } from './pinnwand.ts';
 
 export class KarteiFehler extends Error {}
 
@@ -741,8 +742,9 @@ export async function offeneFaelle(db: Db, t: Tresor, patientId: string): Promis
 }
 
 export async function fallAnlegen(
-  db: Db, t: Tresor, patientId: string, d: { grundlage: string; bezeichnung?: string; anlass?: string; diagnoseArzt?: string; begonnenAm?: string; wellnessLeistungId?: string }, wer: string,
+  db: Db, t: Tresor, patientId: string, d: { grundlage: string; bezeichnung?: string; anlass?: string; diagnoseArzt?: string; begonnenAm?: string; wellnessLeistungId?: string; phase?: Phase }, wer: string,
 ): Promise<string> {
+  const phase: Phase = d.phase ?? 'behandlung';
   if (!['verordnung', 'direktzugang', 'praevention'].includes(d.grundlage)) throw new KarteiFehler('Bitte die Behandlungsgrundlage wählen');
   let wellness: { id: string; bezeichnung: string } | undefined;
   if (d.grundlage === 'praevention') {
@@ -752,12 +754,12 @@ export async function fallAnlegen(
   }
   const { rows } = await db.query<{ id: string }>(
     `INSERT INTO behandlungsfall (patient_id, nummer, grundlage, steuerklasse, phase, bezeichnung, anlass, diagnose_arzt, begonnen_am, wellness_leistung_id, erstellt_von)
-     VALUES ($1, (SELECT coalesce(max(nummer), 0) + 1 FROM behandlungsfall WHERE patient_id = $1), $2, $3, 'behandlung', $4, $5, $6, COALESCE($7::date, CURRENT_DATE), $8, $9) RETURNING id::text`,
+     VALUES ($1, (SELECT coalesce(max(nummer), 0) + 1 FROM behandlungsfall WHERE patient_id = $1), $2, $3, $10::fall_phase, $4, $5, $6, COALESCE($7::date, CURRENT_DATE), $8, $9) RETURNING id::text`,
     [patientId, d.grundlage, d.grundlage === 'praevention' ? 'wellness_19' : 'heilbehandlung_steuerfrei', geheim(t, d.bezeichnung || wellness?.bezeichnung, 'behandlungsfall.bezeichnung'),
-      geheim(t, d.anlass, 'behandlungsfall.anlass'), geheim(t, d.diagnoseArzt, 'behandlungsfall.diagnose_arzt'), datumPruefen(d.begonnenAm, 'Beginn'), wellness?.id ?? null, wer],
+      geheim(t, d.anlass, 'behandlungsfall.anlass'), geheim(t, d.diagnoseArzt, 'behandlungsfall.diagnose_arzt'), datumPruefen(d.begonnenAm, 'Beginn'), wellness?.id ?? null, wer, phase],
   );
   const id = rows[0]!.id;
-  await db.query("INSERT INTO behandlungsfall_phase (fall_id, von, nach, wer, grund) VALUES ($1, NULL, 'behandlung', $2, 'Fall angelegt')", [id, wer]);
+  await db.query('INSERT INTO behandlungsfall_phase (fall_id, von, nach, wer, grund) VALUES ($1, NULL, $2::fall_phase, $3, $4)', [id, phase, wer, 'Fall angelegt']);
   await protokolliere(db, { actor: wer, action: 'fall_angelegt', objectType: 'patient', objectId: patientId });
   return id;
 }
@@ -845,5 +847,6 @@ export async function behandlungErfassen(
   if (d.terminId) await db.query("UPDATE termin SET status = 'erledigt', geaendert_am = now() WHERE id = $1 AND patient_id = $2", [d.terminId, patientId]);
   await db.query('UPDATE behandlungsfall SET geaendert_am = now() WHERE id = $1', [fallId]);
   await protokolliere(db, { actor: wer, action: 'behandlung_erfasst', objectType: 'patient', objectId: patientId, details: { rezept: !!d.verordnungId } });
+  await phaseVorruecken(db, patientId, fallId, 'behandlung', wer, 'Behandlung erfasst');
   return { behandlungId, fallId };
 }

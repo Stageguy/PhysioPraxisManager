@@ -13,6 +13,8 @@ import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, ueber
 import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from '../src/web/rezepte.ts';
 import { rueckmeldungenSeite } from '../src/web/rueckmeldung.ts';
+import { fallNeuSeite, fallSeite, pinnwandSeite } from '../src/web/pinnwand.ts';
+import type { Karte } from '../src/kartei/pinnwand.ts';
 import type { Patient } from '../src/kartei/patienten.ts';
 
 const PK = { id: '1', art: 'mobil' as const, wert: '0151 1', normiert: '+491511', bezeichnung: null, primaer: true };
@@ -42,6 +44,16 @@ const PATIENT_DATEN = {
 const AKTE = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', steuerklasse: 'heilbehandlung_steuerfrei', bezeichnung: 'Schulter', anlass: 'Schmerz', diagnoseArzt: 'M75.1', begonnenAm: '2026-10-01', abgeschlossenAm: null,
   behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
 const NEU_AKTION = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', bezeichnung: 'Schulter' }], verordnungen: [VERORDNUNG], alleVerordnungen: [VERORDNUNG], termine: [TERMIN], wellness: [WELLNESS] };
+const KARTE: Karte = { fallId: '1', patientId: '1', patientName: 'Anna Test', patientennummer: 'P-1001', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', bezeichnung: 'Schulter', seitPhase: '2026-10-20T08:00:00Z',
+  rezept: { abgehakt: 2, anzahl: 6, status: 'aktiv' }, behandlungen: 2, letzteBehandlung: '2026-10-20', naechsterTermin: '2026-11-02T08:00:00Z', rechnungsstand: 'gelb', warnungen: ['Rechnung überfällig'] };
+const SPALTEN = ['anfrage', 'aufnahme', 'anamnese', 'befund_start', 'behandlung', 'abschluss', 'rechnung', 'nachsorge'].map((phase) => ({ phase: phase as Karte['phase'], name: phase, text: 'x', karten: phase === 'behandlung' ? [KARTE, { ...KARTE, fallId: '2', rezept: null, grundlage: 'praevention' as const, rechnungsstand: 'keine' as const, warnungen: [] }] : [] }));
+const FALL = { patient: PAT, details: { karte: KARTE, anlass: 'Schmerz', diagnoseArzt: 'M75.1', therapieziele: 'Beweglichkeit', steuerklasse: 'heilbehandlung_steuerfrei', begonnenAm: '2026-10-01', abgeschlossenAm: null,
+  anamnese: { id: '1', erhobenAm: '2026-10-01', art: 'gespraech', beschwerden: 'Schulter', vorgeschichte: null, medikamente: 'Ibuprofen', allergien: null, risiken: null, sonstiges: null },
+  befunde: [{ id: '1', erhobenAm: '2026-10-02', art: 'eingang', text: 'Flexion 120°', messwerte: 'NRS 6' }],
+  erklaerungen: [{ id: '1', art: 'behandlungseinwilligung', am: '2026-10-01', form: 'schriftlich', inhalt: 'MT', fassung: null, gueltigBis: null, widerrufenAm: null, fallId: '1' }, { id: '2', art: 'einwilligung_whatsapp', am: '2026-10-01', form: 'textform', inhalt: null, fassung: 'v1', gueltigBis: null, widerrufenAm: '2026-10-10', fallId: null }],
+  phasen: [{ von: 'befund_start' as const, nach: 'behandlung' as const, am: '2026-10-20T08:00:00Z', wer: 'lilli', grund: 'automatisch: Eingangsbefund erfasst' }],
+  naechste: [{ phase: 'abschluss' as const, name: 'Abschluss', fehlt: ['Rezept noch nicht abgehakt'] }, { phase: 'rechnung' as const, name: 'Rechnung', fehlt: [] }] },
+  verordnungen: [VERORDNUNG], termine: [TERMIN], rechnungen: [{ id: '1', art: 'einzel', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', gemahnt: false }] };
 const RM = { id: '1', art: 'fehler' as const, status: 'offen' as const, seite: '/patienten', element: 'kachel.plus', elementTitel: '„+“', textHtml: '<p>Der Knopf <b>fehlt</b></p>', hatBild: true, fassung: '0.9.0', umgebung: 'test', browser: 'Safari', fenster: '393×852', von: 'lilli', erstelltAm: '2026-10-24T10:00:00Z', erledigtAm: null, erledigtVon: null, antwort: null };
 
 const Q: QuelleKurz = { id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2026', gueltigAb: '2026-01-01', abgerufenAm: '2026-10-23T03:00:00Z', url: 'https://x' };
@@ -108,6 +120,11 @@ const seiten = () => [
   wellnessSeite([], R),
   serieNeuSeite(NEU_AKTION, 'direktzugang', R),
   serieNeuSeite({ ...NEU_AKTION, wellness: [] }, 'praevention', R),
+  pinnwandSeite({ spalten: SPALTEN, ansicht: 'horizontal', archiv: false }, R),
+  pinnwandSeite({ spalten: SPALTEN, ansicht: 'vertikal', archiv: true }, R),
+  fallNeuSeite({ patienten: [PAT], wellness: [WELLNESS] }, R),
+  fallSeite(FALL, R),
+  fallSeite({ ...FALL, details: { ...FALL.details, anamnese: null, befunde: [], erklaerungen: [], phasen: [] }, verordnungen: [], termine: [], rechnungen: [] }, R),
   rueckmeldungenSeite({ liste: [RM, { ...RM, id: '2', status: 'erledigt', hatBild: false, antwort: 'behoben', erledigtAm: '2026-10-25T10:00:00Z' }], status: 'alle', offen: 1 }, R),
 ];
 /** Eine Seite einmal in der Testumgebung – dort gibt es das Band */

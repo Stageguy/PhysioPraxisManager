@@ -285,6 +285,55 @@ export const PRAXIS_SKRIPT = String.raw`
       if (fa) fa.value = isNaN(pr) ? '' : deutsch(Math.round(pr / basis * 10000) / 10000, 4);
     }
   });
+  // ── Pinnwand: Karten ziehen, Ansicht merken ──
+  var pw = document.getElementById('pinnwand');
+  if (pw) {
+    var gezogen = null, fehler = document.getElementById('pwFehler');
+    function zeigeFehler(text) { if (!fehler) return; fehler.textContent = text; fehler.hidden = !text; }
+    document.addEventListener('dragstart', function (e) {
+      var k = e.target.closest && e.target.closest('.fk[draggable]');
+      if (!k) return;
+      gezogen = k; k.classList.add('ziehend'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', k.getAttribute('data-fall'));
+    });
+    document.addEventListener('dragend', function () { if (gezogen) gezogen.classList.remove('ziehend'); gezogen = null; pw.querySelectorAll('.pw-phase.ziel').forEach(function (s) { s.classList.remove('ziel'); }); });
+    document.addEventListener('dragover', function (e) {
+      var sp = e.target.closest && e.target.closest('.pw-phase');
+      if (!sp || !gezogen) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      pw.querySelectorAll('.pw-phase.ziel').forEach(function (s) { if (s !== sp) s.classList.remove('ziel'); });
+      sp.classList.add('ziel');
+    });
+    document.addEventListener('drop', function (e) {
+      var sp = e.target.closest && e.target.closest('.pw-phase');
+      if (!sp || !gezogen) return;
+      e.preventDefault();
+      var karte = gezogen, nach = sp.getAttribute('data-phase'), von = karte.getAttribute('data-phase');
+      if (nach === von) return;
+      var zurueckGrund = '';
+      var reihenfolge = ['anfrage', 'aufnahme', 'anamnese', 'befund_start', 'behandlung', 'abschluss', 'rechnung', 'nachsorge', 'archiviert'];
+      if (reihenfolge.indexOf(nach) < reihenfolge.indexOf(von)) { zurueckGrund = window.prompt('Zurück nach „' + sp.querySelector('h2').firstChild.textContent.trim() + '“ – warum?') || ''; if (!zurueckGrund) return; }
+      var daten = new URLSearchParams({ aktion: 'phase', id: karte.getAttribute('data-patient'), fall_id: karte.getAttribute('data-fall'), nach: nach, grund: zurueckGrund, zurueck: pw.getAttribute('data-zurueck') || '/pinnwand' });
+      karte.classList.add('wartet');
+      fetch('/patienten/aktion', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' }, body: daten.toString() })
+        .then(function (r) { return r.json(); })
+        .then(function (a) {
+          karte.classList.remove('wartet');
+          if (!a.ok) { zeigeFehler(a.fehler || 'Das ging nicht.'); return; }
+          zeigeFehler('');
+          sp.querySelector('.pw-karten').appendChild(karte); karte.setAttribute('data-phase', nach);
+          var leer = sp.querySelector('.pw-leer'); if (leer) leer.remove();
+          pw.querySelectorAll('.pw-phase').forEach(function (s) { var z = s.querySelector('.pw-zahl'); if (z) z.textContent = s.querySelectorAll('.fk').length; });
+          var m = karte.querySelector('.marke:nth-child(2)'); if (m) m.textContent = 'heute hier';
+        })
+        .catch(function () { karte.classList.remove('wartet'); zeigeFehler('Keine Verbindung – bitte Seite neu laden.'); });
+    });
+    // Gewählte Ansicht merken
+    try {
+      var gemerkt = localStorage.getItem('pinnwandAnsicht');
+      if (gemerkt && !/ansicht=/.test(location.search) && !pw.classList.contains(gemerkt)) location.replace('/pinnwand?ansicht=' + gemerkt + (location.search.indexOf('archiv=1') >= 0 ? '&archiv=1' : ''));
+      document.querySelectorAll('[data-ansicht]').forEach(function (a) { a.addEventListener('click', function () { try { localStorage.setItem('pinnwandAnsicht', a.getAttribute('data-ansicht')); } catch (x) { /* privat */ } }); });
+    } catch (x) { /* privates Fenster */ }
+  }
   document.addEventListener('click', function (e) {
     var t = e.target;
     // „Stammdaten bearbeiten“ in der Knopfreihe klappt das Formular darunter auf

@@ -22,6 +22,7 @@ import { KarteiFehler, type KarteiDienst } from './kartei/dienst.ts';
 import { cockpitSeite } from './web/cockpit.ts';
 import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from './web/patienten.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
+import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
 import { menueStand } from './web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from './web/preislisten.ts';
 import { dashboardSeite, PRAXIS_SKRIPT, rechnungSeite } from './web/rechnungen.ts';
@@ -225,7 +226,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (pfad === '/status') return senden(res, 200, 'text/html', statusseite(await opt.pruefen(), wer, opt.fassung));
       const freieMeldung = meldung ?? adresse.searchParams.get('meldung')?.slice(0, 300) ?? undefined;
       if (pfad.startsWith('/preislisten')) return await preislistenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
-      if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte')) return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
+      if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte') || pfad.startsWith('/pinnwand')) return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad === '/rueckmeldung.js') return senden(res, 200, 'text/javascript', RUECKMELDUNG_SKRIPT);
       if (pfad === '/html2canvas.js') return senden(res, 200, 'text/javascript', await html2canvas());
       if (pfad.startsWith('/rueckmeldung')) return await rueckmeldungSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
@@ -287,22 +288,39 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (pfad === '/patienten/aktion') {
       if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
       const f = await formular(req);
-      const zurueck = /^\/(patienten|rezepte)(\/[\w/-]*)?(\?filter=\w+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
+      const zurueck = /^\/(patienten|rezepte|pinnwand)(\/[\w/-]*)?(\?[\w=&]+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
+      // Drag & Drop auf der Pinnwand fragt per fetch und will eine Antwort als JSON statt einer Umleitung
+      const alsJson = (req.headers.accept ?? '').includes('application/json');
       try {
         const e = await d.aktion(f, wer);
-        const [pfadTeil, anker] = (f.get('zurueck')?.startsWith('/rezepte') ? zurueck : e.ziel).split('#');
+        if (alsJson) return senden(res, 200, 'application/json', JSON.stringify({ ok: true, meldung: e.meldung }));
+        const [pfadTeil, anker] = (f.get('zurueck')?.startsWith('/rezepte') || f.get('zurueck')?.startsWith('/pinnwand') ? zurueck : e.ziel).split('#');
         return umleiten(res, `${pfadTeil}${pfadTeil!.includes('?') ? '&' : '?'}meldung=${encodeURIComponent(e.meldung)}${anker ? `#${anker}` : ''}`);
       } catch (err) {
-        if (err instanceof KarteiFehler) return umleiten(res, `${zurueck}?fehler=${encodeURIComponent(err.message)}`);
+        if (err instanceof KarteiFehler) {
+          if (alsJson) return senden(res, 200, 'application/json', JSON.stringify({ ok: false, fehler: err.message }));
+          return umleiten(res, `${zurueck}${zurueck.includes('?') ? '&' : '?'}fehler=${encodeURIComponent(err.message)}`);
+        }
         throw err;
       }
     }
+    if (pfad === '/pinnwand') {
+      const ansicht = adresse.searchParams.get('ansicht') === 'vertikal' ? 'vertikal' : 'horizontal';
+      const archiv = adresse.searchParams.get('archiv') === '1';
+      return senden(res, 200, 'text/html', pinnwandSeite({ spalten: await d.pinnwand({ archiv }), ansicht, archiv }, r));
+    }
+    if (pfad === '/pinnwand/neu') return senden(res, 200, 'text/html', fallNeuSeite({ patienten: await d.liste({}), wellness: (await d.wellness()).filter((w) => w.aktiv) }, r));
     if (pfad === '/rezepte') return senden(res, 200, 'text/html', rezepteSeite(await d.rezepte(adresse.searchParams.get('filter') === 'alle' ? 'alle' : 'aktiv'), r));
     if (pfad === '/rezepte/wellness') return senden(res, 200, 'text/html', wellnessSeite(await d.wellness(), r));
     const suche = adresse.searchParams.get('suche')?.slice(0, 80) ?? '';
     if (pfad === '/patienten') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche }), suche }, r));
     if (pfad === '/patienten/archiv') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche, archiv: true }), suche, archiv: true }, r));
     if (pfad === '/patienten/neu') return senden(res, 200, 'text/html', patientNeuSeite(r));
+    const fm = /^\/patienten\/(\d+)\/faelle\/(\d+)$/.exec(pfad);
+    if (fm) {
+      const fd = await d.fall(fm[1]!, fm[2]!, wer);
+      return fd ? senden(res, 200, 'text/html', fallSeite(fd, r)) : senden(res, 404, 'text/plain', 'Diesen Fall gibt es nicht');
+    }
     const m = /^\/patienten\/(\d+)(?:\/(akte)|\/neu\/(termin|behandlung|rezept|direktzugang|wellness))?$/.exec(pfad);
     if (!m) return senden(res, 404, 'text/plain', 'Nicht gefunden');
     const [, id, akte, neu] = m as unknown as [string, string, string | undefined, string | undefined];

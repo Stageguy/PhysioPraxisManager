@@ -267,6 +267,33 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .fall{margin-top:16px}.behandlungen{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
 .behandlungen li{border-top:1px solid var(--rand);padding:10px 0}.b-kopf{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px}
 @media (max-width:640px){.pat-raster{grid-template-columns:1fr}.formular .zwei{grid-template-columns:1fr}}
+/* Pinnwand */
+.pw-titel{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.pw-titel h1{display:flex;gap:8px;align-items:center}
+.pinnwand{display:grid;gap:12px;margin-top:12px}
+.pinnwand.horizontal{grid-auto-flow:column;grid-auto-columns:minmax(250px,1fr);overflow-x:auto;padding-bottom:8px;align-items:start}
+.pinnwand.vertikal{grid-template-columns:1fr}
+.pw-phase{background:color-mix(in srgb,var(--akzent) 5%,var(--bg));border:1px solid var(--rand);border-radius:14px;padding:10px;min-width:0;min-height:120px;transition:background .12s,border-color .12s}
+.pw-phase.ziel{border-color:var(--akzent);background:color-mix(in srgb,var(--akzent) 14%,var(--bg))}
+.pw-kopf{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}.pw-kopf h2{margin:0;font-size:16px;display:flex;gap:8px;align-items:center}.pw-kopf p{margin:0}
+.pw-kopf .knopf{align-self:flex-start;margin-top:4px}
+.pw-zahl{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--akzent);color:var(--bg);font-size:12px}
+.pw-karten{display:grid;gap:8px}.pinnwand.vertikal .pw-karten{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.pinnwand.vertikal .pw-phase{display:grid;grid-template-columns:200px minmax(0,1fr);gap:12px;align-items:start}.pinnwand.vertikal .pw-kopf{margin:0}
+.pw-leer{color:var(--grau);margin:4px 0;text-align:center}
+.fk{position:relative;display:flex;flex-direction:column;background:var(--karte);border:1px solid var(--rand);border-left:5px solid var(--rand);border-radius:12px;min-width:0;cursor:grab}
+.fk.gelb{border-left-color:#f2d43a}.fk.rot{border-left-color:#d93025}.fk.ziehend{opacity:.5}.fk.wartet{opacity:.6;pointer-events:none}.fk[draggable=false],.fall-kopf .fk{cursor:default}
+.fk-link{display:flex;flex-direction:column;gap:4px;padding:10px 40px 10px 12px;color:var(--fg);text-decoration:none;font-size:14px}.fk-link:hover .fk-kopf b{text-decoration:underline}
+.fk-kopf{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.fk-kopf b{font-size:15px}.fk-titel{color:var(--akzent)}
+.fk-balken{display:block;height:8px;border-radius:999px;background:var(--rand);overflow:hidden;margin-top:2px}.fk-balken span{display:block;height:100%;background:var(--akzent)}
+.fk-warn{display:flex;gap:4px;align-items:center;color:#b3261e;font-size:13px}
+.fk .plus{position:absolute;right:8px;top:8px}.plus.klein summary{width:30px;height:30px;font-size:20px}
+.fall-kopf{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:16px;margin-top:8px;align-items:start}
+.weg{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.weg li{display:flex;flex-direction:column;padding:6px 10px;border-radius:10px;border:1px solid var(--rand);font-size:13px;min-width:90px}
+.weg li.vorbei{opacity:.55}.weg li.jetzt{background:var(--akzent);color:var(--bg);border-color:var(--akzent)}.weg li.jetzt .hint{color:var(--bg)}.weg li.bereit{border-color:var(--ok)}
+.befunde{list-style:none;margin:0;padding:0;display:grid;gap:8px}.befunde li{background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:10px 14px}
+.fall-zwei{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.pinnwand.horizontal{grid-auto-flow:row;grid-auto-columns:auto}.pinnwand.vertikal .pw-phase{grid-template-columns:1fr}.fall-kopf,.fall-zwei{grid-template-columns:1fr}.fk{cursor:default}}
 /* Patientenseite: Termin- und Rechnungskacheln, Kontaktverlauf-Fenster, Stammdaten */
 .tk-raster,.rk-pat-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:8px 0}
 .tk,.rk-pat{display:flex;flex-direction:column;gap:4px;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:10px 12px;min-width:0}

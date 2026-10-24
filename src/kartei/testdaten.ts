@@ -6,6 +6,7 @@
 import type { Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
 import { anrufBeginnen, behandlungErfassen, fallAnlegen, patientAnlegen, terminAnlegen, verlaufEintragen, verordnungAnlegen, wellnessSpeichern, type Kontaktart } from './patienten.ts';
+import { anamneseErfassen, befundErfassen, erklaerungErfassen, phaseSetzen } from './pinnwand.ts';
 
 const PERSONEN: { vorname: string; nachname: string; anrede: string; geboren: string; ort: string; strasse: string; plz: string; besonderheiten?: string; ansprache?: string; sprache?: string }[] = [
   { vorname: 'Anna', nachname: 'Beispiel', anrede: 'Frau', geboren: '1984-03-12', ort: 'Bad Wörishofen', strasse: 'Kurpromenade 3', plz: '86825' },
@@ -123,6 +124,19 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
     if (i === 3) await rechnung('gesendet', 'abschlussrechnung', -50, -36, 312, { gemahnt: true });
     if (i === 5) await rechnung('gesendet', 'einzel', -40, -26, 46.27);
 
+    // Pinnwand (W76): Erklärungen und Anamnese bei den meisten; Ida steht in „Anfrage“, Jonas' Wellness in „Behandlung“
+    await erklaerungErfassen(db, t, id, { art: 'datenschutzinformation', form: 'schriftlich', am: tag(-400 + i * 30), fassung: 'Datenschutzinformation 2026-01' }, wer);
+    if (i < 8) {
+      const fall = (await db.query<{ id: string }>('SELECT id::text FROM behandlungsfall WHERE patient_id = $1 ORDER BY nummer LIMIT 1', [id])).rows[0]!.id;
+      await erklaerungErfassen(db, t, id, { fallId: fall, art: 'behandlungseinwilligung', form: 'schriftlich', am: tag(-40 - i * 3), inhalt: 'Physiotherapie laut Verordnung (erfunden)' }, wer);
+      await erklaerungErfassen(db, t, id, { fallId: fall, art: 'kosteninformation', form: 'textform', am: tag(-40 - i * 3), inhalt: 'Preisliste Privat 2026 ausgehändigt' }, wer);
+      if (i !== 3) await anamneseErfassen(db, t, id, fall, { erhobenAm: tag(-38 - i * 3), art: i % 2 ? 'online' : 'gespraech', beschwerden: 'Schmerzen seit mehreren Wochen, Alltag eingeschränkt (erfunden)', vorgeschichte: 'keine Operationen', medikamente: i % 3 ? 'keine' : 'Ibuprofen bei Bedarf' }, wer);
+      if (i !== 3 && i !== 5) await befundErfassen(db, t, id, fall, { erhobenAm: tag(-37 - i * 3), art: 'eingang', text: 'Beweglichkeit eingeschränkt, Druckschmerz (erfunden)', messwerte: 'NRS 6/10' }, wer);
+      if (i === 4) { await befundErfassen(db, t, id, fall, { erhobenAm: tag(-2), art: 'abschluss', text: 'Beschwerdefrei, Ziele erreicht (erfunden)' }, wer); }
+      if (i === 3) await phaseSetzen(db, id, fall, 'aufnahme', wer, 'Anamnese steht noch aus (erfunden)');
+    } else if (i === 8) {
+      await fallAnlegen(db, t, id, { grundlage: 'verordnung', bezeichnung: 'Haltung, Schule', anlass: 'Eltern bitten um Termin (erfunden)', phase: 'anfrage' }, wer);
+    }
     // Kontaktverlauf: ein paar Gespräche, bei Anna ein offener Anruf
     await verlaufEintragen(db, t, id, { art: 'anruf_eingehend', grund: 'terminvereinbarung', notiz: 'Erstkontakt, Termin vereinbart (erfunden)' }, wer);
     if (i % 2 === 1) await verlaufEintragen(db, t, id, { art: 'whatsapp', grund: 'terminverschiebung', notiz: 'Bittet um späteren Termin' }, wer);

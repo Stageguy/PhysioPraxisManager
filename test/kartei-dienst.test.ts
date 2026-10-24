@@ -246,3 +246,75 @@ test('Wellness-Katalog und Serien ohne Rezept: Behandlung übernimmt Leistung un
   assert.doesNotMatch(await seite(`/patienten/${wid}/neu/wellness`), /option value="1">Wellnessmassage/);
   assert.match(await seite('/rezepte/wellness'), /anbieten/);
 });
+
+test('Pinnwand: Karte wandert nur mit vollständigen Daten; Drag & Drop antwortet als JSON; zurück nur mit Grund', async () => {
+  const p = await post({ aktion: 'anlegen', vorname: 'Paula', nachname: 'Pinnwand', geburtsdatum: '1990-01-01', mobil: '0151 999', strasse: 'Weg', hausnummer: '1', plz: '86825', ort: 'Bad Wörishofen' });
+  const pid = /\/patienten\/(\d+)/.exec(ziel(p))![1]!;
+  assert.match(ziel(await post({ aktion: 'fall_anlegen', id: pid, grundlage: 'verordnung', bezeichnung: 'Knie' })), /\/faelle\/\d+\?meldung=Fall angelegt/);
+  const fall = (await db.query<{ id: string; phase: string }>('SELECT id::text, phase::text FROM behandlungsfall WHERE patient_id = $1', [pid])).rows[0]!;
+  assert.equal(fall.phase, 'anfrage');
+  let html = await seite('/pinnwand');
+  assert.match(html, /Paula Pinnwand/);
+  assert.match(html, /class="pinnwand horizontal"/);
+  assert.match(await seite('/pinnwand?ansicht=vertikal'), /class="pinnwand vertikal"/);
+  // Drag & Drop: nach Aufnahme ohne Termin → JSON mit Fehler
+  const dnd = (felder: Record<string, string>) => fetch(`${basis}/patienten/aktion`, { method: 'POST', headers: { ...wer, 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: new URLSearchParams(felder).toString() }).then((r) => r.json() as Promise<{ ok: boolean; fehler?: string; meldung?: string }>);
+  let a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'aufnahme' });
+  assert.equal(a.ok, false);
+  assert.match(a.fehler!, /bestätigter Termin/);
+  await post({ aktion: 'termin_anlegen', id: pid, datum: '2099-02-02', zeit: '10:00', dauer_min: '30' });
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'aufnahme' });
+  assert.equal(a.ok, true, a.fehler);
+  // Zwei Schritte auf einmal: Anamnese braucht Einwilligung, Datenschutzinfo und Rezept
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'anamnese' });
+  assert.match(a.fehler!, /Behandlungseinwilligung/);
+  assert.match(a.fehler!, /Datenschutzinformation/);
+  assert.match(a.fehler!, /Rezept am Fall/);
+  await post({ aktion: 'erklaerung_erfassen', id: pid, fall_id: fall.id, art: 'behandlungseinwilligung', form: 'schriftlich' });
+  await post({ aktion: 'erklaerung_erfassen', id: pid, art: 'datenschutzinformation', form: 'schriftlich', fassung: '2026-01' });
+  await post({ aktion: 'verordnung_anlegen', id: pid, ausgestellt_am: '2026-10-01', massnahme: 'KG', anzahl: '2', fall_id: fall.id });
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'anamnese' });
+  assert.equal(a.ok, true, a.fehler);
+  // Anamnese erfassen rückt automatisch nach Befund; Eingangsbefund nach Behandlung
+  assert.match(ziel(await post({ aktion: 'anamnese_erfassen', id: pid, fall_id: fall.id, beschwerden: 'Knie schmerzt beim Treppensteigen', medikamente: 'keine' })), /Anamnese gespeichert/);
+  assert.equal((await db.query<{ p: string }>('SELECT phase::text AS p FROM behandlungsfall WHERE id = $1', [fall.id])).rows[0]!.p, 'befund_start');
+  await post({ aktion: 'befund_erfassen', id: pid, fall_id: fall.id, art: 'eingang', text: 'Flexion 100°, Erguss', messwerte: 'NRS 5' });
+  assert.equal((await db.query<{ p: string }>('SELECT phase::text AS p FROM behandlungsfall WHERE id = $1', [fall.id])).rows[0]!.p, 'behandlung');
+  // Abschluss erst, wenn das Rezept abgehakt ist
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'abschluss' });
+  assert.match(a.fehler!, /Behandlung|abgehakt/);
+  const rezept = (await db.query<{ id: string }>('SELECT id::text FROM verordnung WHERE patient_id = $1', [pid])).rows[0]!.id;
+  await post({ aktion: 'behandlung_erfassen', id: pid, fall_id: fall.id, datum: '2026-10-20', verordnung_id: rezept, massnahmen: 'KG 1' });
+  await post({ aktion: 'behandlung_erfassen', id: pid, fall_id: fall.id, datum: '2026-10-22', verordnung_id: rezept, massnahmen: 'KG 2' });
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'abschluss' });
+  assert.equal(a.ok, true, a.fehler);
+  // Rechnung braucht den Abschlussbefund – der rückt dann automatisch
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'rechnung' });
+  assert.match(a.fehler!, /Abschlussbefund/);
+  await post({ aktion: 'befund_erfassen', id: pid, fall_id: fall.id, art: 'abschluss', text: 'Beschwerdefrei' });
+  assert.equal((await db.query<{ p: string }>('SELECT phase::text AS p FROM behandlungsfall WHERE id = $1', [fall.id])).rows[0]!.p, 'rechnung');
+  // Zurück nur mit Grund; dann Nachsorge und Archiv (keine offene Rechnung)
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'behandlung' });
+  assert.match(a.fehler!, /Grund/);
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'behandlung', grund: 'Patient kommt doch noch einmal' });
+  assert.equal(a.ok, true);
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'archiviert' });
+  assert.equal(a.ok, true, a.fehler);
+  const f2 = (await db.query<{ p: string; ab: Date | null; bis: Date | null }>('SELECT phase::text AS p, abgeschlossen_am AS ab, aufbewahren_bis AS bis FROM behandlungsfall WHERE id = $1', [fall.id])).rows[0]!;
+  assert.equal(f2.p, 'archiviert');
+  assert.ok(f2.ab && f2.bis);
+  html = await seite(`/patienten/${pid}/faelle/${fall.id}`);
+  assert.match(html, /Knie schmerzt beim Treppensteigen/);
+  assert.match(html, /Beschwerdefrei/);
+  assert.match(html, /Patient kommt doch noch einmal/);
+  assert.match(html, /automatisch: Eingangsbefund erfasst/);
+  assert.doesNotMatch(await seite('/pinnwand'), /Paula Pinnwand/, 'archiviert ist ausgeblendet');
+  assert.match(await seite('/pinnwand?archiv=1'), /Paula Pinnwand/);
+  // Wellness überspringt Anamnese, Befund und Abschluss
+  await post({ aktion: 'wellness_speichern', code: 'WM30', bezeichnung: 'Wellnessmassage 30', preis: '42' });
+  const w = (await db.query<{ id: string }>("SELECT id::text FROM wellness_leistung WHERE code = 'WM30'")).rows[0]!.id;
+  await post({ aktion: 'fall_anlegen', id: pid, grundlage: 'praevention', wellness_id: w });
+  const wf = (await db.query<{ id: string }>("SELECT id::text FROM behandlungsfall WHERE patient_id = $1 AND grundlage = 'praevention'", [pid])).rows[0]!.id;
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: wf, nach: 'behandlung' });
+  assert.equal(a.ok, true, a.fehler);
+});
