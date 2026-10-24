@@ -267,6 +267,17 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .fall{margin-top:16px}.behandlungen{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
 .behandlungen li{border-top:1px solid var(--rand);padding:10px 0}.b-kopf{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px}
 @media (max-width:640px){.pat-raster{grid-template-columns:1fr}.formular .zwei{grid-template-columns:1fr}}
+/* Patientenseite: Termin- und Rechnungskacheln, Kontaktverlauf-Fenster, Stammdaten */
+.tk-raster,.rk-pat-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:8px 0}
+.tk,.rk-pat{display:flex;flex-direction:column;gap:4px;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:10px 12px;min-width:0}
+.tk.rezept{border-color:var(--ok)}.tk b{font-size:15px}.tk-fuss{display:flex;gap:6px;align-items:center;margin-top:4px}
+.tk-fuss select{font:inherit;font-size:13px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:4px 6px;min-height:32px}
+.rk-pat{border-left:6px solid var(--rand)}.rk-pat.gelb{border-left-color:#f2d43a}.rk-pat.rot{border-left-color:#d93025}
+.rk-pat header{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--akzent)}.rk-pat header b{color:var(--fg);flex:1;min-width:0}
+.rk-pat-betrag{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.verlauf-fenster{max-height:360px;overflow:auto;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:4px 14px}
+details.stammdaten.tafel{padding:10px 16px;margin:0 0 12px}details.stammdaten.tafel>summary{display:inline-flex;gap:6px;align-items:center;min-height:36px;color:var(--akzent);font-weight:600}
+details.stammdaten.tafel[open]>summary{margin-bottom:8px}
 /* Rezepte als Kacheln */
 .rz-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:8px 0 12px}
 .rz{display:flex;flex-direction:column;gap:6px;background:var(--karte);border:1px solid var(--rand);border-radius:14px;padding:12px 14px;min-width:0}

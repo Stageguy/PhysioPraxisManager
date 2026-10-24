@@ -287,6 +287,9 @@ export const PRAXIS_SKRIPT = String.raw`
   });
   document.addEventListener('click', function (e) {
     var t = e.target;
+    // „Stammdaten bearbeiten“ in der Knopfreihe klappt das Formular darunter auf
+    var oe = t.closest && t.closest('[data-oeffnet]');
+    if (oe) { var det = document.getElementById(oe.getAttribute('data-oeffnet')); if (det) { e.preventDefault(); det.open = !det.open; if (det.open) det.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
     // „auf alle übernommenen anwenden“
     if (t.closest && t.closest('[data-faktor-alle]')) {
       var std = document.querySelector('[data-faktor-standard]'), f = zahl(std && std.value);
