@@ -39,6 +39,9 @@ export interface Termin {
   frei: boolean;
   /** Termin aus der Kartei: Link zur Patientenseite */
   link?: string;
+  /** Kurzbezeichnung der Behandlung (Kürzel aus der Preisliste, Maßnahme, Wellness) – zur Vorbereitung */
+  leistung?: string;
+  rezept?: boolean;
 }
 
 export interface LogEintrag {
@@ -112,14 +115,18 @@ const naechsterTag = (tag: string): string => {
 };
 
 /** Termine der Kartei an diesem Tag, nach Kalender-Ereignis-ID – für Klarnamen und Links im Cockpit */
-async function karteiTermine(db: Db | undefined, von: string, bis: string): Promise<{ id: string; exchangeId: string | null; patientId: string; vorname: string; nachname: string; beginn: string; ende: string }[]> {
+async function karteiTermine(db: Db | undefined, von: string, bis: string): Promise<{ id: string; exchangeId: string | null; patientId: string; vorname: string; nachname: string; beginn: string; ende: string; leistung: string | null; rezept: boolean }[]> {
   if (!db) return [];
   try {
     const { rows } = await db.query<Record<string, unknown>>(
-      `SELECT t.id::text, t.exchange_event_id, t.patient_id::text, p.vorname, p.nachname, t.beginn, t.ende FROM termin t JOIN patient p ON p.id = t.patient_id
+      `SELECT t.id::text, t.exchange_event_id, t.patient_id::text, p.vorname, p.nachname, t.beginn, t.ende, (t.verordnung_id IS NOT NULL) AS rezept,
+         coalesce(
+         (SELECT pp.kuerzel FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.aktiv AND pp.nummer = coalesce(t.leistung_nummer, v.leistung_nummer) LIMIT 1),
+         v.massnahme, w.code, CASE f.grundlage WHEN 'direktzugang' THEN 'Direktzugang' WHEN 'praevention' THEN 'Wellness' END) AS leistung
+       FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN verordnung v ON v.id = t.verordnung_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN wellness_leistung w ON w.id = f.wellness_leistung_id
        WHERE t.beginn < $2 AND t.ende > $1 AND t.status IN ('vorgeschlagen', 'bestaetigt', 'erledigt') ORDER BY t.beginn`, [von, bis],
     );
-    return rows.map((r) => ({ id: String(r.id), exchangeId: (r.exchange_event_id as string | null) ?? null, patientId: String(r.patient_id), vorname: String(r.vorname), nachname: String(r.nachname), beginn: new Date(r.beginn as string).toISOString(), ende: new Date(r.ende as string).toISOString() }));
+    return rows.map((r) => ({ id: String(r.id), exchangeId: (r.exchange_event_id as string | null) ?? null, patientId: String(r.patient_id), vorname: String(r.vorname), nachname: String(r.nachname), beginn: new Date(r.beginn as string).toISOString(), ende: new Date(r.ende as string).toISOString(), leistung: (r.leistung as string | null) ?? null, rezept: Boolean(r.rezept) }));
   } catch {
     return [];
   }
@@ -139,7 +146,7 @@ export async function termineHeute(
   const name = (k: { vorname: string; nachname: string }) => (namenZeigen ? `${k.vorname} ${k.nachname}` : `${k.vorname[0]!.toUpperCase()}. ${k.nachname[0]!.toUpperCase()}.`);
   if (!graph) {
     if (!kartei.length) return { stand: 'nicht-verbunden', hinweis: 'Keine Verbindung zum Kalender.' };
-    return { stand: 'ok', daten: kartei.map((k) => ({ beginn: uhrzeit(k.beginn), ende: uhrzeit(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine` })) };
+    return { stand: 'ok', daten: kartei.map((k) => ({ beginn: uhrzeit(k.beginn), ende: uhrzeit(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept })) };
   }
   try {
     const termine: Termin[] = [];
@@ -164,12 +171,12 @@ export async function termineHeute(
         ganztags: e.isAllDay,
         titel: k ? name(k) : namenZeigen ? titel : initialen(titel),
         frei: e.showAs === 'free',
-        ...(k ? { link: `/patienten/${k.patientId}#termine` } : {}),
+        ...(k ? { link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept } : {}),
       });
     }
     // Kartei-Termine, die (noch) nicht im Kalender stehen, trotzdem zeigen
     for (const k of kartei.filter((x) => !gesehen.has(x.id))) {
-      termine.push({ beginn: uhrzeit(k.beginn), ende: uhrzeit(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine` });
+      termine.push({ beginn: uhrzeit(k.beginn), ende: uhrzeit(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept });
     }
     termine.sort((a, b) => a.beginn.localeCompare(b.beginn));
     return { stand: 'ok', daten: termine };

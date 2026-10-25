@@ -95,7 +95,9 @@ test('Termine heute: Klarname und Link aus der Kartei, wenn der Kalendereintrag 
   await migriere(db);
   const t = tresor({ PRAXIS_TRESOR_SCHLUESSEL: neuerHauptschluessel() });
   const pid = await patientAnlegen(db, t, { vorname: 'Karin', nachname: 'Zwölfer' }, 'x');
-  const t1 = await terminAnlegen(db, pid, { datum: '2026-10-26', zeit: '08:00', dauerMin: 30 }, 'x');
+  const { verordnungAnlegen } = await import('../src/kartei/patienten.ts');
+  const rezept = await verordnungAnlegen(db, t, pid, { ausgestelltAm: '2026-10-01', massnahme: 'Manuelle Therapie', leistungNummer: '21201', anzahl: 6 }, 'x');
+  const t1 = await terminAnlegen(db, pid, { datum: '2026-10-26', zeit: '08:00', dauerMin: 30, verordnungId: rezept }, 'x');
   await terminAnlegen(db, pid, { datum: '2026-10-26', zeit: '14:30', dauerMin: 30 }, 'x');
   await db.query("UPDATE termin SET exchange_event_id = 'ev-1' WHERE id = $1", [t1]);
   const graph = {
@@ -110,11 +112,11 @@ test('Termine heute: Klarname und Link aus der Kartei, wenn der Kalendereintrag 
   const d = await cockpitDaten({ db, graph, namenZeigen: true, jetzt });
   assert.equal(d.termine.stand, 'ok');
   const termine = d.termine.stand === 'ok' ? d.termine.daten : [];
-  assert.deepEqual(termine.map((x) => [x.beginn, x.titel, x.link ?? null]), [
-    ['08:00', 'Karin Zwölfer', `/patienten/${pid}#termine`],
-    ['11:00', 'Zahnarzt Lilli', null],
-    ['14:30', 'Karin Zwölfer', `/patienten/${pid}#termine`],
-  ]);
+  assert.deepEqual(termine.map((x) => [x.beginn, x.titel, x.link ?? null, x.leistung ?? null]), [
+    ['08:00', 'Karin Zwölfer', `/patienten/${pid}#termine`, 'Manuelle Therapie'],
+    ['11:00', 'Zahnarzt Lilli', null, null],
+    ['14:30', 'Karin Zwölfer', `/patienten/${pid}#termine`, null],
+  ], 'Kurzbezeichnung aus dem Rezept (ohne aktive Preisliste die Maßnahme)');
   const diskret = await cockpitDaten({ db, graph, namenZeigen: false, jetzt });
   assert.deepEqual((diskret.termine.stand === 'ok' ? diskret.termine.daten : []).map((x) => x.titel), ['K. Z.', 'Z. L.', 'K. Z.']);
 });

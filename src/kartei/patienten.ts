@@ -902,15 +902,20 @@ export interface TerminKalender {
   status: string;
   rezept: boolean;
   imKalender: boolean;
+  leistung: string | null;
 }
 
 export async function termineZeitraum(db: Db, vonIso: string, bisIso: string): Promise<TerminKalender[]> {
   const { rows } = await db.query<Record<string, unknown>>(
-    `SELECT t.id::text, t.patient_id::text, p.vorname, p.nachname, p.patientennummer, t.beginn, t.ende, t.art::text, t.status::text, (t.verordnung_id IS NOT NULL) AS rezept, (t.exchange_event_id IS NOT NULL) AS im_kalender
-     FROM termin t JOIN patient p ON p.id = t.patient_id WHERE t.beginn < $2 AND t.ende > $1 AND t.status NOT IN ('abgesagt_patient', 'abgesagt_praxis', 'verschoben') ORDER BY t.beginn`, [vonIso, bisIso],
+    `SELECT t.id::text, t.patient_id::text, p.vorname, p.nachname, p.patientennummer, t.beginn, t.ende, t.art::text, t.status::text, (t.verordnung_id IS NOT NULL) AS rezept, (t.exchange_event_id IS NOT NULL) AS im_kalender,
+       coalesce(
+         (SELECT pp.kuerzel FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.aktiv AND pp.nummer = coalesce(t.leistung_nummer, v.leistung_nummer) LIMIT 1),
+         v.massnahme, w.code, CASE f.grundlage WHEN 'direktzugang' THEN 'Direktzugang' WHEN 'praevention' THEN 'Wellness' END) AS leistung
+     FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN verordnung v ON v.id = t.verordnung_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN wellness_leistung w ON w.id = f.wellness_leistung_id
+     WHERE t.beginn < $2 AND t.ende > $1 AND t.status NOT IN ('abgesagt_patient', 'abgesagt_praxis', 'verschoben') ORDER BY t.beginn`, [vonIso, bisIso],
   );
   return rows.map((r) => ({
     id: String(r.id), patientId: String(r.patient_id), vorname: String(r.vorname), nachname: String(r.nachname), patientennummer: String(r.patientennummer),
-    beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), rezept: Boolean(r.rezept), imKalender: Boolean(r.im_kalender),
+    beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), rezept: Boolean(r.rezept), imKalender: Boolean(r.im_kalender), leistung: text(r.leistung),
   }));
 }

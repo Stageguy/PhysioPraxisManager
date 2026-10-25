@@ -29,7 +29,7 @@ export function kalenderSeite(d: { tag: string; ansicht: 'tag' | 'woche'; termin
     return `<section class="kal-tag${tag === d.heute ? ' heute' : ''}" data-hilfe="kalender.tag"><h2><a href="${link(tag, 'tag')}">${esc(tagText(tag, d.ansicht === 'tag'))}</a> <span class="pw-zahl">${des.length}</span></h2>
       ${des.length ? des.map((t) => `<a class="kal-termin${t.rezept ? ' rezept' : ''}${t.status === 'erledigt' ? ' erledigt' : ''}" href="/patienten/${t.patientId}#termine" data-hilfe="kalender.termin">
         <b>${zeit(t.beginn)}–${zeit(t.ende)}</b><span>${esc(name(t))} <span class="hint">${esc(t.patientennummer)}</span></span>
-        <span class="rz-marken"><span class="marke${t.rezept ? ' jetzt' : ''}">${t.rezept ? 'Rezept' : t.art === 'erstgespraech' ? 'Erstgespräch' : 'Individual'}</span>${t.imKalender ? '' : '<span class="marke warn-marke">nicht im Kalender</span>'}</span></a>`).join('') : '<p class="pw-leer">frei</p>'}
+        <span class="rz-marken">${t.leistung ? `<span class="marke jetzt" data-hilfe="termine.leistung">${esc(t.leistung)}</span>` : ''}<span class="marke">${t.rezept ? 'Rezept' : t.art === 'erstgespraech' ? 'Erstgespräch' : 'Individual'}</span>${t.imKalender ? '' : '<span class="marke warn-marke">nicht im Kalender</span>'}</span></a>`).join('') : '<p class="pw-leer">frei</p>'}
     </section>`;
   }).join('');
   const schritt = d.ansicht === 'woche' ? 7 : 1;
