@@ -166,7 +166,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
   const termine = `<section class="tafel" data-hilfe="uebersicht.termine" aria-labelledby="t-te">
     <h2 id="t-te">${symbol('kalender')} Termine heute</h2>
     ${leer(d.termine, (t) => `${tagesleiste(t, o.jetzt)}
-      ${t.length ? `<ul class="zeilen">${t.map((x) => `<li><span class="zeit">${x.ganztags ? 'ganztags' : `${x.beginn}–${x.ende}`}</span><b>${esc(x.titel)}</b>${x.frei ? '<span class="rechts hint">frei</span>' : ''}</li>`).join('')}</ul>`
+      ${t.length ? `<ul class="zeilen">${t.map((x) => `<li><span class="zeit">${x.ganztags ? 'ganztags' : `${x.beginn}–${x.ende}`}</span><b>${x.link ? `<a href="${esc(x.link)}" data-hilfe="termine.patient">${esc(x.titel)}</a>` : esc(x.titel)}</b>${x.frei ? '<span class="rechts hint">frei</span>' : ''}</li>`).join('')}</ul>`
         : '<p class="leer">Heute stehen keine Termine im Kalender.</p>'}`)}
     <a class="mehr" data-hilfe="termine.namen" href="${d.namenZeigen ? '/' : '/?namen=1'}">${symbol(d.namenZeigen ? 'schloss' : 'auge', { groesse: 16 })} ${d.namenZeigen ? 'Nur Initialen zeigen' : 'Namen zeigen'}</a>
   </section>`;

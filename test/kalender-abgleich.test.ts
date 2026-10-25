@@ -29,6 +29,15 @@ test('Kalender: Termin wird mit Initialen, Kategorie und Ortszeit gespiegelt; Ab
   assert.equal(k.start.dateTime, '2026-11-03T09:30:00');
   assert.equal(k.end.dateTime, '2026-11-03T10:00:00');
   assert.doesNotMatch(JSON.stringify(k), /Muster|Erika/, 'kein Name im Kalender');
+  assert.equal(k.body.contentType, 'HTML');
+  assert.doesNotMatch(k.body.content, /href/, 'ohne PRAXIS_URL kein Link');
+  process.env.PRAXIS_URL = 'http://praxis.test:10001/';
+  try {
+    const k2 = ereignisKoerper({ id: tid, patient_id: pid, vorname: 'Erika', nachname: 'Muster', patientennummer: 'P-1001', beginn: '2026-11-03T08:30:00Z', ende: '2026-11-03T09:00:00Z', art: 'behandlung', status: 'bestaetigt', exchange_event_id: null, verordnung_id: null } as Parameters<typeof ereignisKoerper>[0]);
+    assert.match(k2.body.content, new RegExp(`href="http://praxis.test:10001/patienten/${pid}#termine"`));
+  } finally {
+    delete process.env.PRAXIS_URL;
+  }
   const gespeichert = (await db.query<{ e: string }>('SELECT exchange_event_id AS e FROM termin WHERE id = $1', [tid])).rows[0]!.e;
   assert.equal(gespeichert, 'neu-1');
   assert.equal(await terminSpiegeln(db, graph, tid, 'l'), 'aktualisiert');

@@ -84,3 +84,37 @@ test('Dienst: Cockpit unter /, lokaler Zugang nur ohne Tailscale-Kopfzeile von 1
     zwei.close();
   }
 });
+
+test('Termine heute: Klarname und Link aus der Kartei, wenn der Kalendereintrag von uns stammt; Kartei-Termine ohne Kalendereintrag erscheinen trotzdem', async () => {
+  const { PGlite } = await import('@electric-sql/pglite');
+  const { migriere } = await import('../src/db/index.ts');
+  const { patientAnlegen, terminAnlegen } = await import('../src/kartei/patienten.ts');
+  const { neuerHauptschluessel, tresor } = await import('../src/tresor.ts');
+  const pg = new PGlite();
+  const db = { query: (q: string, v?: unknown[]) => pg.query(q, v), exec: (s: string) => pg.exec(s) } as import('../src/db/index.ts').Db;
+  await migriere(db);
+  const t = tresor({ PRAXIS_TRESOR_SCHLUESSEL: neuerHauptschluessel() });
+  const pid = await patientAnlegen(db, t, { vorname: 'Karin', nachname: 'Zwölfer' }, 'x');
+  const t1 = await terminAnlegen(db, pid, { datum: '2026-10-26', zeit: '08:00', dauerMin: 30 }, 'x');
+  await terminAnlegen(db, pid, { datum: '2026-10-26', zeit: '14:30', dauerMin: 30 }, 'x');
+  await db.query("UPDATE termin SET exchange_event_id = 'ev-1' WHERE id = $1", [t1]);
+  const graph = {
+    async get<T>(): Promise<T> { return { value: [] } as T; },
+    async post<T>(): Promise<T> { return { id: 'kal' } as T; },
+    async *paginate<T>(): AsyncGenerator<T> {
+      yield { id: 'ev-1', subject: 'K. Z. P-1001', isAllDay: false, start: { dateTime: '2026-10-26T08:00:00' }, end: { dateTime: '2026-10-26T08:30:00' } } as T;
+      yield { id: 'fremd', subject: 'Zahnarzt Lilli', isAllDay: false, start: { dateTime: '2026-10-26T11:00:00' }, end: { dateTime: '2026-10-26T12:00:00' } } as T;
+    },
+  };
+  const jetzt = new Date('2026-10-26T06:00:00Z');
+  const d = await cockpitDaten({ db, graph, namenZeigen: true, jetzt });
+  assert.equal(d.termine.stand, 'ok');
+  const termine = d.termine.stand === 'ok' ? d.termine.daten : [];
+  assert.deepEqual(termine.map((x) => [x.beginn, x.titel, x.link ?? null]), [
+    ['08:00', 'Karin Zwölfer', `/patienten/${pid}#termine`],
+    ['11:00', 'Zahnarzt Lilli', null],
+    ['14:30', 'Karin Zwölfer', `/patienten/${pid}#termine`],
+  ]);
+  const diskret = await cockpitDaten({ db, graph, namenZeigen: false, jetzt });
+  assert.deepEqual((diskret.termine.stand === 'ok' ? diskret.termine.daten : []).map((x) => x.titel), ['K. Z.', 'Z. L.', 'K. Z.']);
+});

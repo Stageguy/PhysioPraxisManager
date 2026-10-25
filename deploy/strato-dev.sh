@@ -53,8 +53,11 @@ ssh "$HOST" "cd '$ZIEL' && docker build -q -t '$BILD' . >/dev/null"
 echo "→ $ZIEL_UMGEBUNG: Namespace $NS und Secrets"
 manifest namespace.yaml | ssh "$HOST" kubectl apply -f - >/dev/null
 # Werte für den Dienst – nur was er braucht, nicht die ganze .env
+# Adresse im Tailnet – für Links aus Kalendereinträgen in die Praxis-Assistenz
+NAME="$(ssh "$HOST" "tailscale status --json" | python3 -c 'import sys,json; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
 ENV_INHALT="$({
   grep -E '^(GRAPH_TENANT_ID|GRAPH_CLIENT_ID|GRAPH_KONTO)=' .env
+  echo "PRAXIS_URL=http://$NAME:$SERVE_PORT"
   echo "ERLAUBTE_NUTZER=$ERLAUBT"
   echo "PRAXIS_UMGEBUNG=$UMGEBUNG"
   echo "TEST_ADRESSEN=$TESTADR"
@@ -85,5 +88,4 @@ ssh "$HOST" "kubectl -n $NS rollout status statefulset/praxis-db --timeout=180s 
 
 echo "→ tailscale serve :$SERVE_PORT → 127.0.0.1:$PORT"
 ssh "$HOST" "tailscale serve --bg --http=$SERVE_PORT http://127.0.0.1:$PORT >/dev/null"
-NAME="$(ssh "$HOST" "tailscale status --json" | python3 -c 'import sys,json; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
 echo "✓ $ZIEL_UMGEBUNG – Praxisdienst $FASSUNG: http://$NAME:$SERVE_PORT/  (nur für: $ERLAUBT)"

@@ -1,0 +1,8 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [1440],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [ { "name": "steuer", "pfad": "/finanzen/rechnungen/steuerfrei" } ]
+}

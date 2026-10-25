@@ -46,7 +46,13 @@ export function ereignisKoerper(t: TerminZeile) {
     categories: [KATEGORIEN.termin.name, ...entwurfKategorien()],
     showAs: t.status === 'vorgeschlagen' ? 'tentative' : 'busy',
     location: { displayName: 'Praxis' },
-    body: { contentType: 'Text', content: `Praxis-Assistenz · ${art} · Termin Nr. ${t.id}${t.verordnung_id ? ' · Rezept' : ''}\nDetails nur in der Praxis-Assistenz (keine Gesundheitsdaten im Kalender).` },
+    // Nur Initialen im Betreff; im Text ein Link, der die Patientenseite in der Praxis-Assistenz öffnet (nur im Tailnet erreichbar)
+    body: {
+      contentType: 'HTML',
+      content: `<p>Praxis-Assistenz · ${art} · Termin Nr. ${t.id}${t.verordnung_id ? ' · Rezept' : ''}</p>`
+        + (process.env.PRAXIS_URL ? `<p><a href="${process.env.PRAXIS_URL.replace(/\/$/, '')}/patienten/${t.patient_id}#termine">In der Praxis-Assistenz öffnen</a></p>` : '')
+        + '<p>Details nur in der Praxis-Assistenz – keine Gesundheitsdaten im Kalender.</p>',
+    },
     isReminderOn: false,
     attendees: [],
   };
@@ -86,20 +92,23 @@ export async function terminSpiegeln(db: Db, graph: Graph, terminId: string, wer
 }
 
 /** Alle künftigen Termine ohne Kalendereintrag nachtragen (Befehl `termine:abgleich`) */
-export async function alleTermineSpiegeln(db: Db, graph: Graph, wer: string): Promise<{ angelegt: number; fehler: number }> {
+export async function alleTermineSpiegeln(db: Db, graph: Graph, wer: string, o: { alle?: boolean } = {}): Promise<{ angelegt: number; aktualisiert: number; fehler: number }> {
   const { rows } = await db.query<{ id: string }>(
-    // Auch Termine des laufenden Tages, die schon vorbei sind – „Heute im Blick“ zeigt den ganzen Tag
-    "SELECT id::text FROM termin WHERE exchange_event_id IS NULL AND status IN ('vorgeschlagen', 'bestaetigt', 'erledigt') AND ende >= date_trunc('day', now() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin' ORDER BY beginn",
+    // Auch Termine des laufenden Tages, die schon vorbei sind – „Heute im Blick“ zeigt den ganzen Tag. `alle`: vorhandene Ereignisse neu schreiben (z. B. neuer Text)
+    `SELECT id::text FROM termin WHERE ${o.alle ? 'true' : 'exchange_event_id IS NULL'} AND status IN ('vorgeschlagen', 'bestaetigt', 'erledigt') AND ende >= date_trunc('day', now() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin' ORDER BY beginn`,
   );
   let angelegt = 0;
+  let aktualisiert = 0;
   let fehler = 0;
   for (const r of rows) {
     try {
-      if ((await terminSpiegeln(db, graph, r.id, wer)) === 'angelegt') angelegt++;
+      const e = await terminSpiegeln(db, graph, r.id, wer);
+      if (e === 'angelegt') angelegt++;
+      if (e === 'aktualisiert') aktualisiert++;
     } catch (err) {
       fehler++;
       console.warn(`Termin ${r.id}: ${(err as Error).message.slice(0, 120)}`);
     }
   }
-  return { angelegt, fehler };
+  return { angelegt, aktualisiert, fehler };
 }

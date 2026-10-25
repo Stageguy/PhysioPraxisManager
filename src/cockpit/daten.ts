@@ -37,6 +37,8 @@ export interface Termin {
   ganztags: boolean;
   titel: string;
   frei: boolean;
+  /** Termin aus der Kartei: Link zur Patientenseite */
+  link?: string;
 }
 
 export interface LogEintrag {
@@ -109,35 +111,67 @@ const naechsterTag = (tag: string): string => {
   return new Date(Date.UTC(j!, m! - 1, t! + 1)).toISOString().slice(0, 10);
 };
 
+/** Termine der Kartei an diesem Tag, nach Kalender-Ereignis-ID – für Klarnamen und Links im Cockpit */
+async function karteiTermine(db: Db | undefined, von: string, bis: string): Promise<{ id: string; exchangeId: string | null; patientId: string; vorname: string; nachname: string; beginn: string; ende: string }[]> {
+  if (!db) return [];
+  try {
+    const { rows } = await db.query<Record<string, unknown>>(
+      `SELECT t.id::text, t.exchange_event_id, t.patient_id::text, p.vorname, p.nachname, t.beginn, t.ende FROM termin t JOIN patient p ON p.id = t.patient_id
+       WHERE t.beginn < $2 AND t.ende > $1 AND t.status IN ('vorgeschlagen', 'bestaetigt', 'erledigt') ORDER BY t.beginn`, [von, bis],
+    );
+    return rows.map((r) => ({ id: String(r.id), exchangeId: (r.exchange_event_id as string | null) ?? null, patientId: String(r.patient_id), vorname: String(r.vorname), nachname: String(r.nachname), beginn: new Date(r.beginn as string).toISOString(), ende: new Date(r.ende as string).toISOString() }));
+  } catch {
+    return [];
+  }
+}
+
+const uhrzeit = (iso: string) => new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+
 export async function termineHeute(
   graph: Pick<GraphClient, 'paginate' | 'get' | 'post'> | undefined,
   heute: string,
   namenZeigen: boolean,
+  db?: Db,
 ): Promise<Quelle<Termin[]>> {
-  if (!graph) return { stand: 'nicht-verbunden', hinweis: 'Keine Verbindung zum Kalender.' };
+  const von = berlinMitternachtUtc(heute);
+  const bis = berlinMitternachtUtc(naechsterTag(heute));
+  const kartei = await karteiTermine(db, von, bis);
+  const name = (k: { vorname: string; nachname: string }) => (namenZeigen ? `${k.vorname} ${k.nachname}` : `${k.vorname[0]!.toUpperCase()}. ${k.nachname[0]!.toUpperCase()}.`);
+  if (!graph) {
+    if (!kartei.length) return { stand: 'nicht-verbunden', hinweis: 'Keine Verbindung zum Kalender.' };
+    return { stand: 'ok', daten: kartei.map((k) => ({ beginn: uhrzeit(k.beginn), ende: uhrzeit(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine` })) };
+  }
   try {
-    const von = berlinMitternachtUtc(heute);
-    const bis = berlinMitternachtUtc(naechsterTag(heute));
     const termine: Termin[] = [];
+    const gesehen = new Set<string>();
     // Produktion: Hauptkalender; Testumgebung: Kalender „Praxis-Test“ (Schranke 3)
     const basis = await kalenderBasis(graph);
     for await (const e of graph.paginate<{
       subject?: string; isAllDay: boolean; showAs?: string; isCancelled?: boolean;
-      start: { dateTime: string }; end: { dateTime: string };
+      start: { dateTime: string }; end: { dateTime: string }; id: string;
     }>(
-      `${basis}/calendarView?startDateTime=${von}&endDateTime=${bis}&$select=subject,start,end,isAllDay,showAs,isCancelled&$orderby=start/dateTime&$top=100`,
+      `${basis}/calendarView?startDateTime=${von}&endDateTime=${bis}&$select=id,subject,start,end,isAllDay,showAs,isCancelled&$orderby=start/dateTime&$top=100`,
       { Prefer: `outlook.timezone="${OUTLOOK_ZONE}"` },
     )) {
       if (e.isCancelled) continue;
       const titel = e.subject?.trim() || 'Termin';
+      // Termin aus der Kartei? Dann Klarname (auf Wunsch) und Link statt des Kalendertitels
+      const k = kartei.find((x) => x.exchangeId === e.id);
+      if (k) gesehen.add(k.id);
       termine.push({
         beginn: e.start.dateTime.slice(11, 16),
         ende: e.end.dateTime.slice(11, 16),
         ganztags: e.isAllDay,
-        titel: namenZeigen ? titel : initialen(titel),
+        titel: k ? name(k) : namenZeigen ? titel : initialen(titel),
         frei: e.showAs === 'free',
+        ...(k ? { link: `/patienten/${k.patientId}#termine` } : {}),
       });
     }
+    // Kartei-Termine, die (noch) nicht im Kalender stehen, trotzdem zeigen
+    for (const k of kartei.filter((x) => !gesehen.has(x.id))) {
+      termine.push({ beginn: uhrzeit(k.beginn), ende: uhrzeit(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine` });
+    }
+    termine.sort((a, b) => a.beginn.localeCompare(b.beginn));
     return { stand: 'ok', daten: termine };
   } catch (err) {
     return { stand: 'fehler', hinweis: `Kalender: ${(err as Error).message.slice(0, 200)}` };
@@ -174,7 +208,7 @@ export async function cockpitDaten(q: {
   const heute = datumBerlin((q.jetzt ?? new Date()).toISOString());
   const [rechnungen, termine, log] = await Promise.all([
     rechnungsstand(q.db),
-    termineHeute(q.graph, heute, q.namenZeigen),
+    termineHeute(q.graph, heute, q.namenZeigen, q.db),
     protokoll(q.db),
   ]);
   return { heute, rechnungen, termine, protokoll: log, namenZeigen: q.namenZeigen };
