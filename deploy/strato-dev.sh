@@ -53,14 +53,17 @@ ssh "$HOST" "cd '$ZIEL' && docker build -q -t '$BILD' . >/dev/null"
 echo "→ $ZIEL_UMGEBUNG: Namespace $NS und Secrets"
 manifest namespace.yaml | ssh "$HOST" kubectl apply -f - >/dev/null
 # Werte für den Dienst – nur was er braucht, nicht die ganze .env
-{
+ENV_INHALT="$({
   grep -E '^(GRAPH_TENANT_ID|GRAPH_CLIENT_ID|GRAPH_KONTO)=' .env
   echo "ERLAUBTE_NUTZER=$ERLAUBT"
   echo "PRAXIS_UMGEBUNG=$UMGEBUNG"
   echo "TEST_ADRESSEN=$TESTADR"
   # Lexware nur in der Produktion – die Testumgebung schreibt keine Rechnungen
   [ "$ZIEL_UMGEBUNG" = prod ] && grep -E '^LEXWARE_API_KEY=.+' .env || true
-} | ssh "$HOST" "kubectl -n $NS create secret generic praxis-env --from-env-file=/dev/stdin --dry-run=client -o yaml | kubectl apply -f - >/dev/null"
+})"
+printf '%s\n' "$ENV_INHALT" | ssh "$HOST" "kubectl -n $NS create secret generic praxis-env --from-env-file=/dev/stdin --dry-run=client -o yaml | kubectl apply -f - >/dev/null"
+# Prüfsumme der Umgebung am Pod: ändert sich nur das Secret (z. B. ERLAUBTE_NUTZER), startet der Dienst trotzdem neu
+ENV_PRUEFSUMME="$(printf '%s' "$ENV_INHALT" | shasum -a 256 | cut -c1-16)"
 ssh "$HOST" "kubectl -n $NS get secret praxis-db >/dev/null 2>&1 || kubectl -n $NS create secret generic praxis-db --from-literal=passwort=\$(openssl rand -hex 24) >/dev/null"
 # Hauptschlüssel des Patienten-Tresors: einmalig je Umgebung, danach nie mehr neu erzeugen (§4b).
 # Notfallkopie: ssh $HOST kubectl -n $NS get secret praxis-tresor -o jsonpath='{.data.PRAXIS_TRESOR_SCHLUESSEL}' | base64 -d
@@ -76,6 +79,7 @@ fi
 echo "→ Datenbank und Dienst"
 manifest postgres.yaml | ssh "$HOST" kubectl apply -f - >/dev/null
 manifest praxis.yaml | sed "s|image: BILD|image: $BILD|" | ssh "$HOST" kubectl apply -f - >/dev/null
+ssh "$HOST" "kubectl -n $NS patch deployment praxis-dienst -p '{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"praxis/env-pruefsumme\":\"$ENV_PRUEFSUMME\"}}}}}' >/dev/null"
 manifest preisquellen.yaml | sed "s|image: BILD|image: $BILD|" | ssh "$HOST" kubectl apply -f - >/dev/null
 ssh "$HOST" "kubectl -n $NS rollout status statefulset/praxis-db --timeout=180s && kubectl -n $NS rollout status deployment/praxis-dienst --timeout=180s"
 
