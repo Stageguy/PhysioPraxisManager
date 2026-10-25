@@ -5,6 +5,10 @@
 import { readdir, readFile } from 'node:fs/promises';
 import pg from 'pg';
 
+// DATE-Spalten als "JJJJ-MM-TT" liefern, nicht als lokale Mitternacht: sonst rutscht ein Datum beim
+// Umrechnen nach UTC um einen Tag zurück (Geburtsdatum, Termine, Rechnungsdaten).
+pg.types.setTypeParser(1082, (wert: string) => wert);
+
 export interface Db {
   query<T = Record<string, unknown>>(text: string, werte?: unknown[]): Promise<{ rows: T[] }>;
   /** Mehrere Anweisungen ohne Parameter (Migrationen) */
