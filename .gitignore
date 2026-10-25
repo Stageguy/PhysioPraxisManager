@@ -5,3 +5,5 @@ node_modules/
 # Tailscale-Zustand des Knotens (falls lokal statt als Volume)
 tailscale/state/
 pruefung/browser/ergebnisse/
+# Persönliche Claude-Code-Einstellungen (Freigaben) – nicht fürs Repository
+.claude/settings.local.json
