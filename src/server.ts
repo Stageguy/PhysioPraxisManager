@@ -26,6 +26,8 @@ import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from './web/rechnung.ts';
 import { konfigurationSeite } from './web/konfiguration.ts';
 import { kalenderSeite, tagPlus, wocheUm } from './web/kalender.ts';
+import { steuerSeite } from './web/steuer.ts';
+import { steuerCsv, steuerPdf } from './kartei/steuer.ts';
 import { berlinMitternachtUtc, datumBerlin } from './zeit.ts';
 import { menueStand } from './web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from './web/preislisten.ts';
@@ -182,6 +184,25 @@ export function praxisDienst(opt: DienstOptionen): Server {
       }
       const meldung = MELDUNG[adresse.searchParams.get('ergebnis') ?? ''];
       const fehler = adresse.searchParams.get('fehler')?.slice(0, 200) || undefined;
+      const st = /^\/finanzen\/rechnungen\/steuerfrei(\.csv|\.pdf)?$/.exec(pfad);
+      if (st) {
+        if (!opt.kartei) return senden(res, 503, 'text/plain', 'Die Liste braucht die Praxis-Datenbank');
+        const jahrParam = Number(adresse.searchParams.get('jahr'));
+        const jahr = Number.isInteger(jahrParam) && jahrParam > 2000 ? jahrParam : Number(datumBerlin(new Date().toISOString()).slice(0, 4));
+        // Erster Aufruf: maskiert. Formular: maskiert nur mit Haken. Exportlinks: namen=1 = ausgeschrieben
+        const maskiert = adresse.searchParams.get('namen') === '1' ? false : adresse.searchParams.has('form') ? adresse.searchParams.has('maskiert') : true;
+        const liste = await opt.kartei.steuer(jahr, maskiert);
+        if (st[1] === '.csv') {
+          res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Disposition': `attachment; filename="steuerfreie-umsaetze-${jahr}.csv"` });
+          return void res.end(steuerCsv(liste));
+        }
+        if (st[1] === '.pdf') {
+          const pdf = steuerPdf(liste, { praxis: 'Praxis Lilli Nebel', erstellt: datumBerlin(new Date().toISOString()).split('-').reverse().join('.') });
+          res.writeHead(200, { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `inline; filename="steuerfreie-umsaetze-${jahr}.pdf"` });
+          return void res.end(Buffer.from(pdf));
+        }
+        return senden(res, 200, 'text/html', steuerSeite(liste, { wer, fassung: opt.fassung }));
+      }
       if (pfad === '/finanzen/rechnungen') {
         const filter = filterAus(adresse.searchParams);
         const d = opt.rechnungen

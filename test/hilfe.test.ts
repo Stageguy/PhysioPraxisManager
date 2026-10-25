@@ -17,6 +17,7 @@ import { fallNeuSeite, fallSeite, pinnwandSeite } from '../src/web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from '../src/web/rechnung.ts';
 import { konfigurationSeite } from '../src/web/konfiguration.ts';
 import { kalenderSeite } from '../src/web/kalender.ts';
+import { steuerSeite } from '../src/web/steuer.ts';
 import type { Karte } from '../src/kartei/pinnwand.ts';
 import type { Patient } from '../src/kartei/patienten.ts';
 
@@ -145,6 +146,10 @@ const seiten = () => [
   konfigurationSeite({ textbausteine: [TB, { ...TB, id: '2', code: 'R2', aktiv: false, wirkung: 'kleinunternehmer' as const, automatisch: 'wellness' as const }], einstellungen: { kleinunternehmer: 'ja', ust_satz_wellness: '19' } }, R),
   kalenderSeite({ tag: '2026-10-26', ansicht: 'tag', termine: [KT], namenZeigen: false, heute: '2026-10-26' }, R),
   kalenderSeite({ tag: '2026-10-26', ansicht: 'woche', termine: [KT, { ...KT, id: '8', rezept: false, imKalender: true, status: 'erledigt' }], namenZeigen: true, heute: '2026-10-25' }, R),
+  steuerSeite({ jahr: 2026, jahre: [2026, 2025], maskiert: true, rechnungen: [{ id: '1', nummer: 'RE-2026-0001', datum: '2026-10-01', status: 'bezahlt', befreiung: '§ 4 Nr. 14 UStG', patientennummer: 'P-1001', name: 'A*** Test', betrag: 92.54, bezahltAm: '2026-10-20', storniertAm: null,
+    positionen: [{ datum: '2026-10-01', nummer: '21201', bezeichnung: 'MT', anzahl: 2, einzelpreis: 46.27, betrag: 92.54 }] }, { id: '2', nummer: 'RE-2026-0002', datum: '2026-10-02', status: 'storniert', befreiung: '§ 19 UStG', patientennummer: 'P-1002', name: 'B** Test', betrag: 59, bezahltAm: null, storniertAm: '2026-10-05', positionen: [] }],
+    summen: { heilbehandlung: 92.54, kleinunternehmer: 0, storniert: 59, gesamt: 92.54 } }, R),
+  steuerSeite({ jahr: 2025, jahre: [2025], maskiert: false, rechnungen: [], summen: { heilbehandlung: 0, kleinunternehmer: 0, storniert: 0, gesamt: 0 } }, R),
   rueckmeldungenSeite({ liste: [RM, { ...RM, id: '2', status: 'erledigt', hatBild: false, antwort: 'behoben', erledigtAm: '2026-10-25T10:00:00Z' }], status: 'alle', offen: 1 }, R),
 ];
 /** Eine Seite einmal in der Testumgebung – dort gibt es das Band */

@@ -1,0 +1,13 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [1440],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "pinnwand", "pfad": "/pinnwand" },
+    { "name": "preislisten", "pfad": "/preislisten" },
+    { "name": "patient-quirin", "pfad": "/patienten/102" },
+    { "name": "rechnung-quirin", "pfad": "/patienten/102/rechnungen/170" }
+  ]
+}

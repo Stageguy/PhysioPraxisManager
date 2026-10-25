@@ -739,6 +739,25 @@ export const HILFE: Record<string, HilfeEintrag> = {
   'kalender.namen': { seite: 'Kalender', titel: 'Namen zeigen / Nur Initialen',
     loest_aus: 'Schaltet zwischen Initialen und vollen Namen.', bezug: 'Diskret-Modus wie im Cockpit – am Bildschirm in der Praxis besser Initialen.', aendert: NICHTS, ergebnis: 'Die Karten zeigen Namen oder Initialen.', rueckweg: 'Zurückschalten.' },
 
+  // ── Steuerfreie Umsätze (W85) ─────────────────────────────────────────────
+  'rechnungen.steuerfrei': { seite: 'Rechnungs-Dashboard', titel: 'Steuerfreie Umsätze (Finanzamt)',
+    loest_aus: 'Öffnet die Liste aller gestellten Rechnungen ohne Umsatzsteuer.', bezug: 'Heilbehandlung (§ 4 Nr. 14 UStG) und Kleinunternehmer (§ 19 UStG) – mit Nummer, Positionen und Beträgen; Entwürfe fehlen, stornierte stehen grau dabei.',
+    aendert: NICHTS, ergebnis: 'Die Liste je Jahr, Namen maskiert.', rueckweg: KEIN_RUECKWEG },
+  'steuer.jahr': { seite: 'Steuerfreie Umsätze', titel: 'Jahr', loest_aus: 'Wechselt das Jahr (nach Rechnungsdatum).', bezug: 'Alle Jahre mit gestellten Rechnungen.', aendert: NICHTS, ergebnis: 'Liste und Summen des Jahres.', rueckweg: 'Anderes Jahr wählen.' },
+  'steuer.maskiert': { seite: 'Steuerfreie Umsätze', titel: 'Namen maskieren',
+    loest_aus: 'Zeigt Vornamen nur mit dem ersten Buchstaben („K**** Zwölfer“) – oder ausgeschrieben.', bezug: 'Name und Honorar unterliegen nicht der Schweigepflicht; das Finanzamt darf sie verlangen. Die Maskierung ist Vorsicht, keine Pflicht. Die Patientennummer bleibt immer als Pseudonym.',
+    aendert: 'Nichts – nur die Anzeige und die Exporte.', ergebnis: 'CSV und PDF übernehmen die Einstellung.', rueckweg: 'Haken setzen oder entfernen.' },
+  'steuer.csv': { seite: 'Steuerfreie Umsätze', titel: 'CSV (GoBD)',
+    loest_aus: 'Lädt die Liste als CSV: eine Zeile je Position, Semikolon, UTF-8 – für Excel, DATEV und Prüfsoftware (Datenzugriff Z3 nach GoBD).', bezug: 'Die angezeigte Liste mit der gewählten Maskierung.',
+    aendert: NICHTS, ergebnis: 'Datei steuerfreie-umsaetze-<Jahr>.csv.', rueckweg: KEIN_RUECKWEG },
+  'steuer.pdf': { seite: 'Steuerfreie Umsätze', titel: 'PDF',
+    loest_aus: 'Erzeugt die Liste als PDF (Querformat) für Steuerberatung oder Ablage.', bezug: 'Die angezeigte Liste mit der gewählten Maskierung.', aendert: NICHTS, ergebnis: 'Das PDF im neuen Tab.', rueckweg: 'Tab schließen.' },
+  'steuer.summen': { seite: 'Steuerfreie Umsätze', titel: 'Summen',
+    loest_aus: AUSKUNFT, bezug: 'Je Befreiung die Summe der gestellten, nicht stornierten Rechnungen; stornierte daneben, nicht gezählt. Das sind die Beträge für die Umsatzsteuererklärung (Kz. steuerfreie Umsätze) – ELSTER nimmt keine Listen, nur Summen.',
+    aendert: NICHTS, ergebnis: 'Vier Zahlen.', rueckweg: KEIN_RUECKWEG },
+  'steuer.rechnung': { seite: 'Steuerfreie Umsätze', titel: 'Rechnung in der Liste',
+    loest_aus: AUSKUNFT, bezug: 'Nummer, Datum, Befreiung, Patient (Nummer + Name), alle Positionen mit Leistungsdatum, Nummer, Leistung, Anzahl × Preis, Rechnungsbetrag, Zahldatum.', aendert: NICHTS, ergebnis: 'Grau = storniert.', rueckweg: KEIN_RUECKWEG },
+
   // ── Outlook-Kategorien (aus src/mail/kategorien.ts) ──────────────────────
   ...Object.fromEntries(
     Object.entries(KATEGORIEN).map(([key, k]) => [
@@ -835,6 +854,7 @@ const FUNKTIONEN: { name: string; was: string; stand: 'jetzt' | 'später'; woher
   { name: 'Rechnungs-Dashboard', was: 'Neue Rechnungen als Kacheln, PDF-Ansicht, Freigabe, Haken „privat“, Summen je Monat und Lieferant, Suche.', stand: 'jetzt', woher: 'Prompt 15' },
   { name: 'Preislisten', was: 'Eigene Preise je Leistung auf Grundlage der GKV-Liste, mit Faktor, Aufrunden, Beihilfe-Vergleich, Mustern (z. B. GebüTh), Freigabe, „aktiv“ und Archiv; nachts Prüfung auf neue Grundlagen mit rotem Punkt.', stand: 'jetzt', woher: 'W59' },
   { name: 'Rechnungsentwürfe', was: 'Jedes Rezept und jede Serie legt sofort einen Rechnungsentwurf an (Positionen mit Terminen, Preise aus der Preisliste des Patienten, Textbausteine). Positionen und Texte als Kacheln, Statusweg Entwurf → Fertig → In Lexware → Versendet → Bezahlt, Storno mit Grund; Heilbehandlung und Wellness immer getrennt.', stand: 'jetzt', woher: 'W79, W81' },
+  { name: 'Steuerfreie Umsätze', was: 'Liste aller gestellten Rechnungen ohne USt (§ 4 Nr. 14, § 19) für das Finanzamt – Namen maskiert oder ausgeschrieben, Export CSV (GoBD) und PDF.', stand: 'jetzt', woher: 'W85' },
   { name: 'Konfiguration', was: 'Textbausteine für Rechnungen (R1 § 4 Nr. 14, R2 § 19, R3 Dank), Kleinunternehmerregelung, Steuersatz, Verweise auf Preislisten und Wellness-Katalog.', stand: 'jetzt', woher: 'W80' },
   { name: 'Kalenderseite', was: 'Alle Termine der Kartei als Tag oder Woche, Initialen oder Namen; über das Kalender-Symbol bei „Heute im Blick“.', stand: 'jetzt', woher: 'W82' },
   { name: 'Rezepte und Serien', was: 'Rezepte als Kacheln mit sieben Rezeptarten (Erst, Folge unverändert/angepasst, Wiederaufnahme, Korrektur, Zweitschrift, Langzeit), Behandlung ohne Rezept (Direktzugang) und Wellness-Serien aus dem eigenen Katalog.', stand: 'jetzt', woher: 'W73, W74' },

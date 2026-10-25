@@ -436,3 +436,34 @@ test('Wellness-Rechnung: Kleinunternehmer → R2 und keine USt; ohne Kleinuntern
   assert.match(kal, /09:00–10:00/);
   assert.match(await seite('/kalender?tag=2099-03-04&namen=1'), /Willi Wellnessrechnung/);
 });
+
+test('Steuerfreie Umsätze: nur gestellte Rechnungen ohne USt, Namen maskiert, CSV und PDF', async () => {
+  const { nameMaskieren } = await import('../src/kartei/steuer.ts');
+  assert.equal(nameMaskieren('Karin', 'Zwölfer'), 'K**** Zwölfer');
+  assert.equal(nameMaskieren('A', 'B'), 'A* B');
+  // Vorhandene Rechnungen aus den Tests oben: Rita (bezahlt, § 4 Nr. 14), Willi (storniert, Wellness in_lexware mit R2? nein – ohne R2 hat sie USt)
+  let html = await seite('/finanzen/rechnungen/steuerfrei?jahr=2026');
+  assert.match(html, /RE-2026-0042/);
+  assert.match(html, /R\*\*\* Rechnung/, 'maskiert: Vorname Rita → R***');
+  assert.doesNotMatch(html, /Rita Rechnung/);
+  assert.match(html, /§ 4 Nr\. 14 UStG/);
+  assert.doesNotMatch(html, /Entwurf Nr\./, 'Entwürfe ohne Nummer fehlen');
+  html = await seite('/finanzen/rechnungen/steuerfrei?jahr=2026&namen=1');
+  assert.match(html, /Rita Rechnung/);
+  html = await seite('/finanzen/rechnungen/steuerfrei?jahr=2026&maskiert=1');
+  assert.match(html, /R\*\*\* Rechnung/);
+  const roh = Buffer.from(await (await fetch(`${basis}/finanzen/rechnungen/steuerfrei.csv?jahr=2026`, { headers: wer })).arrayBuffer());
+  assert.deepEqual([...roh.subarray(0, 3)], [0xef, 0xbb, 0xbf], 'UTF-8-BOM für Excel');
+  const csv = roh.subarray(3).toString('utf8');
+  assert.ok(csv.startsWith('Rechnungsnummer;Rechnungsdatum;Status;Befreiung;Patientennummer;Name;Leistungsdatum'));
+  assert.match(csv, /RE-2026-0042;[0-9.]+;bezahlt;§ 4 Nr\. 14 UStG;P-\d+;R\*\*\* Rechnung;/);
+  assert.match(csv, /;50,00;/, 'Preise mit Komma');
+  const pdf = await fetch(`${basis}/finanzen/rechnungen/steuerfrei.pdf?jahr=2026&namen=1`, { headers: wer });
+  assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+  const bytes = Buffer.from(await pdf.arrayBuffer());
+  assert.ok(bytes.subarray(0, 8).toString('latin1').startsWith('%PDF-1.4'));
+  assert.match(bytes.toString('latin1'), /%%EOF\s*$/);
+  assert.match(bytes.toString('latin1'), /Rita Rechnung/, 'Name im PDF, weil namen=1');
+  // Wellness mit USt zählt nicht; ohne Jahr: aktuelles Jahr, maskiert
+  assert.match(await seite('/finanzen/rechnungen/steuerfrei'), /Namen maskieren/);
+});

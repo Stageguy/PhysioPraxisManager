@@ -22,6 +22,7 @@ import {
 } from './rechnungen.ts';
 import { termineZeitraum, type TerminKalender } from './patienten.ts';
 import { listen as preislistenListen, type Preisliste } from '../preise/preislisten.ts';
+import { steuerfreieUmsaetze, type SteuerListe } from './steuer.ts';
 
 export { KarteiFehler };
 
@@ -71,6 +72,7 @@ export interface KarteiDienst {
   rechnungPdf(patientId: string, rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
   konfiguration(): Promise<{ textbausteine: Textbaustein[]; einstellungen: Record<string, string> }>;
   kalender(vonIso: string, bisIso: string): Promise<TerminKalender[]>;
+  steuer(jahr: number, maskiert: boolean): Promise<SteuerListe>;
   wellness(): Promise<WellnessLeistung[]>;
   gruende(): Promise<Gespraechsgrund[]>;
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
@@ -143,6 +145,7 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
     rechnungPdf: (patientId, rechnungId) => rechnungPdf(db, patientId, rechnungId),
     async konfiguration() { return { textbausteine: await textbausteine(db, { alle: true }), einstellungen: await einstellungen(db) }; },
     kalender: (von, bis) => termineZeitraum(db, von, bis),
+    steuer: (jahr, maskiert) => steuerfreieUmsaetze(db, { jahr, maskiert }),
     gruende: () => gespraechsgruende(db),
     async aktion(f, wer) {
       const id = f.get('id') ?? '';

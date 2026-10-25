@@ -162,7 +162,7 @@ ${o.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groes
 </section>
 
 <section id="auswertung" aria-labelledby="t-aus">
-  <h2 id="t-aus" class="spaltenkopf dash-kopf">${symbol('euro')} Auswertung &amp; Suche</h2>
+  <h2 id="t-aus" class="spaltenkopf dash-kopf">${symbol('euro')} Auswertung &amp; Suche <a class="knopf klein nur-desktop" href="/finanzen/rechnungen/steuerfrei" data-hilfe="rechnungen.steuerfrei">Steuerfreie Umsätze (Finanzamt)</a></h2>
   ${filterForm(d.filter, a?.jahre ?? [])}
   ${a ? `<div class="diagramme">
     <div class="tafel" data-hilfe="rechnungen.diagramm.monate"><h3>Summe je Monat ${a.jahr}</h3>${monatsSaeulen(a)}

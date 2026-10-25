@@ -340,6 +340,10 @@ details.stammdaten.tafel[open]>summary{margin-bottom:8px}
 .kal-termin{display:flex;flex-direction:column;gap:2px;background:var(--karte);border:1px solid var(--rand);border-left:5px solid var(--rand);border-radius:10px;padding:6px 10px;margin-bottom:6px;color:var(--fg);text-decoration:none;font-size:14px}
 .kal-termin.rezept{border-left-color:var(--ok)}.kal-termin.erledigt{opacity:.6}.kal.tag .kal-termin{flex-direction:row;gap:12px;align-items:center;flex-wrap:wrap}
 @media (max-width:900px){.re-kopf{grid-template-columns:1fr}.rp{grid-template-columns:1fr 1fr;grid-auto-rows:auto}.rp-edit{grid-column:auto}.kal.woche{grid-template-columns:1fr}}
+/* Steuerfreie Umsätze */
+.steuer-pos{list-style:none;margin:0;padding:0;font-size:13px}.steuer-pos li{display:grid;grid-template-columns:80px 60px minmax(0,1fr) 110px 90px;gap:8px;padding:2px 0;border-top:1px dashed var(--rand)}.steuer-pos li:first-child{border-top:0}
+.spaltenkopf .knopf{margin-left:auto;font-weight:400}
+@media (max-width:640px){.steuer-pos li{grid-template-columns:1fr 1fr}}
 /* Rückmeldungen: Fähnchen und Fenster */
 .rm-marke{position:absolute;z-index:1100;display:none;place-items:center;width:16px;height:16px;padding:0;border-radius:50%;border:1px solid var(--akzent);background:var(--karte);color:var(--akzent);cursor:pointer;opacity:.85}
 .rm-marke:hover{opacity:1;transform:scale(1.25)}
