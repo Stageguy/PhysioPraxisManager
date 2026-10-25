@@ -8,7 +8,7 @@
  */
 import { protokolliere, type Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
-import { berlinMitternachtUtc } from '../zeit.ts';
+import { berlinZeitUtc } from '../zeit.ts';
 import { phaseVorruecken, type Phase } from './pinnwand.ts';
 import { behandlungZuordnen, rechnungAusRezept, rechnungAusSerie, STATUS_TEXT as RECHNUNG_STATUS_TEXT, terminZuordnen } from './rechnungen.ts';
 
@@ -561,7 +561,7 @@ export async function terminAnlegen(
   const tagText = datumPruefen(d.datum, 'Datum');
   if (!tagText || !/^\d{2}:\d{2}$/.test(d.zeit)) throw new KarteiFehler('Datum und Uhrzeit sind nötig');
   if (!(d.dauerMin > 0)) throw new KarteiFehler('Die Dauer muss größer 0 sein');
-  const beginn = new Date(berlinMitternachtUtc(tagText)).getTime() + (Number(d.zeit.slice(0, 2)) * 60 + Number(d.zeit.slice(3))) * 60_000;
+  const beginn = new Date(berlinZeitUtc(tagText, d.zeit)).getTime();
   const ende = beginn + d.dauerMin * 60_000;
   const { rows } = await db.query<{ id: string }>(
     `INSERT INTO termin (patient_id, fall_id, verordnung_id, art, beginn, ende, erstellt_von) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id::text`,

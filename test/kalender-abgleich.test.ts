@@ -7,6 +7,7 @@ import { patientAnlegen, terminAnlegen, terminStatus } from '../src/kartei/patie
 import { testdatenAnlegen, testtermineAnlegen } from '../src/kartei/testdaten.ts';
 import { neuerHauptschluessel, tresor } from '../src/tresor.ts';
 import { graphAttrappe } from './attrappe.ts';
+import { berlinZeitUtc } from '../src/zeit.ts';
 
 const t = tresor({ PRAXIS_TRESOR_SCHLUESSEL: neuerHauptschluessel() });
 const mitDelete = (g: ReturnType<typeof graphAttrappe>) => Object.assign(g, { async delete(pfad: string) { g.aufrufe.push({ methode: 'DELETE', pfad }); } });
@@ -57,4 +58,12 @@ test('Testtermine: drei Patienten mit 12er-Rezept, zwölf Termine in den nächst
   assert.equal(e.fehler, 0);
   assert.ok(e.angelegt >= 36, `${e.angelegt} gespiegelt`);
   assert.equal((await db.query<{ n: string }>("SELECT count(*)::text AS n FROM termin WHERE exchange_event_id IS NULL AND status = 'bestaetigt' AND ende >= now()")).rows[0]!.n, '0');
+});
+
+test('Ortszeit → UTC auch an den Tagen der Zeitumstellung', () => {
+  assert.equal(berlinZeitUtc('2026-10-25', '09:00'), '2026-10-25T08:00:00Z', 'Ende der Sommerzeit: 09:00 MEZ');
+  assert.equal(berlinZeitUtc('2026-10-25', '01:30'), '2026-10-24T23:30:00Z', 'vor der Umstellung noch MESZ');
+  assert.equal(berlinZeitUtc('2026-10-24', '09:00'), '2026-10-24T07:00:00Z', 'Sommerzeit');
+  assert.equal(berlinZeitUtc('2026-03-29', '09:00'), '2026-03-29T07:00:00Z', 'Beginn der Sommerzeit');
+  assert.equal(berlinZeitUtc('2026-01-15', '14:30'), '2026-01-15T13:30:00Z');
 });
