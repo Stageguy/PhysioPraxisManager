@@ -10,7 +10,7 @@ import { protokolliere, type Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
 import { berlinMitternachtUtc } from '../zeit.ts';
 import { phaseVorruecken, type Phase } from './pinnwand.ts';
-import { behandlungZuordnen, rechnungAusRezept, rechnungAusSerie, STATUS_TEXT as RECHNUNG_STATUS_TEXT } from './rechnungen.ts';
+import { behandlungZuordnen, rechnungAusRezept, rechnungAusSerie, STATUS_TEXT as RECHNUNG_STATUS_TEXT, terminZuordnen } from './rechnungen.ts';
 
 export class KarteiFehler extends Error {}
 
@@ -568,6 +568,7 @@ export async function terminAnlegen(
     [patientId, d.fallId || null, d.verordnungId || null, d.art ?? 'behandlung', new Date(beginn).toISOString(), new Date(ende).toISOString(), wer],
   );
   await protokolliere(db, { actor: wer, action: 'termin_angelegt', objectType: 'patient', objectId: patientId, details: { rezept: !!d.verordnungId } });
+  if (d.verordnungId) await terminZuordnen(db, d.verordnungId, rows[0]!.id, tagText);
   return rows[0]!.id;
 }
 

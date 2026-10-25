@@ -1,0 +1,15 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "rechnung-rezept", "pfad": "/patienten/44/rechnungen/60" },
+    { "name": "rechnung-wellness", "pfad": "/patienten/43/rechnungen/58" },
+    { "name": "konfiguration", "pfad": "/konfiguration" },
+    { "name": "kalender-woche", "pfad": "/kalender?ansicht=woche" },
+    { "name": "kalender-tag", "pfad": "/kalender?tag=2026-10-27" },
+    { "name": "cockpit", "pfad": "/" }
+  ]
+}

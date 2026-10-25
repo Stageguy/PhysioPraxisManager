@@ -212,6 +212,15 @@ export async function rechnungAusSerie(db: Db, patientId: string, fallId: string
   return id;
 }
 
+/** Ein neuer Termin zum Rezept gibt der nächsten Position ohne Datum ihr Datum (Termine kommen oft nach dem Rezept) */
+export async function terminZuordnen(db: Db, verordnungId: string, terminId: string, datum: string): Promise<void> {
+  const r = (await db.query<{ id: string }>("SELECT id::text FROM rechnung WHERE verordnung_id = $1 AND status = 'entwurf' ORDER BY id DESC LIMIT 1", [verordnungId])).rows[0];
+  if (!r) return;
+  const pos = (await db.query<{ id: string }>('SELECT id::text FROM rechnung_position WHERE rechnung_id = $1 AND datum IS NULL AND termin_id IS NULL ORDER BY reihenfolge LIMIT 1', [r.id])).rows[0];
+  if (!pos) return;
+  await db.query('UPDATE rechnung_position SET termin_id = $2, datum = $3::date WHERE id = $1', [pos.id, terminId, datum]);
+}
+
 /** Eine erfasste Behandlung an die passende offene Position des Rezept-Entwurfs hängen */
 export async function behandlungZuordnen(db: Db, verordnungId: string, behandlungLeistungId: string, datum: string): Promise<void> {
   const r = (await db.query<{ id: string }>("SELECT id::text FROM rechnung WHERE verordnung_id = $1 AND status = 'entwurf' ORDER BY id DESC LIMIT 1", [verordnungId])).rows[0];

@@ -334,6 +334,9 @@ test('Rechnungsentwürfe: Rezept legt Entwurf mit Positionen und R1 an; Preislis
   await post({ aktion: 'termin_anlegen', id: pid, datum: '2099-03-02', zeit: '08:00', dauer_min: '30' });
   await post({ aktion: 'verordnung_anlegen', id: pid, ausgestellt_am: '2026-10-01', massnahme: 'Manuelle Therapie', leistung_nummer: '21201', anzahl: '3' });
   const rezept = (await db.query<{ id: string }>('SELECT id::text FROM verordnung WHERE patient_id = $1', [pid])).rows[0]!.id;
+  // Ein Termin zum Rezept nach dem Rezept: die erste Position ohne Datum bekommt es
+  await post({ aktion: 'termin_anlegen', id: pid, datum: '2099-03-09', zeit: '08:00', dauer_min: '30', verordnung_id: rezept });
+  assert.equal((await db.query<{ n: string }>("SELECT count(*)::text AS n FROM rechnung_position WHERE verordnung_id = $1 AND datum = '2099-03-09'", [rezept])).rows[0]!.n, '1');
   const re = (await db.query<{ id: string; status: string; betrag: string; steuerklasse: string }>('SELECT id::text, status::text, betrag::text, steuerklasse::text FROM rechnung WHERE verordnung_id = $1', [rezept])).rows[0]!;
   assert.equal(re.status, 'entwurf');
   assert.equal(re.betrag, '150.00', '3 × 50 € aus der Preisliste des Patienten');

@@ -86,6 +86,10 @@ export async function testtermineAnlegen(db: Db, t: Tresor, o: { adresse: string
 
 export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; behandlungen: number; termine: number; rechnungen: number }> {
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1001'")).rows.length) return { uebersprungen: true, patienten: 0, behandlungen: 0, termine: 0, rechnungen: 0 };
+  // Ohne aktive Preisliste hätten die Rechnungsentwürfe keine Preise: die erste vorhandene Liste freigeben und aktiv setzen (nur Testumgebung)
+  if (!(await db.query('SELECT 1 FROM preisliste WHERE aktiv')).rows.length) {
+    await db.query("UPDATE preisliste SET status = 'freigegeben', aktiv = true, freigegeben_am = COALESCE(freigegeben_am, now()), freigegeben_von = COALESCE(freigegeben_von, $1) WHERE id = (SELECT min(id) FROM preisliste WHERE status <> 'archiviert')", [o.wer]);
+  }
   const [lokal, domain] = o.adresse.split('@');
   // Wellness-Katalog (W74) – erfundene Beispiele, Lilli ersetzt sie (Frage 10)
   const wellness: string[] = [];
