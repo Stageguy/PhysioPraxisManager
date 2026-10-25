@@ -6,17 +6,12 @@
 import type { NeuAktionDaten, RezepteDaten } from '../kartei/dienst.ts';
 import { VERORDNUNG_ARTEN, type Patient, type Serie, type VerordnungKurz, type WellnessLeistung } from '../kartei/patienten.ts';
 import { esc, seite } from './layout.ts';
+import { datumText, euroText } from '../format.ts';
+import { heuteBerlin } from '../zeit.ts';
+import { karteiFormular as form, meldungen } from './bausteine.ts';
 import { symbol } from './symbole.ts';
 
-const datum = (iso: string | null | undefined) =>
-  iso ? new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${iso.slice(0, 10)}T12:00:00Z`)) : '–';
-const euro = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-const heute = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date());
 
-const form = (aktion: string, inhalt: string, o: { id?: string; zurueck: string; klasse?: string }) =>
-  `<form method="post" action="/patienten/aktion" class="${o.klasse ?? 'inline'}"><input type="hidden" name="aktion" value="${aktion}">${o.id ? `<input type="hidden" name="id" value="${o.id}">` : ''}<input type="hidden" name="zurueck" value="${esc(o.zurueck)}">${inhalt}</form>`;
-const meldungen = (o: { meldung?: string; fehler?: string }) =>
-  `${o.meldung ? `<p class="meldung ok" role="status">${symbol('haken', { groesse: 18 })} ${esc(o.meldung)}</p>` : ''}${o.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groesse: 18 })} ${esc(o.fehler)}</p>` : ''}`;
 
 const STATUS: Record<string, [string, string]> = { aktiv: ['aktiv', 'preset4'], abgeschlossen: ['abgeschlossen', 'preset19'], abgebrochen: ['abgebrochen', 'preset0'], ersetzt: ['ersetzt (korrigiert)', 'preset12'] };
 
@@ -32,11 +27,11 @@ export function rezeptKachel(v: VerordnungKurz, o: { mitPatient?: boolean; zurue
   return `<article class="rz ${v.status}" data-hilfe="rezepte.kachel" id="rz-${v.id}">
     <header class="rz-kopf">${symbol('rezept', { groesse: 20 })}<b>${esc(v.massnahme)}</b><span class="chip ${farbe}">${st}</span></header>
     ${o.mitPatient ? `<a class="rz-patient" href="/patienten/${v.patientId}#rezepte">${esc(v.patientName)}</a>` : ''}
-    <p class="rz-marken"><span class="marke">${esc(VERORDNUNG_ARTEN[v.art])}</span>${v.langzeit ? '<span class="marke jetzt">Langzeitbehandlung</span>' : ''}${v.zweitschriftAm ? `<span class="marke">Zweitschrift ${datum(v.zweitschriftAm)}</span>` : ''}${v.vorgaengerId ? `<a class="marke" href="#rz-${v.vorgaengerId}">↑ Vorgänger</a>` : ''}</p>
+    <p class="rz-marken"><span class="marke">${esc(VERORDNUNG_ARTEN[v.art])}</span>${v.langzeit ? '<span class="marke jetzt">Langzeitbehandlung</span>' : ''}${v.zweitschriftAm ? `<span class="marke">Zweitschrift ${datumText(v.zweitschriftAm)}</span>` : ''}${v.vorgaengerId ? `<a class="marke" href="#rz-${v.vorgaengerId}">↑ Vorgänger</a>` : ''}</p>
     <dl class="liste-dl klein">
-      <dt>Ausgestellt</dt><dd>${datum(v.ausgestelltAm)}${v.arzt ? ` · ${esc(v.arzt)}` : ''}</dd>
+      <dt>Ausgestellt</dt><dd>${datumText(v.ausgestelltAm)}${v.arzt ? ` · ${esc(v.arzt)}` : ''}</dd>
       ${v.leistungNummer || v.frequenz ? `<dt>Leistung</dt><dd>${v.leistungNummer ? `Nr. ${esc(v.leistungNummer)}` : ''}${v.frequenz ? ` · ${esc(v.frequenz)}` : ''}</dd>` : ''}
-      ${v.gueltigBis ? `<dt>Gültig bis</dt><dd>${datum(v.gueltigBis)}${v.gueltigBis < heute() && v.status === 'aktiv' ? ' <span class="warn">abgelaufen</span>' : ''}</dd>` : ''}
+      ${v.gueltigBis ? `<dt>Gültig bis</dt><dd>${datumText(v.gueltigBis)}${v.gueltigBis < heuteBerlin() && v.status === 'aktiv' ? ' <span class="warn">abgelaufen</span>' : ''}</dd>` : ''}
       ${v.fallNummer ? `<dt>Fall</dt><dd>Fall ${v.fallNummer}</dd>` : ''}
       ${v.notiz ? `<dt>Notiz</dt><dd>${esc(v.notiz)}</dd>` : ''}
     </dl>
@@ -53,9 +48,9 @@ export function serieKachel(s: Serie, o: { mitPatient?: boolean; zurueck: string
     ${o.mitPatient ? `<a class="rz-patient" href="/patienten/${s.patientId}#rezepte">${esc(s.patientName)}</a>` : ''}
     <p class="rz-marken"><span class="marke${wellness ? '' : ' jetzt'}">${wellness ? 'Wellness · 19 % USt' : 'Direktzugang · Heilpraktikererlaubnis'}</span></p>
     <dl class="liste-dl klein">
-      ${s.wellness ? `<dt>Leistung</dt><dd>${esc(s.wellness.bezeichnung)} · ${euro(s.wellness.preis)}</dd>` : ''}
-      <dt>Fall</dt><dd>Fall ${s.nummer} · seit ${datum(s.begonnenAm)}${s.abgeschlossenAm ? ` bis ${datum(s.abgeschlossenAm)}` : ''}</dd>
-      <dt>Behandlungen</dt><dd>${s.behandlungen}${s.letzteAm ? ` · zuletzt ${datum(s.letzteAm)}` : ''}</dd>
+      ${s.wellness ? `<dt>Leistung</dt><dd>${esc(s.wellness.bezeichnung)} · ${euroText(s.wellness.preis)}</dd>` : ''}
+      <dt>Fall</dt><dd>Fall ${s.nummer} · seit ${datumText(s.begonnenAm)}${s.abgeschlossenAm ? ` bis ${datumText(s.abgeschlossenAm)}` : ''}</dd>
+      <dt>Behandlungen</dt><dd>${s.behandlungen}${s.letzteAm ? ` · zuletzt ${datumText(s.letzteAm)}` : ''}</dd>
     </dl>
     ${s.abgeschlossenAm ? '' : form('serie_abschliessen', `<input type="hidden" name="fall_id" value="${s.id}"><button class="knopf klein" data-hilfe="serie.abschliessen">Serie abschließen</button>`, { id: s.patientId, zurueck: o.zurueck })}
   </article>`;
@@ -90,7 +85,7 @@ ${kacheln.length ? `<div class="rz-raster">${kacheln.join('')}</div>` : '<p clas
 export function wellnessSeite(liste: WellnessLeistung[], o: { wer: string; fassung: string; meldung?: string; fehler?: string; skriptInline?: string }): string {
   const zurueck = '/rezepte/wellness';
   const zeilen = liste.map((w) => `<tr class="${w.aktiv ? '' : 'ab'}" data-hilfe="wellness.zeile">
-    <td class="kuerzel">${esc(w.code)}</td><td>${esc(w.bezeichnung)}</td><td class="zahlspalte">${w.dauerMin ?? '–'}</td><td class="zahlspalte">${euro(w.preis)}</td>
+    <td class="kuerzel">${esc(w.code)}</td><td>${esc(w.bezeichnung)}</td><td class="zahlspalte">${w.dauerMin ?? '–'}</td><td class="zahlspalte">${euroText(w.preis)}</td>
     <td>${form('wellness_aktiv', `<input type="hidden" name="wellness_id" value="${w.id}"><input type="hidden" name="aktiv" value="${w.aktiv ? '0' : '1'}"><button class="knopf klein" data-hilfe="wellness.aktiv">${w.aktiv ? 'ausblenden' : 'anbieten'}</button>`, { zurueck })}</td>
   </tr>`).join('');
   return seite({
@@ -120,12 +115,12 @@ ${wellness && !d.wellness.length ? `<p class="meldung fehler">${symbol('warnung'
 <form method="post" action="/patienten/aktion" class="tafel formular" data-hilfe="${wellness ? 'serie.wellness.formular' : 'serie.direktzugang.formular'}">
   <input type="hidden" name="aktion" value="serie_anlegen"><input type="hidden" name="id" value="${p.id}"><input type="hidden" name="zurueck" value="${pfad}"><input type="hidden" name="grundlage" value="${grundlage}">
   ${wellness
-    ? `<label>Leistung aus dem Wellness-Katalog<select name="wellness_id" required>${d.wellness.map((w) => `<option value="${w.id}">${esc(w.bezeichnung)}${w.dauerMin ? ` · ${w.dauerMin} min` : ''} · ${euro(w.preis)}</option>`).join('')}</select></label>
+    ? `<label>Leistung aus dem Wellness-Katalog<select name="wellness_id" required>${d.wellness.map((w) => `<option value="${w.id}">${esc(w.bezeichnung)}${w.dauerMin ? ` · ${w.dauerMin} min` : ''} · ${euroText(w.preis)}</option>`).join('')}</select></label>
        <p class="hint">Ohne Krankheitsbezug, 19 % Umsatzsteuer. Jede erfasste Behandlung in dieser Serie übernimmt die Leistung und ihren Preis.</p>`
     : `<p class="hint">Eigenverantwortliche Behandlung einer Erkrankung ohne ärztliche Verordnung – nur mit sektoraler Heilpraktikererlaubnis (Frage 15). Steuerfrei als Heilbehandlung. Die Kosteninformation in Textform (§ 630c Abs. 3 BGB) nicht vergessen.</p>`}
   <label>Kurzbezeichnung${wellness ? ' (optional)' : ''}<input name="bezeichnung" maxlength="80" placeholder="${wellness ? 'z. B. Entspannung Rücken' : 'z. B. Nacken, Verspannung'}"${wellness ? '' : ' required'}></label>
   <label>Anlass / Beschwerden${wellness ? ' (optional)' : ''}<textarea name="anlass" rows="2"></textarea></label>
-  <label>Beginn<input type="date" name="begonnen_am" value="${heute()}"></label>
+  <label>Beginn<input type="date" name="begonnen_am" value="${heuteBerlin()}"></label>
   <button class="knopf primaer" data-hilfe="${wellness ? 'serie.wellness.anlegen' : 'serie.direktzugang.anlegen'}">${titel} anlegen</button>
 </form>`,
   });

@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
-import { migriere, type Db } from '../src/db/index.ts';
+import type { Db } from '../src/db/index.ts';
 import { LexwareClient, LexwareNichtBereit, type Beleg } from '../src/lexware/client.ts';
 import { aufStufe, kategorienAnlegen } from '../src/mail/kategorien.ts';
 import { kopfdaten } from '../src/rechnungen/kopfdaten.ts';
 import { abgleichLexware, abgleichOutlook, belegZu } from '../src/zahlung/abgleich.ts';
+import { testDb } from './testdb.ts';
 
 test('Kopfdaten: Rechnungsnummer, Betrag, Datum', () => {
   const k = kopfdaten('Rechnung\nRechnungsnummer: RE-2026/0815\nRechnungsdatum: 03.10.2026\nGesamtbetrag 1.234,56 EUR');
@@ -57,12 +57,9 @@ test('Zuordnung Mail ↔ Beleg: ID, Nummer, bei Gleichstand Betrag – sonst nic
 });
 
 // ── Abgleich gegen Datenbank, Postfach-Attrappe und Lexware-Attrappe ─────────
-let pg: PGlite;
 let db: Db;
 beforeEach(async () => {
-  pg = new PGlite();
-  db = { query: (t, v) => pg.query(t, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db);
+  db = await testDb();
   for (const [id, nr, betrag] of [['m1', 'A1', 10], ['m2', 'B2', 20], ['m3', null, 30]] as const) {
     await db.query(
       `INSERT INTO inbound_document (graph_message_id, attachment_id, received_at, sender_domain, subject_hash, sha256, size, klasse, status, rechnungsnummer, betrag)

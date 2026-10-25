@@ -9,6 +9,8 @@
  * - Beihilfe: Anlage 9 BBhV auf gesetze-im-internet.de
  * - GebüTh: Produktseite beim Herausgeber – nur die erschienene Auflage, keine Inhalte
  */
+import { datumText } from '../format.ts';
+import { heuteBerlin } from '../zeit.ts';
 import { createHash } from 'node:crypto';
 import type { Db } from '../db/index.ts';
 import { pdfText } from '../rechnungen/pdf.ts';
@@ -52,7 +54,6 @@ async function laden(holen: Holen, url: string): Promise<Uint8Array> {
 }
 
 const text = (b: Uint8Array, zeichensatz = 'utf-8') => new TextDecoder(zeichensatz).decode(b);
-const heute = () => new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
 
 export async function abrufen(art: QuellArt, holen: Holen = standardHolen, textAus: (b: Uint8Array) => Promise<string> = pdfText): Promise<Abruf> {
   const q = QUELLEN[art];
@@ -70,7 +71,7 @@ export async function abrufen(art: QuellArt, holen: Holen = standardHolen, textA
     const liste = beihilfeLesen(text(html, 'iso-8859-1'));
     if (liste.positionen.length < 20) throw new Error(`Beihilfe: nur ${liste.positionen.length} Positionen gelesen – Aufbau geändert?`);
     // Die Seite nennt keinen Stand – erkannt wird eine neue Fassung am geänderten Inhalt
-    return { art, titel: q.titel, version: `${liste.version}, abgerufen am ${heute()}`, url: q.seite, rohdaten: html, rohdatenTyp: 'text/html; charset=iso-8859-1', positionen: liste.positionen };
+    return { art, titel: q.titel, version: `${liste.version}, abgerufen am ${datumText(heuteBerlin())}`, url: q.seite, rohdaten: html, rohdatenTyp: 'text/html; charset=iso-8859-1', positionen: liste.positionen };
   }
   const html = await laden(holen, q.seite);
   const auflage = gebuethAuflage(text(html));

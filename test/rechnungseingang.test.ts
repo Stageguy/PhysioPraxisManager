@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
-import { migriere, type Db } from '../src/db/index.ts';
+import type { Db } from '../src/db/index.ts';
 import type { RechnungsEinstellungen } from '../src/einstellungen.ts';
 import { rechnungseingang } from '../src/rechnungen/eingang.ts';
 import { postfach, textAusAttrappe, type TestMail } from './postfach-attrappe.ts';
+import { testDb } from './testdb.ts';
 
 const einst = (ziel: string | null = 'Büro/Buchhaltung/Eingang'): RechnungsEinstellungen => ({
   seit: '2026-10-01',
@@ -48,12 +48,9 @@ const mails = (): TestMail[] => [
   },
 ];
 
-let pg: PGlite;
 let db: Db;
 beforeEach(async () => {
-  pg = new PGlite();
-  db = { query: (t, v) => pg.query(t, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db);
+  db = await testDb();
 });
 
 const zeilen = async () =>

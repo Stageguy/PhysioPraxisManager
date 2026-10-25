@@ -8,28 +8,14 @@
 import type { Patient, PatientKurz, RechnungKurz, TerminKurz, VerordnungKurz } from '../kartei/patienten.ts';
 import { ERKLAERUNG_ARTEN, PHASEN, PHASEN_NAMEN, type FallDetails, type Karte, type Phase, type Spalte } from '../kartei/pinnwand.ts';
 import { esc, seite } from './layout.ts';
+import { datumText, datumZeitText, euroText } from '../format.ts';
+import { heuteBerlin } from '../zeit.ts';
+import { karteiFormular as form, meldungen, type Rahmen } from './bausteine.ts';
 import { rezeptKachel } from './rezepte.ts';
 import { symbol } from './symbole.ts';
 
-const ZONE = 'Europe/Berlin';
-const datum = (iso: string | null | undefined) =>
-  iso ? new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso)) : '–';
-const datumZeit = (iso: string) => `${new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, weekday: 'short', day: '2-digit', month: '2-digit' }).format(new Date(iso))}, ${new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, hour: '2-digit', minute: '2-digit' }).format(new Date(iso))}`;
 const tage = (iso: string | null) => (iso ? Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)) : null);
-const heute = () => new Intl.DateTimeFormat('en-CA', { timeZone: ZONE }).format(new Date());
-const euro = (n: number | null) => (n === null ? '–' : n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }));
 
-interface Rahmen {
-  wer: string;
-  fassung: string;
-  meldung?: string;
-  fehler?: string;
-  skriptInline?: string;
-}
-const meldungen = (o: Rahmen) =>
-  `${o.meldung ? `<p class="meldung ok" role="status">${symbol('haken', { groesse: 18 })} ${esc(o.meldung)}</p>` : ''}${o.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groesse: 18 })} ${esc(o.fehler)}</p>` : ''}`;
-const form = (aktion: string, inhalt: string, o: { id: string; zurueck: string; klasse?: string }) =>
-  `<form method="post" action="/patienten/aktion" class="${o.klasse ?? 'inline'}"><input type="hidden" name="aktion" value="${aktion}"><input type="hidden" name="id" value="${o.id}"><input type="hidden" name="zurueck" value="${esc(o.zurueck)}">${inhalt}</form>`;
 
 const GRUNDLAGE: Record<string, [string, string]> = { verordnung: ['Rezept', 'jetzt'], direktzugang: ['Direktzugang', 'jetzt'], praevention: ['Wellness', ''] };
 
@@ -43,7 +29,7 @@ export function fallKarte(k: Karte, o: { ziehbar?: boolean } = {}): string {
       <span class="fk-titel">Fall ${k.nummer}${k.bezeichnung ? ` · ${esc(k.bezeichnung)}` : ''}</span>
       <span class="rz-marken"><span class="marke ${gKlasse}">${gText}</span>${t !== null ? `<span class="marke">${t === 0 ? 'heute' : `${t} Tag${t === 1 ? '' : 'e'}`} hier</span>` : ''}</span>
       ${k.rezept ? `<span class="fk-balken" aria-label="${k.rezept.abgehakt} von ${k.rezept.anzahl}"><span style="width:${Math.min(100, Math.round((k.rezept.abgehakt / Math.max(1, k.rezept.anzahl)) * 100))}%"></span></span><span class="hint">Rezept ${k.rezept.abgehakt} von ${k.rezept.anzahl}</span>` : `<span class="hint">${k.behandlungen} Behandlung${k.behandlungen === 1 ? '' : 'en'}</span>`}
-      <span class="hint">${k.naechsterTermin ? `Termin ${datumZeit(k.naechsterTermin)}` : k.letzteBehandlung ? `zuletzt ${datum(k.letzteBehandlung)}` : 'kein Termin'}</span>
+      <span class="hint">${k.naechsterTermin ? `Termin ${datumZeitText(k.naechsterTermin)}` : k.letzteBehandlung ? `zuletzt ${datumText(k.letzteBehandlung)}` : 'kein Termin'}</span>
       ${k.warnungen.length ? `<span class="fk-warn">${symbol('warnung', { groesse: 14 })} ${k.warnungen.map(esc).join(' · ')}</span>` : ''}
     </a>
     <details class="plus klein" data-hilfe="pinnwand.plus"><summary aria-label="Neues zu diesem Fall">+</summary><div class="plus-menue">
@@ -110,12 +96,12 @@ export function fallSeite(d: { patient: Patient; details: FallDetails; verordnun
   }).join('');
   const phasenWahl = PHASEN.filter((ph) => ph !== k.phase).map((ph) => `<option value="${ph}">${esc(PHASEN_NAMEN[ph])}</option>`).join('');
   const a = f.anamnese;
-  const befunde = f.befunde.map((b) => `<li data-hilfe="fall.befund" tabindex="0"><b>${esc({ eingang: 'Eingangsbefund', verlauf: 'Verlaufsbefund', abschluss: 'Abschlussbefund' }[b.art] ?? b.art)}</b> <span class="hint">${datum(b.erhobenAm)}</span><br>${esc(b.text ?? '')}${b.messwerte ? `<br><span class="hint">Messwerte: ${esc(b.messwerte)}</span>` : ''}</li>`).join('');
-  const erklaerungen = f.erklaerungen.map((e) => `<li class="${e.widerrufenAm ? 'ab' : ''}" data-hilfe="fall.erklaerung" tabindex="0"><span class="kanal-sym">${symbol('freigabe', { groesse: 18 })}</span><span><b>${esc(ERKLAERUNG_ARTEN[e.art] ?? e.art)}</b> <span class="hint">${datum(e.am)} · ${esc(e.form)}${e.fassung ? ` · ${esc(e.fassung)}` : ''}${e.gueltigBis ? ` · bis ${datum(e.gueltigBis)}` : ''}${e.fallId ? '' : ' · gilt für alle Fälle'}${e.widerrufenAm ? ` · widerrufen ${datum(e.widerrufenAm)}` : ''}</span>${e.inhalt ? `<br>${esc(e.inhalt)}` : ''}</span>
+  const befunde = f.befunde.map((b) => `<li data-hilfe="fall.befund" tabindex="0"><b>${esc({ eingang: 'Eingangsbefund', verlauf: 'Verlaufsbefund', abschluss: 'Abschlussbefund' }[b.art] ?? b.art)}</b> <span class="hint">${datumText(b.erhobenAm)}</span><br>${esc(b.text ?? '')}${b.messwerte ? `<br><span class="hint">Messwerte: ${esc(b.messwerte)}</span>` : ''}</li>`).join('');
+  const erklaerungen = f.erklaerungen.map((e) => `<li class="${e.widerrufenAm ? 'ab' : ''}" data-hilfe="fall.erklaerung" tabindex="0"><span class="kanal-sym">${symbol('freigabe', { groesse: 18 })}</span><span><b>${esc(ERKLAERUNG_ARTEN[e.art] ?? e.art)}</b> <span class="hint">${datumText(e.am)} · ${esc(e.form)}${e.fassung ? ` · ${esc(e.fassung)}` : ''}${e.gueltigBis ? ` · bis ${datumText(e.gueltigBis)}` : ''}${e.fallId ? '' : ' · gilt für alle Fälle'}${e.widerrufenAm ? ` · widerrufen ${datumText(e.widerrufenAm)}` : ''}</span>${e.inhalt ? `<br>${esc(e.inhalt)}` : ''}</span>
     ${e.widerrufenAm ? '' : `<span class="rechts">${form('erklaerung_widerrufen', `<input type="hidden" name="erklaerung_id" value="${e.id}"><input type="hidden" name="fall_id" value="${k.fallId}"><input name="grund" placeholder="Grund" maxlength="120"><button class="knopf klein warnend" data-hilfe="fall.erklaerung.widerrufen">widerrufen</button>`, { id: p.id, zurueck })}</span>`}</li>`).join('');
-  const phasen = f.phasen.map((ph) => `<li><span class="zeit">${datumZeit(ph.am)}</span><span>${ph.von ? `${esc(PHASEN_NAMEN[ph.von])} → ` : ''}<b>${esc(PHASEN_NAMEN[ph.nach])}</b> <span class="hint">${esc(ph.wer)}${ph.grund ? ` · ${esc(ph.grund)}` : ''}</span></span></li>`).join('');
-  const termine = d.termine.map((t) => `<li><span class="zeit">${datumZeit(t.beginn)}</span><span>${esc(t.art)} <span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span></span></li>`).join('');
-  const rechnungen = d.rechnungen.map((r) => `<li><span class="zeit">${datum(r.datum)}</span><span>${esc(r.nummer ?? r.art)} · ${euro(r.betrag)} <span class="chip ${r.status === 'bezahlt' ? 'preset19' : 'preset3'}">${esc(r.status)}</span></span></li>`).join('');
+  const phasen = f.phasen.map((ph) => `<li><span class="zeit">${datumZeitText(ph.am)}</span><span>${ph.von ? `${esc(PHASEN_NAMEN[ph.von])} → ` : ''}<b>${esc(PHASEN_NAMEN[ph.nach])}</b> <span class="hint">${esc(ph.wer)}${ph.grund ? ` · ${esc(ph.grund)}` : ''}</span></span></li>`).join('');
+  const termine = d.termine.map((t) => `<li><span class="zeit">${datumZeitText(t.beginn)}</span><span>${esc(t.art)} <span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span></span></li>`).join('');
+  const rechnungen = d.rechnungen.map((r) => `<li><span class="zeit">${datumText(r.datum)}</span><span>${esc(r.nummer ?? r.art)} · ${euroText(r.betrag)} <span class="chip ${r.status === 'bezahlt' ? 'preset19' : 'preset3'}">${esc(r.status)}</span></span></li>`).join('');
   return seite({
     titel: `Fall ${k.nummer} – ${name}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<p class="hint"><a href="/pinnwand">Pinnwand</a> › <a href="/patienten/${p.id}">${esc(name)}</a> › Fall ${k.nummer}</p>
@@ -132,7 +118,7 @@ export function fallSeite(d: { patient: Patient; details: FallDetails; verordnun
 
 <section class="pat-abschnitt"><h2>${symbol('protokoll')} Fall</h2><div class="tafel"><dl class="liste-dl">
   <dt>Grundlage</dt><dd>${esc(GRUNDLAGE[k.grundlage]?.[0] ?? k.grundlage)} · ${f.steuerklasse === 'wellness_19' ? '19 % USt' : 'Heilbehandlung, steuerfrei'}</dd>
-  <dt>Zeitraum</dt><dd>${datum(f.begonnenAm)} – ${f.abgeschlossenAm ? datum(f.abgeschlossenAm) : 'laufend'}</dd>
+  <dt>Zeitraum</dt><dd>${datumText(f.begonnenAm)} – ${f.abgeschlossenAm ? datumText(f.abgeschlossenAm) : 'laufend'}</dd>
   ${f.anlass ? `<dt>Anlass</dt><dd>${esc(f.anlass)}</dd>` : ''}${f.diagnoseArzt ? `<dt>Diagnose (ärztlich)</dt><dd>${esc(f.diagnoseArzt)}</dd>` : ''}${f.therapieziele ? `<dt>Therapieziele</dt><dd>${esc(f.therapieziele)}</dd>` : ''}
 </dl></div></section>
 
@@ -142,12 +128,12 @@ export function fallSeite(d: { patient: Patient; details: FallDetails; verordnun
 </section>
 
 <section class="pat-abschnitt" id="anamnese"><h2>${symbol('protokoll')} Anamnese</h2>
-  ${a ? `<div class="tafel" data-hilfe="fall.anamnese" tabindex="0"><p class="hint">${datum(a.erhobenAm)} · ${esc(a.art)}</p><dl class="liste-dl">
+  ${a ? `<div class="tafel" data-hilfe="fall.anamnese" tabindex="0"><p class="hint">${datumText(a.erhobenAm)} · ${esc(a.art)}</p><dl class="liste-dl">
     <dt>Beschwerden</dt><dd>${esc(a.beschwerden ?? '')}</dd>${a.vorgeschichte ? `<dt>Vorgeschichte</dt><dd>${esc(a.vorgeschichte)}</dd>` : ''}${a.medikamente ? `<dt>Medikamente</dt><dd>${esc(a.medikamente)}</dd>` : ''}
     ${a.allergien ? `<dt>Allergien</dt><dd>${esc(a.allergien)}</dd>` : ''}${a.risiken ? `<dt>Risiken / Kontraindikationen</dt><dd>${esc(a.risiken)}</dd>` : ''}${a.sonstiges ? `<dt>Sonstiges</dt><dd>${esc(a.sonstiges)}</dd>` : ''}</dl></div>` : '<p class="leer">Noch keine Anamnese.</p>'}
   <details class="mehr-form"><summary class="knopf klein" data-hilfe="fall.anamnese.neu">${a ? 'Neue Fassung der Anamnese' : 'Anamnese erfassen'}</summary>
   ${form('anamnese_erfassen', `<input type="hidden" name="fall_id" value="${k.fallId}">
-    <div class="zwei"><label>Datum<input type="date" name="erhoben_am" value="${heute()}"></label><label>Art<select name="art"><option value="gespraech">im Gespräch</option><option value="online">online vorab</option><option value="tablet">Tablet in der Praxis</option><option value="uebernommen">aus früherem Fall übernommen</option></select></label></div>
+    <div class="zwei"><label>Datum<input type="date" name="erhoben_am" value="${heuteBerlin()}"></label><label>Art<select name="art"><option value="gespraech">im Gespräch</option><option value="online">online vorab</option><option value="tablet">Tablet in der Praxis</option><option value="uebernommen">aus früherem Fall übernommen</option></select></label></div>
     <label>Beschwerden / Behandlungsanlass (Pflicht)<textarea name="beschwerden" rows="3" required>${esc(a?.beschwerden ?? '')}</textarea></label>
     <label>Relevante Vorgeschichte<textarea name="vorgeschichte" rows="2">${esc(a?.vorgeschichte ?? '')}</textarea></label>
     <div class="zwei"><label>Medikamente<input name="medikamente" value="${esc(a?.medikamente ?? '')}"></label><label>Allergien<input name="allergien" value="${esc(a?.allergien ?? '')}"></label></div>
@@ -160,7 +146,7 @@ export function fallSeite(d: { patient: Patient; details: FallDetails; verordnun
   ${befunde ? `<ul class="befunde">${befunde}</ul>` : '<p class="leer">Noch kein Befund.</p>'}
   <details class="mehr-form"><summary class="knopf klein" data-hilfe="fall.befund.neu">Befund erfassen</summary>
   ${form('befund_erfassen', `<input type="hidden" name="fall_id" value="${k.fallId}">
-    <div class="zwei"><label>Datum<input type="date" name="erhoben_am" value="${heute()}"></label><label>Art<select name="art"><option value="eingang">Eingangsbefund</option><option value="verlauf">Verlaufsbefund</option><option value="abschluss">Abschlussbefund</option></select></label></div>
+    <div class="zwei"><label>Datum<input type="date" name="erhoben_am" value="${heuteBerlin()}"></label><label>Art<select name="art"><option value="eingang">Eingangsbefund</option><option value="verlauf">Verlaufsbefund</option><option value="abschluss">Abschlussbefund</option></select></label></div>
     <label>Befund (Beweglichkeit, Kraft, Schmerz, Funktion …)<textarea name="text" rows="3" required></textarea></label>
     <label>Messwerte (frei, z. B. „Schulter Flexion re 120°, NRS 6/10“)<input name="messwerte" maxlength="500"></label>
     <button class="knopf primaer">Befund speichern</button>`, { id: p.id, zurueck, klasse: 'formular' })}
@@ -173,7 +159,7 @@ export function fallSeite(d: { patient: Patient; details: FallDetails; verordnun
   ${form('erklaerung_erfassen', `<input type="hidden" name="fall_id" value="${k.fallId}">
     <div class="zwei"><label>Art<select name="art">${Object.entries(ERKLAERUNG_ARTEN).map(([key, t]) => `<option value="${key}">${esc(t)}</option>`).join('')}</select></label>
       <label>Form<select name="form"><option value="schriftlich">schriftlich</option><option value="muendlich">mündlich</option><option value="textform">Textform (Mail)</option><option value="elektronisch">elektronisch</option></select></label></div>
-    <div class="zwei"><label>Datum<input type="date" name="am" value="${heute()}"></label><label>Fassung des Textes<input name="fassung" placeholder="z. B. Datenschutzinfo 2026-01" maxlength="80"></label></div>
+    <div class="zwei"><label>Datum<input type="date" name="am" value="${heuteBerlin()}"></label><label>Fassung des Textes<input name="fassung" placeholder="z. B. Datenschutzinfo 2026-01" maxlength="80"></label></div>
     <label>Inhalt (worüber aufgeklärt, wozu eingewilligt, welche Kosten)<textarea name="inhalt" rows="2"></textarea></label>
     <button class="knopf primaer">Erklärung speichern</button>`, { id: p.id, zurueck, klasse: 'formular' })}
   </details>

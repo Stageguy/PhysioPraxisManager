@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
-import { migriere, type Db } from '../src/db/index.ts';
 import { alleTermineSpiegeln, ereignisKoerper, initialen, terminSpiegeln } from '../src/kartei/kalender.ts';
 import { patientAnlegen, terminAnlegen, terminStatus } from '../src/kartei/patienten.ts';
 import { testdatenAnlegen, testdatenErweitert, testtermineAnlegen } from '../src/kartei/testdaten.ts';
@@ -9,14 +7,13 @@ import { allePruefen } from '../src/preise/quellen.ts';
 import { neuerHauptschluessel, tresor } from '../src/tresor.ts';
 import { graphAttrappe } from './attrappe.ts';
 import { berlinZeitUtc } from '../src/zeit.ts';
+import { testDb } from './testdb.ts';
 
 const t = tresor({ PRAXIS_TRESOR_SCHLUESSEL: neuerHauptschluessel() });
 const mitDelete = (g: ReturnType<typeof graphAttrappe>) => Object.assign(g, { async delete(pfad: string) { g.aufrufe.push({ methode: 'DELETE', pfad }); } });
 
 test('Kalender: Termin wird mit Initialen, Kategorie und Ortszeit gespiegelt; Absage löscht das Ereignis', async () => {
-  const pg = new PGlite();
-  const db = { query: (q, v) => pg.query(q, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db);
+  const db = await testDb();
   const graph = mitDelete(graphAttrappe({}));
   const pid = await patientAnlegen(db, t, { vorname: 'Erika', nachname: 'Muster' }, 'l');
   const tid = await terminAnlegen(db, pid, { datum: '2026-11-03', zeit: '09:30', dauerMin: 30 }, 'l');
@@ -49,9 +46,7 @@ test('Kalender: Termin wird mit Initialen, Kategorie und Ortszeit gespiegelt; Ab
 });
 
 test('Testtermine: drei Patienten mit 12er-Rezept, zwölf Termine in den nächsten Wochen, mehrere pro Tag; Abgleich spiegelt alle künftigen', async () => {
-  const pg = new PGlite();
-  const db = { query: (q, v) => pg.query(q, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db);
+  const db = await testDb();
   await testdatenAnlegen(db, t, { adresse: 'shopping@2late.de', wer: 'test' });
   const z = await testtermineAnlegen(db, t, { adresse: 'shopping@2late.de', wer: 'test' });
   assert.deepEqual([z.patienten, z.termine], [3, 36]);
@@ -79,9 +74,7 @@ test('Ortszeit → UTC auch an den Tagen der Zeitumstellung', () => {
 });
 
 test('Erweiterte Testdaten: zwei Preislisten aus der GKV-Liste, sechs Patienten mit drei Adressen, Rezepte 6/12 mit Entwürfen, alle Phasen und Rechnungsstatus', async () => {
-  const pg = new PGlite();
-  const db = { query: (q, v) => pg.query(q, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db);
+  const db = await testDb();
   // GKV- und Beihilfe-Fassung wie in den Preislisten-Tests
   const GKV = `Lesefassung gültig ab 01.01.2026\n${[['X0501', 'Allgemeine Krankengymnastik (KG)', '29,63'], ['X1201', 'Manuelle Therapie', '35,59'], ['X0201', 'Manuelle Lymphdrainage MLD - 45 Minuten', '53,94'], ['X0106', 'Klassische Massagetherapie (KMT)', '21,63'], ['X9701', 'Übermittlungsgebühr', '1,40']].map(([n, b, p]) => `${n} ${b}\n(Regelbehandlungszeit 15 bis 25 Minuten) ${p} 2,00`).join('\n')}${Array.from({ length: 20 }, (_, i) => `\nX06${String(i).padStart(2, '0')} Leistung ${i} (KG)\n(Regelbehandlungszeit 15 bis 25 Minuten) ${20 + i},00 2,00`).join('')}`;
   const BH = `<table>${Array.from({ length: 25 }, (_, i) => `<tr><td>${i + 1}</td><td>Leistung ${i} (KG), Richtwert: 15 bis 25 Minuten</td><td>${19 + i},00</td></tr>`).join('')}</table>`;

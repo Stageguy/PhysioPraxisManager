@@ -10,6 +10,7 @@
  * storniert jederzeit mit Grund. Was Lexware meldet (storniert, anderer Betrag), steht als Abweichung an der Rechnung.
  */
 import { protokolliere, type Db } from '../db/index.ts';
+import { betrag, rund, tag } from '../db/werte.ts';
 import type { Tresor } from '../tresor.ts';
 import { kleinunternehmer, textbausteine, type Textbaustein } from './konfiguration.ts';
 import { KarteiFehler } from './patienten.ts';
@@ -75,9 +76,6 @@ export interface Rechnung {
   bausteine: Baustein[];
 }
 
-const tag = (v: unknown) => (v === null || v === undefined ? null : typeof v === 'string' ? v.slice(0, 10) : new Date(v as Date).toISOString().slice(0, 10));
-const zahl = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
-const rund = (n: number) => Math.round(n * 100) / 100;
 
 // ── Lesen ───────────────────────────────────────────────────────────────────
 
@@ -92,7 +90,7 @@ export async function rechnungLesen(db: Db, patientId: string, id: string): Prom
     'SELECT id::text, reihenfolge, datum, nummer, bezeichnung, anzahl, einzelpreis, betrag, verordnung_id::text AS vid, termin_id::text AS tid, behandlung_leistung_id::text AS blid FROM rechnung_position WHERE rechnung_id = $1 ORDER BY reihenfolge, id', [id],
   )).rows.map((p) => ({
     id: String(p.id), reihenfolge: Number(p.reihenfolge), datum: tag(p.datum), nummer: (p.nummer as string | null) ?? null, bezeichnung: String(p.bezeichnung), anzahl: Number(p.anzahl),
-    einzelpreis: zahl(p.einzelpreis), betrag: zahl(p.betrag), verordnungId: (p.vid as string | null) ?? null, terminId: (p.tid as string | null) ?? null, behandlungLeistungId: (p.blid as string | null) ?? null,
+    einzelpreis: betrag(p.einzelpreis), betrag: betrag(p.betrag), verordnungId: (p.vid as string | null) ?? null, terminId: (p.tid as string | null) ?? null, behandlungLeistungId: (p.blid as string | null) ?? null,
   }));
   const bausteine = (await db.query<Record<string, unknown>>('SELECT id::text, code, kurzname, text, wirkung FROM rechnung_textbaustein WHERE rechnung_id = $1 ORDER BY reihenfolge, id', [id])).rows
     .map((b) => ({ id: String(b.id), code: (b.code as string | null) ?? null, kurzname: String(b.kurzname), text: String(b.text), wirkung: String(b.wirkung) }));
@@ -100,7 +98,7 @@ export async function rechnungLesen(db: Db, patientId: string, id: string): Prom
     id: String(r.id_text), patientId: String(r.pid), fallId: (r.fid as string | null) ?? null, verordnungId: (r.vid as string | null) ?? null, art: String(r.art),
     steuerklasse: r.steuerklasse as Rechnung['steuerklasse'], status: r.status as RechnungStatus, empfaenger: (r.empfaenger as Rechnung['empfaenger']) ?? { name: '' },
     preisliste: r.plid ? { id: String(r.plid), name: String(r.preisliste_name) } : null, zeitraumVon: tag(r.zeitraum_von), zeitraumBis: tag(r.zeitraum_bis), datum: tag(r.datum), faelligAm: tag(r.faellig_am),
-    nummer: (r.nummer as string | null) ?? null, netto: zahl(r.netto), ust: zahl(r.ust), ustSatz: zahl(r.ust_satz), betrag: zahl(r.betrag), kleinunternehmer: Boolean(r.kleinunternehmer),
+    nummer: (r.nummer as string | null) ?? null, netto: betrag(r.netto), ust: betrag(r.ust), ustSatz: betrag(r.ust_satz), betrag: betrag(r.betrag), kleinunternehmer: Boolean(r.kleinunternehmer),
     versandArt: (r.versand_art as string | null) ?? null, versendetAm: tag(r.versendet_am), bezahltAm: tag(r.bezahlt_am), storniertAm: tag(r.storniert_am), stornoGrund: (r.storno_grund as string | null) ?? null,
     lexware: { invoiceId: (r.lexware_invoice_id as string | null) ?? null, status: (r.lexware_status as string | null) ?? null, betrag: r.lexware_betrag == null ? null : Number(r.lexware_betrag), geprueftAm: r.lexware_geprueft_am ? new Date(r.lexware_geprueft_am as string).toISOString() : null, abweichung: (r.lexware_abweichung as string | null) ?? null, pdfAm: r.lexware_pdf_am ? new Date(r.lexware_pdf_am as string).toISOString() : null },
     notiz: (r.notiz as string | null) ?? null, erstelltAm: new Date(r.erstellt_am as string).toISOString(), positionen, bausteine,

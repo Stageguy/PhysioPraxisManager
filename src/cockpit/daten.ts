@@ -7,9 +7,11 @@
  * Patientennamen: Kalendertitel werden standardmäßig nur als Initialen gezeigt (Diskret-Modus).
  */
 import type { Db } from '../db/index.ts';
+import { zeitText } from '../format.ts';
 import type { GraphClient } from '../graph.ts';
+import { termineZeitraum, type TerminKalender } from '../kartei/patienten.ts';
 import { kalenderBasis } from '../umgebung.ts';
-import { berlinMitternachtUtc, datumBerlin, OUTLOOK_ZONE } from '../zeit.ts';
+import { berlinMitternachtUtc, datumBerlin, OUTLOOK_ZONE, tagPlus } from '../zeit.ts';
 
 export type Quelle<T> = { stand: 'ok'; daten: T } | { stand: 'nicht-verbunden'; hinweis: string } | { stand: 'fehler'; hinweis: string };
 
@@ -109,30 +111,15 @@ export function initialen(titel: string): string {
   return w.length ? w.map((x) => `${x[0]!.toUpperCase()}.`).join(' ') : 'Termin';
 }
 
-const naechsterTag = (tag: string): string => {
-  const [j, m, t] = tag.split('-').map(Number);
-  return new Date(Date.UTC(j!, m! - 1, t! + 1)).toISOString().slice(0, 10);
-};
-
-/** Termine der Kartei an diesem Tag, nach Kalender-Ereignis-ID – für Klarnamen und Links im Cockpit */
-async function karteiTermine(db: Db | undefined, von: string, bis: string): Promise<{ id: string; exchangeId: string | null; patientId: string; vorname: string; nachname: string; beginn: string; ende: string; leistung: string | null; rezept: boolean }[]> {
+/** Termine der Kartei in diesem Zeitraum (gleiche Abfrage wie die Kalenderseite) – für Klarnamen, Links und Kürzel; ohne Kartei leer */
+async function karteiTermine(db: Db | undefined, von: string, bis: string): Promise<TerminKalender[]> {
   if (!db) return [];
   try {
-    const { rows } = await db.query<Record<string, unknown>>(
-      `SELECT t.id::text, t.exchange_event_id, t.patient_id::text, p.vorname, p.nachname, t.beginn, t.ende, (t.verordnung_id IS NOT NULL) AS rezept,
-         coalesce(
-         (SELECT pp.kuerzel FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.aktiv AND pp.nummer = coalesce(t.leistung_nummer, v.leistung_nummer) LIMIT 1),
-         v.massnahme, w.code, CASE f.grundlage WHEN 'direktzugang' THEN 'Direktzugang' WHEN 'praevention' THEN 'Wellness' END) AS leistung
-       FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN verordnung v ON v.id = t.verordnung_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN wellness_leistung w ON w.id = f.wellness_leistung_id
-       WHERE t.beginn < $2 AND t.ende > $1 AND t.status IN ('vorgeschlagen', 'bestaetigt', 'erledigt') ORDER BY t.beginn`, [von, bis],
-    );
-    return rows.map((r) => ({ id: String(r.id), exchangeId: (r.exchange_event_id as string | null) ?? null, patientId: String(r.patient_id), vorname: String(r.vorname), nachname: String(r.nachname), beginn: new Date(r.beginn as string).toISOString(), ende: new Date(r.ende as string).toISOString(), leistung: (r.leistung as string | null) ?? null, rezept: Boolean(r.rezept) }));
+    return (await termineZeitraum(db, von, bis)).filter((t) => ['vorgeschlagen', 'bestaetigt', 'erledigt'].includes(t.status));
   } catch {
     return [];
   }
 }
-
-const uhrzeit = (iso: string) => new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 
 export async function termineHeute(
   graph: Pick<GraphClient, 'paginate' | 'get' | 'post'> | undefined,
@@ -141,12 +128,12 @@ export async function termineHeute(
   db?: Db,
 ): Promise<Quelle<Termin[]>> {
   const von = berlinMitternachtUtc(heute);
-  const bis = berlinMitternachtUtc(naechsterTag(heute));
+  const bis = berlinMitternachtUtc(tagPlus(heute, 1));
   const kartei = await karteiTermine(db, von, bis);
   const name = (k: { vorname: string; nachname: string }) => (namenZeigen ? `${k.vorname} ${k.nachname}` : `${k.vorname[0]!.toUpperCase()}. ${k.nachname[0]!.toUpperCase()}.`);
   if (!graph) {
     if (!kartei.length) return { stand: 'nicht-verbunden', hinweis: 'Keine Verbindung zum Kalender.' };
-    return { stand: 'ok', daten: kartei.map((k) => ({ beginn: uhrzeit(k.beginn), ende: uhrzeit(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept })) };
+    return { stand: 'ok', daten: kartei.map((k) => ({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept })) };
   }
   try {
     const termine: Termin[] = [];
@@ -163,7 +150,7 @@ export async function termineHeute(
       if (e.isCancelled) continue;
       const titel = e.subject?.trim() || 'Termin';
       // Termin aus der Kartei? Dann Klarname (auf Wunsch) und Link statt des Kalendertitels
-      const k = kartei.find((x) => x.exchangeId === e.id);
+      const k = kartei.find((x) => x.exchangeEventId === e.id);
       if (k) gesehen.add(k.id);
       termine.push({
         beginn: e.start.dateTime.slice(11, 16),
@@ -176,7 +163,7 @@ export async function termineHeute(
     }
     // Kartei-Termine, die (noch) nicht im Kalender stehen, trotzdem zeigen
     for (const k of kartei.filter((x) => !gesehen.has(x.id))) {
-      termine.push({ beginn: uhrzeit(k.beginn), ende: uhrzeit(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept });
+      termine.push({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept });
     }
     termine.sort((a, b) => a.beginn.localeCompare(b.beginn));
     return { stand: 'ok', daten: termine };

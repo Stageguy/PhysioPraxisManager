@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { before, after, test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
-import { migriere, type Db } from '../src/db/index.ts';
+import type { Db } from '../src/db/index.ts';
 import { preislistenDienst } from '../src/preise/dienst.ts';
 import { praxisDienst } from '../src/server.ts';
+import { testDb } from './testdb.ts';
 
 const GKV = `Lesefassung gültig ab 01.01.2026\n${Array.from({ length: 25 }, (_, i) => `X05${String(i).padStart(2, '0')} Leistung ${i} (KG)\n(Regelbehandlungszeit 15 bis 25 Minuten) ${20 + i},00 2,00`).join('\n')}`;
 const BH = `<table>${Array.from({ length: 25 }, (_, i) => `<tr><td>${i + 1}</td><td>Leistung ${i} (KG), Richtwert: 15 bis 25 Minuten</td><td>${19 + i},00</td></tr>`).join('')}</table>`;
@@ -25,9 +25,7 @@ const ziel = (r: Response) => decodeURIComponent(r.headers.get('location') ?? ''
 const seite = async (pfad: string) => (await fetch(`${basis}${pfad}`, { headers: wer })).text();
 
 before(async () => {
-  const pg = new PGlite();
-  db = { query: (t, v) => pg.query(t, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db);
+  db = await testDb();
   server = praxisDienst({ erlaubt: ['lilli@example.org'], fassung: 't', angemeldet: async () => true, pruefen: async () => [],
     preislisten: preislistenDienst({ db, holen, textAus: async () => GKV }) });
   await new Promise<void>((f) => server.listen(0, '127.0.0.1', f));

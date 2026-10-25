@@ -10,6 +10,7 @@
  * Empfehlungen aus der GebüTh, einmal von Hand erfasst.
  */
 import { protokolliere, type Db } from '../db/index.ts';
+import { iso, zahl } from '../db/werte.ts';
 import { beihilfeZuordnen, aehnlichkeit, type QuellPosition } from './leser.ts';
 
 export class PreislisteFehler extends Error {}
@@ -65,8 +66,6 @@ export interface Position {
   notiz: string | null;
 }
 
-const zahlOder = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-const iso = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string).toISOString());
 export const rund2 = (n: number) => Math.round(n * 100) / 100;
 /** Eigener Preis: auf Cent – oder mit „Aufrunden“ auf den nächsten vollen Euro (39,01 → 40,00) */
 export const preisRunden = (n: number, aufrunden: boolean) => (aufrunden ? Math.ceil(rund2(n) - 1e-9) : rund2(n));
@@ -98,7 +97,7 @@ function zuListe(r: Record<string, unknown>): Preisliste {
     id: String(r.id), name: String(r.name), status: r.status as Status, aktiv: Boolean(r.aktiv), genutzt: Boolean(r.genutzt),
     erstelltAm: iso(r.erstellt_am)!, erstelltVon: (r.erstellt_von as string) ?? null,
     freigegebenAm: iso(r.freigegeben_am), freigegebenVon: (r.freigegeben_von as string) ?? null, archiviertAm: iso(r.archiviert_am),
-    standardFaktor: zahlOder(r.standard_faktor), aufrunden: Boolean(r.aufrunden), notiz: (r.notiz as string) ?? null,
+    standardFaktor: zahl(r.standard_faktor), aufrunden: Boolean(r.aufrunden), notiz: (r.notiz as string) ?? null,
     gkv: quelleAus(r.gkv_quelle), beihilfe: quelleAus(r.beihilfe_quelle), basis: jsonAus(r.basis), vorlage: jsonAus(r.vorlage),
     positionen: Number(r.positionen), uebernommen: Number(r.uebernommen),
   };
@@ -126,8 +125,8 @@ export async function positionen(db: Db, listeId: string): Promise<Position[]> {
   return rows.map((r: Record<string, unknown>) => ({
     id: String(r.id), reihenfolge: Number(r.reihenfolge), nummer: String(r.nummer), kuerzel: (r.kuerzel as string) ?? null,
     gruppe: (r.gruppe as string) ?? null, bezeichnung: String(r.bezeichnung), regelzeit: (r.regelzeit as string) ?? null,
-    gkvPreis: zahlOder(r.gkv_preis), beihilfeHoechstbetrag: zahlOder(r.beihilfe_hoechstbetrag), beihilfeNummer: (r.beihilfe_nummer as string) ?? null,
-    uebernehmen: Boolean(r.uebernehmen), faktor: zahlOder(r.faktor), eigenerPreis: zahlOder(r.eigener_preis), notiz: (r.notiz as string) ?? null,
+    gkvPreis: zahl(r.gkv_preis), beihilfeHoechstbetrag: zahl(r.beihilfe_hoechstbetrag), beihilfeNummer: (r.beihilfe_nummer as string) ?? null,
+    uebernehmen: Boolean(r.uebernehmen), faktor: zahl(r.faktor), eigenerPreis: zahl(r.eigener_preis), notiz: (r.notiz as string) ?? null,
   }));
 }
 
@@ -153,7 +152,7 @@ export async function vorlagen(db: Db): Promise<Vorlage[]> {
   // Zuletzt geändertes Muster zuerst – es ist bei „Neu“ vorgewählt
   const { rows } = await db.query<Record<string, unknown>>('SELECT id::text, name, standard_faktor::text, aufrunden, positionen, notiz FROM preisvorlage ORDER BY geaendert_am DESC, name');
   return rows.map((r) => ({
-    id: String(r.id), name: String(r.name), standardFaktor: zahlOder(r.standard_faktor), aufrunden: Boolean(r.aufrunden),
+    id: String(r.id), name: String(r.name), standardFaktor: zahl(r.standard_faktor), aufrunden: Boolean(r.aufrunden),
     positionen: (typeof r.positionen === 'string' ? JSON.parse(r.positionen) : r.positionen) as Vorlage['positionen'], notiz: (r.notiz as string) ?? null,
   }));
 }

@@ -7,6 +7,7 @@
  * Jedes Öffnen einer Akte landet im Protokoll (audit_event), ohne Inhalte.
  */
 import { protokolliere, type Db } from '../db/index.ts';
+import { iso, istId, tag, text, zahl } from '../db/werte.ts';
 import type { Tresor } from '../tresor.ts';
 import { berlinZeitUtc } from '../zeit.ts';
 import { phaseVorruecken, type Phase } from './pinnwand.ts';
@@ -223,11 +224,6 @@ export interface Fall {
   behandlungen: Behandlung[];
 }
 
-const tag = (v: unknown) => (v === null || v === undefined ? null : typeof v === 'string' ? v.slice(0, 10) : new Date(v as Date).toISOString().slice(0, 10));
-const iso = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string).toISOString());
-const zahl = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-const text = (v: unknown) => (v === null || v === undefined || v === '' ? null : String(v).trim() || null);
-const istId = (s: string) => /^\d+$/.test(s);
 
 // ── Normierung der Kontaktwege ───────────────────────────────────────────────
 
@@ -902,20 +898,26 @@ export interface TerminKalender {
   status: string;
   rezept: boolean;
   imKalender: boolean;
+  exchangeEventId: string | null;
+  /** Kurzbezeichnung der Behandlung (W86): Kürzel der aktiven Preisliste, sonst Maßnahme bzw. Wellness-Kürzel */
   leistung: string | null;
 }
 
+/** Kurzbezeichnung der Behandlung je Termin – die Alias t (Termin), v (Rezept), f (Fall), w (Wellness-Leistung) liefert TERMIN_VERKNUEPFUNG_SQL */
+export const LEISTUNG_SQL = `coalesce(
+  (SELECT pp.kuerzel FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.aktiv AND pp.nummer = coalesce(t.leistung_nummer, v.leistung_nummer) LIMIT 1),
+  v.massnahme, w.code, CASE f.grundlage WHEN 'direktzugang' THEN 'Direktzugang' WHEN 'praevention' THEN 'Wellness' END)`;
+const TERMIN_VERKNUEPFUNG_SQL = 'FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN verordnung v ON v.id = t.verordnung_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN wellness_leistung w ON w.id = f.wellness_leistung_id';
+
 export async function termineZeitraum(db: Db, vonIso: string, bisIso: string): Promise<TerminKalender[]> {
   const { rows } = await db.query<Record<string, unknown>>(
-    `SELECT t.id::text, t.patient_id::text, p.vorname, p.nachname, p.patientennummer, t.beginn, t.ende, t.art::text, t.status::text, (t.verordnung_id IS NOT NULL) AS rezept, (t.exchange_event_id IS NOT NULL) AS im_kalender,
-       coalesce(
-         (SELECT pp.kuerzel FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.aktiv AND pp.nummer = coalesce(t.leistung_nummer, v.leistung_nummer) LIMIT 1),
-         v.massnahme, w.code, CASE f.grundlage WHEN 'direktzugang' THEN 'Direktzugang' WHEN 'praevention' THEN 'Wellness' END) AS leistung
-     FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN verordnung v ON v.id = t.verordnung_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN wellness_leistung w ON w.id = f.wellness_leistung_id
+    `SELECT t.id::text, t.patient_id::text, p.vorname, p.nachname, p.patientennummer, t.beginn, t.ende, t.art::text, t.status::text, (t.verordnung_id IS NOT NULL) AS rezept, t.exchange_event_id,
+       ${LEISTUNG_SQL} AS leistung
+     ${TERMIN_VERKNUEPFUNG_SQL}
      WHERE t.beginn < $2 AND t.ende > $1 AND t.status NOT IN ('abgesagt_patient', 'abgesagt_praxis', 'verschoben') ORDER BY t.beginn`, [vonIso, bisIso],
   );
   return rows.map((r) => ({
     id: String(r.id), patientId: String(r.patient_id), vorname: String(r.vorname), nachname: String(r.nachname), patientennummer: String(r.patientennummer),
-    beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), rezept: Boolean(r.rezept), imKalender: Boolean(r.im_kalender), leistung: text(r.leistung),
+    beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), rezept: Boolean(r.rezept), imKalender: r.exchange_event_id !== null, exchangeEventId: text(r.exchange_event_id), leistung: text(r.leistung),
   }));
 }

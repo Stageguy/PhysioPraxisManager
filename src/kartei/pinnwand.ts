@@ -7,6 +7,7 @@
  * Wellness-Serien (Prävention) überspringen Anamnese, Befund und Abschluss (Prompt 12, Fall c).
  */
 import { protokolliere, type Db } from '../db/index.ts';
+import { istId, tag } from '../db/werte.ts';
 import type { Tresor } from '../tresor.ts';
 import { KarteiFehler } from './patienten.ts';
 
@@ -47,8 +48,6 @@ export interface Spalte {
   karten: Karte[];
 }
 
-const tag = (v: unknown) => (v === null || v === undefined ? null : typeof v === 'string' ? v.slice(0, 10) : new Date(v as Date).toISOString().slice(0, 10));
-const istId = (s: string) => /^\d+$/.test(s);
 
 const KARTEN_SQL = `
   SELECT f.id::text AS fall_id, f.patient_id::text, p.vorname || ' ' || p.nachname AS patient_name, p.patientennummer, f.nummer, f.grundlage::text, f.phase::text, f.bezeichnung,

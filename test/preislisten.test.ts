@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
-import { migriere, type Db } from '../src/db/index.ts';
+import type { Db } from '../src/db/index.ts';
 import { beihilfeLesen, beihilfeZuordnen, gebuethAuflage, gkvLesen, gkvLinkFinden } from '../src/preise/leser.ts';
 import {
   aktivSetzen, alsVorlage, anlegen, archivieren, beihilfeSetzen, freigeben, listen, loeschen, musterAbweichung, musterHakenUebernehmen,
   positionDetail, positionen, PreislisteFehler, preisliste, preisRunden, speichern, wiederherstellen,
 } from '../src/preise/preislisten.ts';
 import { allePruefen, alsGesehen, neueQuellen } from '../src/preise/quellen.ts';
+import { testDb } from './testdb.ts';
 
 // ── Kleine, nachgebaute Ausschnitte der echten Quellen ──────────────────────
 const GKV_TEXT = `Anlage 2: Vergütungsvereinbarung
@@ -86,9 +86,7 @@ const holen = (aufrufe: string[] = []) => async (url: string) => {
 const textAus = async () => GKV_TEXT.replace(/\nB\. Abrechnung[\s\S]*$/, '').concat(Array.from({ length: 20 }, (_, i) => `\nX03${String(i).padStart(2, '0')} Platzhalter ${i}\n(Regelbehandlungszeit 10 Minuten) 1,00 0,10`).join(''));
 
 beforeEach(async () => {
-  const pg = new PGlite();
-  db = { query: (t, v) => pg.query(t, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db);
+  db = await testDb();
 });
 
 test('Quellen prüfen: neue Fassungen samt Original speichern, roter Punkt bis „gesehen“, keine Dublette', async () => {

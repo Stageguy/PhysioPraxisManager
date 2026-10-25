@@ -6,6 +6,7 @@
 import type { Quelle, Rechnungsstand } from '../cockpit/daten.ts';
 import { STAENDE, type Auswertung, type Filter, type Rechnung } from '../rechnungen/dashboard.ts';
 import { esc, seite } from './layout.ts';
+import { datumText, euroText } from '../format.ts';
 import { symbol } from './symbole.ts';
 
 export interface KachelRechnung extends Rechnung {
@@ -22,9 +23,6 @@ export interface DashboardDaten {
   filter: Filter;
 }
 
-const euro = (n: number | null) => (n === null ? '–' : n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }));
-const datum = (iso: string | null) =>
-  iso ? new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso)) : '–';
 const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
 const STATUS: Record<string, [string, string]> = {
@@ -55,15 +53,15 @@ function privatForm(r: Rechnung, zurueck: string): string {
 /** Klein unter dem Brutto: Netto und Steuer – oder ehrlich, dass sie nicht sicher erkannt sind */
 const nettoZeile = (r: Rechnung) =>
   r.betrag === null ? '' : r.netto !== null && r.ust !== null
-    ? `<span class="rk-netto" data-hilfe="rechnungen.netto">netto ${euro(r.netto)} · USt ${euro(r.ust)}${r.ustSatz ? ` (${esc(r.ustSatz)})` : ''}</span>`
+    ? `<span class="rk-netto" data-hilfe="rechnungen.netto">netto ${euroText(r.netto)} · USt ${euroText(r.ust)}${r.ustSatz ? ` (${esc(r.ustSatz)})` : ''}</span>`
     : '<span class="rk-netto" data-hilfe="rechnungen.netto">netto / USt nicht sicher erkannt</span>';
 
 function kachel(r: KachelRechnung): string {
   return `<article class="rk${r.zurueckgestellt ? ' spaeter' : ''}" data-hilfe="rechnungen.kachel">
     <a class="rk-link" href="/finanzen/rechnungen/${r.id}">
       <span class="rk-kopf">${symbol('rechnung', { groesse: 20 })}<b class="rk-datei">${esc(r.dateiname ?? 'Rechnung.pdf')}</b></span>
-      <span class="rk-zeile"><span>${esc(r.lieferant ?? 'ohne Lieferant')}</span><span class="rk-betrag"><b>${euro(r.betrag)}</b>${nettoZeile(r)}</span></span>
-      <span class="rk-meta">Eingang ${datum(r.eingang)} · von ${absender(r)}</span>
+      <span class="rk-zeile"><span>${esc(r.lieferant ?? 'ohne Lieferant')}</span><span class="rk-betrag"><b>${euroText(r.betrag)}</b>${nettoZeile(r)}</span></span>
+      <span class="rk-meta">Eingang ${datumText(r.eingang)} · von ${absender(r)}</span>
       ${r.zurueckgestellt ? '<span class="marke">zurückgestellt</span>' : ''}
     </a>
     <span class="rk-ort" data-hilfe="rechnungen.ort" tabindex="0">${symbol('email', { groesse: 16 })}<span>${r.ort === undefined ? 'Mail nicht mehr im Postfach' : `Liegt in: ${esc(r.ort)}`}</span></span>
@@ -90,9 +88,9 @@ function monatsSaeulen(a: Auswertung): string {
     const h = y1 - y(v);
     const form = v ? `<path d="M${mx - b / 2},${y1} v${-(h - 4 > 0 ? h - 4 : 0)} q0,-4 4,-4 h${b - 8} q4,0 4,4 v${h - 4 > 0 ? h - 4 : 0} z" class="marke-d"/>` : '';
     const etikett = v === max ? `<text x="${mx}" y="${y(v) - 6}" class="wert">${kompakt(v)} €</text>` : '';
-    return `<g class="ziel"><title>${MONATE[i]} ${a.jahr}: ${euro(v)}</title><rect x="${mx - band / 2}" y="${y0}" width="${band}" height="${y1 - y0}" class="treffer"/>${form}${etikett}<text x="${mx}" y="${y1 + 16}" class="achse">${MONATE[i]}</text></g>`;
+    return `<g class="ziel"><title>${MONATE[i]} ${a.jahr}: ${euroText(v)}</title><rect x="${mx - band / 2}" y="${y0}" width="${band}" height="${y1 - y0}" class="treffer"/>${form}${etikett}<text x="${mx}" y="${y1 + 16}" class="achse">${MONATE[i]}</text></g>`;
   });
-  return `<svg class="diagramm" viewBox="0 0 640 200" role="img" aria-label="Summe je Monat ${a.jahr}, höchster Monat ${euro(max)}">${raster.join('')}${saeulen.join('')}<line x1="${x0}" x2="${x1}" y1="${y1}" y2="${y1}" class="basis"/></svg>`;
+  return `<svg class="diagramm" viewBox="0 0 640 200" role="img" aria-label="Summe je Monat ${a.jahr}, höchster Monat ${euroText(max)}">${raster.join('')}${saeulen.join('')}<line x1="${x0}" x2="${x1}" y1="${y1}" y2="${y1}" class="basis"/></svg>`;
 }
 
 function schoeneSkala(max: number): number {
@@ -107,9 +105,9 @@ function lieferantenBalken(a: Auswertung): string {
   if (!a.lieferanten.length) return '<p class="leer">Noch keine Lieferanten mit Beträgen.</p>';
   const max = Math.max(...a.lieferanten.map((l) => l.summe));
   return `<ul class="balkenliste" aria-label="Summe je Lieferant ${a.jahr}">${a.lieferanten
-    .map((l) => `<li title="${esc(l.name)}: ${euro(l.summe)}"><span class="bl-name">${esc(l.name)}</span>
+    .map((l) => `<li title="${esc(l.name)}: ${euroText(l.summe)}"><span class="bl-name">${esc(l.name)}</span>
       <span class="bl-spur"><span class="bl-fuellung" style="width:${Math.max(1, (l.summe / max) * 100).toFixed(1)}%"></span></span>
-      <span class="bl-wert">${euro(l.summe)}</span></li>`).join('')}</ul>`;
+      <span class="bl-wert">${euroText(l.summe)}</span></li>`).join('')}</ul>`;
 }
 
 function filterForm(f: Filter, jahre: number[]): string {
@@ -139,9 +137,9 @@ export function dashboardSeite(d: DashboardDaten, o: { wer: string; fassung: str
   const a = d.auswertung;
   const tabelle = d.liste.length
     ? `<div class="tabelle"><table data-hilfe="rechnungen.tabelle"><thead><tr><th>Eingang</th><th>Datei</th><th>Lieferant · Absender</th><th>Nr.</th><th class="zahlspalte">Betrag</th><th>Stand</th><th></th></tr></thead><tbody>
-      ${d.liste.map((r) => `<tr><td>${datum(r.eingang)}</td><td><a href="/finanzen/rechnungen/${r.id}">${esc(r.dateiname ?? 'Rechnung.pdf')}</a></td>
+      ${d.liste.map((r) => `<tr><td>${datumText(r.eingang)}</td><td><a href="/finanzen/rechnungen/${r.id}">${esc(r.dateiname ?? 'Rechnung.pdf')}</a></td>
         <td>${esc(r.lieferant ?? '–')}<br><span class="hint">${esc(r.absenderAdresse ?? '')}</span></td><td>${esc(r.rechnungsnummer ?? '–')}</td>
-        <td class="zahlspalte">${euro(r.betrag)}</td><td>${statusChip(r.status)}</td>
+        <td class="zahlspalte">${euroText(r.betrag)}</td><td>${statusChip(r.status)}</td>
         <td>${r.onedriveWebUrl ? `<a href="/finanzen/rechnungen/${r.id}/onedrive" data-hilfe="rechnungen.onedrive" target="_blank" rel="noopener">OneDrive</a>` : ''}</td></tr>`).join('')}
       </tbody></table></div>`
     : `<p class="leer" data-hilfe="rechnungen.tabelle" tabindex="0">Keine Rechnungen für diese Auswahl.</p>`;
@@ -166,7 +164,7 @@ ${o.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groes
   ${filterForm(d.filter, a?.jahre ?? [])}
   ${a ? `<div class="diagramme">
     <div class="tafel" data-hilfe="rechnungen.diagramm.monate"><h3>Summe je Monat ${a.jahr}</h3>${monatsSaeulen(a)}
-      <p class="hint">Gesamt ${euro(a.summe)} – ohne privat und abgelehnt${a.ohneBetrag ? `; ${a.ohneBetrag} Rechnung(en) ohne Betrag` : ''}</p></div>
+      <p class="hint">Gesamt ${euroText(a.summe)} – ohne privat und abgelehnt${a.ohneBetrag ? `; ${a.ohneBetrag} Rechnung(en) ohne Betrag` : ''}</p></div>
     <div class="tafel" data-hilfe="rechnungen.diagramm.lieferanten"><h3>Summe je Lieferant ${a.jahr}</h3>${lieferantenBalken(a)}</div>
   </div>` : ''}
   <div class="tafel">${tabelle}</div>
@@ -199,11 +197,11 @@ ${o.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groes
     <div class="tafel">
       <dl class="liste-dl">
         <dt>Stand</dt><dd>${statusChip(r.status)}${r.zurueckgestellt && offen ? ' <span class="marke">zurückgestellt</span>' : ''}</dd>
-        <dt>Betrag</dt><dd><b>${euro(r.betrag)}</b> brutto${r.netto !== null && r.ust !== null ? `<br><span class="hint">netto ${euro(r.netto)} · USt ${euro(r.ust)}${r.ustSatz ? ` (${esc(r.ustSatz)})` : ''}</span>` : ''}</dd>
-        <dt>Eingang</dt><dd>${datum(r.eingang)}</dd>
+        <dt>Betrag</dt><dd><b>${euroText(r.betrag)}</b> brutto${r.netto !== null && r.ust !== null ? `<br><span class="hint">netto ${euroText(r.netto)} · USt ${euroText(r.ust)}${r.ustSatz ? ` (${esc(r.ustSatz)})` : ''}</span>` : ''}</dd>
+        <dt>Eingang</dt><dd>${datumText(r.eingang)}</dd>
         <dt>Von</dt><dd>${absender(r)}</dd>
         <dt>Mail</dt><dd data-hilfe="rechnung.ort" tabindex="0">${r.ort === undefined ? 'nicht mehr im Postfach' : esc(r.ort)}</dd>
-        ${r.geprueftVon ? `<dt>Geprüft</dt><dd>${esc(r.geprueftVon)}, ${datum(r.geprueftAm)}</dd>` : ''}
+        ${r.geprueftVon ? `<dt>Geprüft</dt><dd>${esc(r.geprueftVon)}, ${datumText(r.geprueftAm)}</dd>` : ''}
         ${r.ablehnungsgrund ? `<dt>Grund</dt><dd>${esc(r.ablehnungsgrund)}</dd>` : ''}
       </dl>
       <p class="links">

@@ -8,36 +8,20 @@ import type { AkteDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/die
 import { VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz } from '../kartei/patienten.ts';
 import { rezeptKachel, serieKachel, serienKnoepfe } from './rezepte.ts';
 import { esc, seite } from './layout.ts';
+import { datumText, datumZeitText, euroText, zeitText } from '../format.ts';
+import { heuteBerlin } from '../zeit.ts';
+import { karteiFormular as form, meldungen, type Rahmen } from './bausteine.ts';
 import { symbol, type Symbol } from './symbole.ts';
 
-const ZONE = 'Europe/Berlin';
-const datum = (iso: string | null | undefined) =>
-  iso ? new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso)) : '–';
-const zeit = (iso: string) => new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
-const datumZeit = (iso: string) => `${new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso))}, ${zeit(iso)}`;
-const euro = (n: number | null | undefined) => (n === null || n === undefined ? '–' : n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }));
-const heute = () => new Intl.DateTimeFormat('en-CA', { timeZone: ZONE }).format(new Date());
 
-const form = (aktion: string, inhalt: string, o: { id?: string; zurueck?: string; klasse?: string } = {}) =>
-  `<form method="post" action="/patienten/aktion" class="${o.klasse ?? 'inline'}"><input type="hidden" name="aktion" value="${aktion}">${o.id ? `<input type="hidden" name="id" value="${o.id}">` : ''}<input type="hidden" name="zurueck" value="${esc(o.zurueck ?? '/patienten')}">${inhalt}</form>`;
 
-const meldungen = (o: { meldung?: string; fehler?: string }) =>
-  `${o.meldung ? `<p class="meldung ok" role="status">${symbol('haken', { groesse: 18 })} ${esc(o.meldung)}</p>` : ''}${o.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groesse: 18 })} ${esc(o.fehler)}</p>` : ''}`;
 
-interface Rahmen {
-  wer: string;
-  fassung: string;
-  meldung?: string;
-  fehler?: string;
-  skriptInline?: string;
-}
 
 export const name = (p: Pick<PatientKurz, 'vorname' | 'nachname' | 'titel'>) => `${p.titel ? `${p.titel} ` : ''}${p.vorname} ${p.nachname}`;
 const KONTAKT_SYMBOL: Record<string, Symbol> = { mobil: 'telefon', telefon: 'telefon', whatsapp: 'whatsapp', email: 'email', sonstige: 'anfrage' };
 const KONTAKT_NAME: Record<string, string> = { mobil: 'Mobil', telefon: 'Telefon', whatsapp: 'WhatsApp', email: 'E-Mail', sonstige: 'Sonstiges' };
 const GRUNDLAGE: Record<string, string> = { verordnung: 'ärztliche Verordnung', direktzugang: 'Direktzugang (sektorale Heilpraktikererlaubnis)', praevention: 'Prävention / Wellness' };
 const TERMIN_STATUS: Record<string, string> = { vorgeschlagen: 'vorgeschlagen', bestaetigt: 'bestätigt', erledigt: 'erledigt', verschoben: 'verschoben', abgesagt_patient: 'abgesagt (Patient)', abgesagt_praxis: 'abgesagt (Praxis)', nicht_erschienen: 'nicht erschienen' };
-const RECHNUNG_STATUS: Record<string, [string, string]> = { entwurf: ['Entwurf', 'preset12'], freigegeben: ['freigegeben', 'preset3'], gesendet: ['offen', 'preset1'], bezahlt: ['bezahlt', 'preset19'], storniert: ['storniert', 'preset12'] };
 const VERLAUF_ART: Record<string, [Symbol, string]> = {
   anruf_ausgehend: ['telefon', 'Anruf'], anruf_eingehend: ['telefon', 'Anruf (eingehend)'], email: ['email', 'E-Mail'], whatsapp: ['whatsapp', 'WhatsApp'], sms: ['anfrage', 'SMS'],
   brief: ['brief', 'Brief'], persoenlich: ['patient', 'Persönlich'], notiz: ['protokoll', 'Notiz'],
@@ -70,10 +54,10 @@ function plusMenue(p: Pick<PatientKurz, 'id'>): string {
 /** Die Patientenkachel (W64) */
 export function kachel(p: PatientKurz, o: { kopf?: boolean } = {}): string {
   const termin = p.naechsterTermin
-    ? `<a href="/patienten/${p.id}#termine" data-hilfe="kachel.termin">${datumZeit(p.naechsterTermin.beginn)} <span class="marke${p.naechsterTermin.rezept ? ' jetzt' : ''}">${p.naechsterTermin.rezept ? 'Rezept' : 'Individual'}</span></a>`
+    ? `<a href="/patienten/${p.id}#termine" data-hilfe="kachel.termin">${datumZeitText(p.naechsterTermin.beginn, { jahr: true })} <span class="marke${p.naechsterTermin.rezept ? ' jetzt' : ''}">${p.naechsterTermin.rezept ? 'Rezept' : 'Individual'}</span></a>`
     : '<span class="hint">keiner geplant</span>';
   const behandlung = p.letzteBehandlung
-    ? `<a href="/patienten/${p.id}/akte#b-${p.letzteBehandlung.id}" data-hilfe="kachel.behandlung">${datum(p.letzteBehandlung.datum)} · Verlauf</a>`
+    ? `<a href="/patienten/${p.id}/akte#b-${p.letzteBehandlung.id}" data-hilfe="kachel.behandlung">${datumText(p.letzteBehandlung.datum)} · Verlauf</a>`
     : '<span class="hint">noch keine</span>';
   return `<article class="pat ${p.rechnungsstand}${o.kopf ? ' kopf' : ''}" data-hilfe="patienten.kachel" id="p-${p.id}">
     <header class="pat-kopf">
@@ -84,7 +68,7 @@ export function kachel(p: PatientKurz, o: { kopf?: boolean } = {}): string {
     ${p.ansprache || p.besonderheiten ? `<p class="pat-hinweise">${p.ansprache ? `<span class="marke">${esc(p.ansprache)}</span> ` : ''}${p.besonderheiten ? `<span class="marke warn-marke">${esc(p.besonderheiten)}</span>` : ''}</p>` : ''}
     <div class="pat-kontakte">${kontaktLink(p, p.telefon, 'telefon')}${kontaktLink(p, p.whatsapp, 'whatsapp', { klein: true })}${kontaktLink(p, p.email, 'email', { klein: true })}</div>
     <dl class="liste-dl klein">
-      <dt>Patient seit</dt><dd>${datum(p.patientSeit)}</dd>
+      <dt>Patient seit</dt><dd>${datumText(p.patientSeit)}</dd>
       <dt>Letzte Behandlung</dt><dd>${behandlung}</dd>
       <dt>Nächster Termin</dt><dd>${termin}</dd>
     </dl>
@@ -117,7 +101,7 @@ export function neuSeite(o: Rahmen): string {
   <input type="hidden" name="aktion" value="anlegen"><input type="hidden" name="zurueck" value="/patienten/neu">
   <div class="zwei"><label>Anrede<input name="anrede" maxlength="40" placeholder="Frau / Herr / –"></label><label>Titel<input name="titel" maxlength="40"></label></div>
   <div class="zwei"><label>Vorname<input name="vorname" required maxlength="80" autocomplete="off"></label><label>Nachname<input name="nachname" required maxlength="80" autocomplete="off"></label></div>
-  <div class="zwei"><label>Geburtsdatum<input type="date" name="geburtsdatum"></label><label>Patient seit<input type="date" name="patient_seit" value="${heute()}"></label></div>
+  <div class="zwei"><label>Geburtsdatum<input type="date" name="geburtsdatum"></label><label>Patient seit<input type="date" name="patient_seit" value="${heuteBerlin()}"></label></div>
   <fieldset><legend>Kontaktwege</legend>
     <label>Mobil<input name="mobil" inputmode="tel" placeholder="0151 …"></label>
     <label class="haken"><input type="checkbox" name="whatsapp_wie_mobil" value="1" checked> WhatsApp unter der Mobilnummer</label>
@@ -153,7 +137,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
   const offene = d.verlauf.filter((v) => v.offen);
   const gruende = (feld = 'grund') => d.gruende.map((g) => `<label class="wahl-chip"><input type="radio" name="${feld}" value="${esc(g.code)}" required> ${esc(g.bezeichnung)}</label>`).join('');
   const offenBox = offene.map((v) => `<div class="hinweis-muster" data-hilfe="verlauf.offen">
-    <p><b>${esc(VERLAUF_ART[v.art]?.[1] ?? v.art)} ${datumZeit(v.am)}</b>${v.kontakt ? ` · ${esc(v.kontakt.wert)}` : ''} – worum ging es?</p>
+    <p><b>${esc(VERLAUF_ART[v.art]?.[1] ?? v.art)} ${datumZeitText(v.am, { jahr: true })}</b>${v.kontakt ? ` · ${esc(v.kontakt.wert)}` : ''} – worum ging es?</p>
     ${form('verlauf_abschliessen', `<input type="hidden" name="eintrag_id" value="${v.id}"><div class="chips" data-hilfe="verlauf.grund">${gruende()}</div>
       <label class="notiz">Notiz (optional)<input name="notiz" maxlength="500"></label>
       <div class="knopfreihe"><button class="knopf primaer">Eintragen</button></div>`, { id: p.id, zurueck, klasse: 'formular' })}
@@ -161,7 +145,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
   </div>`).join('');
   const verlauf = d.verlauf.filter((v) => !v.offen).map((v) => {
     const [sym, text] = VERLAUF_ART[v.art] ?? ['protokoll', v.art];
-    return `<li><span class="kanal-sym">${symbol(sym, { groesse: 18 })}</span><span><b>${v.grund ? esc(v.grund.bezeichnung) : esc(text)}</b> <span class="hint">${esc(text)} · ${datumZeit(v.am)}${v.kontakt ? ` · ${esc(v.kontakt.wert)}` : ''}</span>${v.notiz ? `<br>${esc(v.notiz)}` : ''}</span></li>`;
+    return `<li><span class="kanal-sym">${symbol(sym, { groesse: 18 })}</span><span><b>${v.grund ? esc(v.grund.bezeichnung) : esc(text)}</b> <span class="hint">${esc(text)} · ${datumZeitText(v.am, { jahr: true })}${v.kontakt ? ` · ${esc(v.kontakt.wert)}` : ''}</span>${v.notiz ? `<br>${esc(v.notiz)}` : ''}</span></li>`;
   }).join('');
   const kontakte = p.kontakte.map((k) => `<li>
       <span class="kanal-sym">${symbol(KONTAKT_SYMBOL[k.art]!, { groesse: 18 })}</span>
@@ -170,19 +154,17 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
         ${form('kontakt_loeschen', `<input type="hidden" name="kontakt_id" value="${k.id}"><button class="knopf klein warnend" data-hilfe="kontakt.loeschen">entfernen</button>`, { id: p.id, zurueck })}</span>
     </li>`).join('');
   const termine = d.termine.map((t) => `<article class="tk ${t.verordnungId ? 'rezept' : ''}" data-hilfe="termine.kachel">
-    <b>${datumZeit(t.beginn)}</b><span class="hint">bis ${zeit(t.ende)} · ${esc(t.art)}</span>
+    <b>${datumZeitText(t.beginn, { jahr: true })}</b><span class="hint">bis ${zeitText(t.ende)} · ${esc(t.art)}</span>
     <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}</span>
     ${t.status === 'bestaetigt' || t.status === 'vorgeschlagen' ? form('termin_status', `<input type="hidden" name="termin_id" value="${t.id}"><select name="status" data-hilfe="termin.status" data-auto-senden><option value="">ändern …</option><option value="abgesagt_patient">abgesagt (Patient)</option><option value="abgesagt_praxis">abgesagt (Praxis)</option><option value="nicht_erschienen">nicht erschienen</option></select><button class="knopf klein nur-ohne-js">ok</button>`, { id: p.id, zurueck, klasse: 'tk-fuss' }) : ''}
   </article>`).join('');
   const rechnungen = d.rechnungen.map((r) => {
-    const [text, farbe] = RECHNUNG_STATUS[r.status] ?? [r.status, 'preset12'];
-    const verzug = r.status === 'gesendet' && r.faelligAm && r.faelligAm < heute();
+    const verzug = r.status === 'gesendet' && r.faelligAm && r.faelligAm < heuteBerlin();
     const ART: Record<string, string> = { einzel: 'Einzelrechnung', zwischenrechnung: 'Zwischenrechnung', abschlussrechnung: 'Abschlussrechnung', monat: 'Monatsrechnung', ausfall: 'Ausfallgebühr' };
-    void text; void farbe;
     return `<a class="rk-pat ${verzug ? (r.gemahnt ? 'rot' : 'gelb') : ''}" href="/patienten/${p.id}/rechnungen/${r.id}" data-hilfe="patient.rechnung">
       <header>${symbol('euro', { groesse: 18 })}<b>${esc(r.nummer ?? `${ART[r.art] ?? r.art} (Entwurf)`)}</b><span class="chip ${verzug ? (r.gemahnt ? 'preset0' : 'preset3') : r.statusFarbe}">${verzug ? (r.gemahnt ? 'gemahnt' : 'überfällig') : esc(r.statusText)}</span></header>
-      <span class="rk-pat-betrag">${euro(r.betrag)}</span>
-      <dl class="liste-dl klein"><dt>Gruppe</dt><dd>${r.steuerklasse === 'wellness_19' ? 'Wellness' : 'Heilbehandlung'} · ${r.positionen} Pos.</dd><dt>Datum</dt><dd>${r.datum ? datum(r.datum) : '–'}</dd>${r.faelligAm ? `<dt>Fällig</dt><dd>${datum(r.faelligAm)}</dd>` : ''}${r.versandArt ? `<dt>Versand</dt><dd>${{ email: 'per Mail', post: 'per Post', beides: 'Mail + Post' }[r.versandArt] ?? r.versandArt}</dd>` : ''}</dl>
+      <span class="rk-pat-betrag">${euroText(r.betrag)}</span>
+      <dl class="liste-dl klein"><dt>Gruppe</dt><dd>${r.steuerklasse === 'wellness_19' ? 'Wellness' : 'Heilbehandlung'} · ${r.positionen} Pos.</dd><dt>Datum</dt><dd>${r.datum ? datumText(r.datum) : '–'}</dd>${r.faelligAm ? `<dt>Fällig</dt><dd>${datumText(r.faelligAm)}</dd>` : ''}${r.versandArt ? `<dt>Versand</dt><dd>${{ email: 'per Mail', post: 'per Post', beides: 'Mail + Post' }[r.versandArt] ?? r.versandArt}</dd>` : ''}</dl>
       ${r.lexwareAbweichung ? `<span class="fk-warn">${symbol('warnung', { groesse: 14 })} ${esc(r.lexwareAbweichung)}</span>` : ''}${r.pdf ? `<span class="marke">${symbol('rechnung', { groesse: 12 })} PDF</span>` : ''}
     </a>`;
   }).join('');
@@ -275,9 +257,9 @@ export function akteSeite(d: AkteDaten, o: Rahmen): string {
     <h2>Fall ${f.nummer}${f.bezeichnung ? ` – ${esc(f.bezeichnung)}` : ''} <span class="chip ${f.abgeschlossenAm ? 'preset12' : 'preset4'}">${f.abgeschlossenAm ? 'abgeschlossen' : esc(f.phase)}</span></h2>
     <dl class="liste-dl klein"><dt>Grundlage</dt><dd>${esc(GRUNDLAGE[f.grundlage] ?? f.grundlage)} · ${f.steuerklasse === 'wellness_19' ? '19 % USt' : 'Heilbehandlung, steuerfrei'}</dd>
       ${f.anlass ? `<dt>Anlass</dt><dd>${esc(f.anlass)}</dd>` : ''}${f.diagnoseArzt ? `<dt>Diagnose (ärztlich)</dt><dd>${esc(f.diagnoseArzt)}</dd>` : ''}
-      <dt>Zeitraum</dt><dd>${datum(f.begonnenAm)} – ${f.abgeschlossenAm ? datum(f.abgeschlossenAm) : 'laufend'}</dd></dl>
+      <dt>Zeitraum</dt><dd>${datumText(f.begonnenAm)} – ${f.abgeschlossenAm ? datumText(f.abgeschlossenAm) : 'laufend'}</dd></dl>
     ${f.behandlungen.length ? `<ol class="behandlungen">${f.behandlungen.map((b) => `<li id="b-${b.id}" data-hilfe="akte.behandlung" tabindex="0">
-      <div class="b-kopf"><b>${datum(b.datum)}</b>${b.dauerMin ? ` · ${b.dauerMin} min` : ''} · ${esc(b.behandeltVon)}${b.status === 'ausgefallen' ? ' <span class="chip preset12">ausgefallen</span>' : ''}
+      <div class="b-kopf"><b>${datumText(b.datum)}</b>${b.dauerMin ? ` · ${b.dauerMin} min` : ''} · ${esc(b.behandeltVon)}${b.status === 'ausgefallen' ? ' <span class="chip preset12">ausgefallen</span>' : ''}
         ${b.leistungen.map((l) => `<span class="marke${l.verordnungId ? ' jetzt' : ''}">${esc(l.nummer)} ${esc(l.bezeichnung)}${l.verordnungId ? ' · Rezept ✓' : ''}</span>`).join(' ')}</div>
       <dl class="liste-dl klein">${b.massnahmen ? `<dt>Maßnahmen</dt><dd>${esc(b.massnahmen)}</dd>` : ''}${b.verlaufWirkung ? `<dt>Verlauf / Wirkung</dt><dd>${esc(b.verlaufWirkung)}</dd>` : ''}
         ${b.reaktionen ? `<dt>Reaktionen</dt><dd>${esc(b.reaktionen)}</dd>` : ''}${b.uebungen ? `<dt>Übungen / Empfehlungen</dt><dd>${esc(b.uebungen)}</dd>` : ''}</dl>
@@ -299,13 +281,13 @@ const kopfzeile = (p: Patient, titel: string, sym: Symbol) =>
 
 export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
   const p = d.patient;
-  const rezepte = d.verordnungen.map((v) => `<option value="${v.id}">${esc(v.massnahme)} – ${v.abgehakt} von ${v.anzahlVerordnet} (vom ${datum(v.ausgestelltAm)})</option>`).join('');
+  const rezepte = d.verordnungen.map((v) => `<option value="${v.id}">${esc(v.massnahme)} – ${v.abgehakt} von ${v.anzahlVerordnet} (vom ${datumText(v.ausgestelltAm)})</option>`).join('');
   return seite({
     titel: 'Neuer Termin', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: `${kopfzeile(p, 'Neuer Termin', 'kalender')}${meldungen(o)}
 <form method="post" action="/patienten/aktion" class="tafel formular" data-hilfe="termin.formular">
   <input type="hidden" name="aktion" value="termin_anlegen"><input type="hidden" name="id" value="${p.id}"><input type="hidden" name="zurueck" value="/patienten/${p.id}/neu/termin">
-  <div class="zwei"><label>Datum<input type="date" name="datum" required value="${heute()}"></label><label>Uhrzeit<input type="time" name="zeit" required step="300"></label></div>
+  <div class="zwei"><label>Datum<input type="date" name="datum" required value="${heuteBerlin()}"></label><label>Uhrzeit<input type="time" name="zeit" required step="300"></label></div>
   <div class="zwei"><label>Dauer (Minuten)<input type="number" name="dauer_min" value="30" min="5" step="5"></label>
     <label>Art<select name="art"><option value="behandlung">Behandlung</option><option value="erstgespraech">Erstgespräch</option><option value="sonstige">Sonstiges</option></select></label></div>
   <label>Rezept<select name="verordnung_id"><option value="">kein Rezept (Individualtermin)</option>${rezepte}</select></label>
@@ -319,9 +301,9 @@ export function behandlungNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
   const p = d.patient;
   const faelle = d.faelle.map((f) => `<option value="${f.id}">Fall ${f.nummer}${f.bezeichnung ? ` – ${esc(f.bezeichnung)}` : ''} (${esc(GRUNDLAGE[f.grundlage] ?? f.grundlage)})</option>`).join('');
   const rezepte = d.verordnungen.map((v) => `<option value="${v.id}">${esc(v.massnahme)} – ${v.abgehakt} von ${v.anzahlVerordnet}</option>`).join('');
-  const jetztTag = heute();
+  const jetztTag = heuteBerlin();
   const termine = d.termine.filter((t) => (t.status === 'bestaetigt' || t.status === 'vorgeschlagen') && t.beginn.slice(0, 10) <= `${jetztTag}T`).slice(0, 5)
-    .map((t) => `<option value="${t.id}">${datumZeit(t.beginn)}</option>`).join('');
+    .map((t) => `<option value="${t.id}">${datumZeitText(t.beginn, { jahr: true })}</option>`).join('');
   return seite({
     titel: 'Behandlung erfassen', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: `${kopfzeile(p, 'Behandlung erfassen', 'haken')}${meldungen(o)}
@@ -351,7 +333,7 @@ export function behandlungNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
 export function rezeptNeuSeite(d: NeuAktionDaten, o: Rahmen & { vorgaenger?: string }): string {
   const p = d.patient;
   const faelle = d.faelle.map((f) => `<option value="${f.id}">Fall ${f.nummer}${f.bezeichnung ? ` – ${esc(f.bezeichnung)}` : ''}</option>`).join('');
-  const vorgaenger = d.alleVerordnungen.filter((v) => v.status !== 'ersetzt').map((v) => `<option value="${v.id}"${v.id === o.vorgaenger ? ' selected' : ''}>${esc(v.massnahme)} vom ${datum(v.ausgestelltAm)} – ${v.abgehakt} von ${v.anzahlVerordnet} (${esc(v.status)})</option>`).join('');
+  const vorgaenger = d.alleVerordnungen.filter((v) => v.status !== 'ersetzt').map((v) => `<option value="${v.id}"${v.id === o.vorgaenger ? ' selected' : ''}>${esc(v.massnahme)} vom ${datumText(v.ausgestelltAm)} – ${v.abgehakt} von ${v.anzahlVerordnet} (${esc(v.status)})</option>`).join('');
   const arten = Object.entries(VERORDNUNG_ARTEN).map(([k, t]) => `<option value="${k}"${o.vorgaenger && k === 'folge_unveraendert' ? ' selected' : ''}>${esc(t)}</option>`).join('');
   return seite({
     titel: 'Neues Rezept', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
@@ -362,7 +344,7 @@ export function rezeptNeuSeite(d: NeuAktionDaten, o: Rahmen & { vorgaenger?: str
     <label>Vorheriges Rezept (bei Folge, Wiederaufnahme, Korrektur)<select name="vorgaenger_id" data-hilfe="rezept.vorgaenger"><option value="">keins</option>${vorgaenger}</select></label></div>
   <label class="haken"><input type="checkbox" name="langzeit" value="1" data-hilfe="rezept.langzeit"> Langzeitbehandlung (chronische oder länger anhaltende Problematik)</label>
   <p class="hint">Korrektur: ersetzt das gewählte Rezept, die bisherigen Haken zählen weiter – kein neues Kontingent. Zweitschrift: nicht hier, sondern auf der Rezept-Kachel unter „mehr …“ vermerken.</p>
-  <div class="zwei"><label>Ausgestellt am<input type="date" name="ausgestellt_am" required value="${heute()}"></label><label>Gültig bis<input type="date" name="gueltig_bis"></label></div>
+  <div class="zwei"><label>Ausgestellt am<input type="date" name="ausgestellt_am" required value="${heuteBerlin()}"></label><label>Gültig bis<input type="date" name="gueltig_bis"></label></div>
   <label>Verordnende Ärztin / Arzt<input name="arzt" maxlength="120" placeholder="Name, Praxis"></label>
   <div class="zwei"><label>Verordnete Maßnahme<input name="massnahme" required maxlength="120" placeholder="z. B. Manuelle Therapie"></label><label>Nr. in der Preisliste<input name="leistung_nummer" maxlength="12" placeholder="z. B. 21201"></label></div>
   <div class="zwei"><label>Anzahl Behandlungen<input type="number" name="anzahl" required min="1" max="99" value="6"></label><label>Frequenz<input name="frequenz" placeholder="z. B. 2× pro Woche" maxlength="40"></label></div>

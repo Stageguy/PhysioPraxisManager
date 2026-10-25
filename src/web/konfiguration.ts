@@ -4,19 +4,10 @@
  */
 import { AUTOMATISCH_TEXT, WIRKUNG_TEXT, type Textbaustein } from '../kartei/konfiguration.ts';
 import { esc, seite } from './layout.ts';
+import { karteiFormular, meldungen, type Rahmen } from './bausteine.ts';
 import { symbol } from './symbole.ts';
 
-interface Rahmen {
-  wer: string;
-  fassung: string;
-  meldung?: string;
-  fehler?: string;
-  skriptInline?: string;
-}
-const meldungen = (o: Rahmen) =>
-  `${o.meldung ? `<p class="meldung ok" role="status">${symbol('haken', { groesse: 18 })} ${esc(o.meldung)}</p>` : ''}${o.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groesse: 18 })} ${esc(o.fehler)}</p>` : ''}`;
-const form = (aktion: string, inhalt: string, klasse = 'inline') =>
-  `<form method="post" action="/patienten/aktion" class="${klasse}"><input type="hidden" name="aktion" value="${aktion}"><input type="hidden" name="zurueck" value="/konfiguration">${inhalt}</form>`;
+const form = (aktion: string, inhalt: string, klasse = 'inline') => karteiFormular(aktion, inhalt, { zurueck: '/konfiguration', klasse });
 
 const wahl = (name: string, werte: Record<string, string>, aktuell: string) =>
   `<select name="${name}">${Object.entries(werte).map(([k, t]) => `<option value="${k}"${k === aktuell ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;

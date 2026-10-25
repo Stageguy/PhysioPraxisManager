@@ -5,6 +5,8 @@
  * Export als CSV (für den Datenzugriff nach GoBD) und als PDF (für die Steuerberatung).
  */
 import type { Db } from '../db/index.ts';
+import { rund, tag } from '../db/werte.ts';
+import { datumText, preisText } from '../format.ts';
 
 export type Befreiung = '§ 4 Nr. 14 UStG' | '§ 19 UStG';
 
@@ -42,8 +44,6 @@ export interface SteuerListe {
 /** „Karin Zwölfer“ → „K**** Zwölfer“: Vorname nur mit dem ersten Buchstaben, Nachname ausgeschrieben */
 export const nameMaskieren = (vorname: string, nachname: string) => `${vorname.trim().slice(0, 1)}${'*'.repeat(Math.max(1, vorname.trim().length - 1))} ${nachname.trim()}`;
 
-const tag = (v: unknown) => (v === null || v === undefined ? null : typeof v === 'string' ? v.slice(0, 10) : new Date(v as Date).toISOString().slice(0, 10));
-const rund = (n: number) => Math.round(n * 100) / 100;
 
 export async function steuerfreieUmsaetze(db: Db, o: { jahr: number; maskiert: boolean }): Promise<SteuerListe> {
   const jahre = (await db.query<{ j: number }>("SELECT DISTINCT extract(year FROM datum)::int AS j FROM rechnung WHERE nummer IS NOT NULL AND datum IS NOT NULL ORDER BY 1 DESC")).rows.map((r) => Number(r.j));
@@ -75,8 +75,6 @@ export async function steuerfreieUmsaetze(db: Db, o: { jahr: number; maskiert: b
   };
 }
 
-const de = (n: number) => n.toFixed(2).replace('.', ',');
-const datumDe = (iso: string | null) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '');
 
 /** CSV mit Semikolon und UTF-8-BOM (Excel, DATEV, Prüfsoftware): eine Zeile je Position, Rechnungsdaten wiederholt */
 export function steuerCsv(l: SteuerListe): string {
@@ -86,7 +84,7 @@ export function steuerCsv(l: SteuerListe): string {
   for (const r of l.rechnungen) {
     const pos = r.positionen.length ? r.positionen : [{ datum: null, nummer: null, bezeichnung: '', anzahl: 0, einzelpreis: 0, betrag: 0 }];
     for (const p of pos) {
-      zeilen.push([r.nummer, datumDe(r.datum), r.status, r.befreiung, r.patientennummer, r.name, datumDe(p.datum), p.nummer, p.bezeichnung, p.anzahl, de(p.einzelpreis), de(p.betrag), de(r.betrag), datumDe(r.bezahltAm), datumDe(r.storniertAm)].map(z).join(';'));
+      zeilen.push([r.nummer, datumText(r.datum, ''), r.status, r.befreiung, r.patientennummer, r.name, datumText(p.datum, ''), p.nummer, p.bezeichnung, p.anzahl, preisText(p.einzelpreis), preisText(p.betrag), preisText(r.betrag), datumText(r.bezahltAm, ''), datumText(r.storniertAm, '')].map(z).join(';'));
     }
   }
   return `﻿${zeilen.join('\r\n')}\r\n`;
@@ -119,13 +117,13 @@ export function steuerPdf(l: SteuerListe, o: { praxis: string; erstellt: string 
   kopfzeile();
   for (const r of l.rechnungen) {
     const status = r.status === 'storniert' ? ' (storniert)' : '';
-    zeile([[40, r.nummer + status], [110, datumDe(r.datum)], [165, r.befreiung], [250, `${r.patientennummer} · ${r.name}`], [720, de(r.betrag)]], 9, true);
-    for (const p of r.positionen) zeile([[420, `${datumDe(p.datum)}  ${p.nummer ?? ''}  ${p.bezeichnung.slice(0, 48)}  ${p.anzahl} × ${de(p.einzelpreis)}`], [720, de(p.betrag)]], 8);
+    zeile([[40, r.nummer + status], [110, datumText(r.datum, '')], [165, r.befreiung], [250, `${r.patientennummer} · ${r.name}`], [720, preisText(r.betrag)]], 9, true);
+    for (const p of r.positionen) zeile([[420, `${datumText(p.datum, '')}  ${p.nummer ?? ''}  ${p.bezeichnung.slice(0, 48)}  ${p.anzahl} × ${preisText(p.einzelpreis)}`], [720, preisText(p.betrag)]], 8);
     y -= 3;
     if (y < 50) { neueSeite(); kopfzeile(); }
   }
   y -= 6;
-  zeile([[40, `Summe § 4 Nr. 14 UStG: ${de(l.summen.heilbehandlung)} €   Summe § 19 UStG: ${de(l.summen.kleinunternehmer)} €   Gesamt: ${de(l.summen.gesamt)} €   davon storniert (nicht gezählt): ${de(l.summen.storniert)} €`]], 9, true);
+  zeile([[40, `Summe § 4 Nr. 14 UStG: ${preisText(l.summen.heilbehandlung)} €   Summe § 19 UStG: ${preisText(l.summen.kleinunternehmer)} €   Gesamt: ${preisText(l.summen.gesamt)} €   davon storniert (nicht gezählt): ${preisText(l.summen.storniert)} €`]], 9, true);
   if (zeilen.length) seiten.push(zeilen);
 
   const objekte: string[] = [];

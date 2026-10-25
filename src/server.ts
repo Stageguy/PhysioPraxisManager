@@ -25,10 +25,11 @@ import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from './web/rechnung.ts';
 import { konfigurationSeite } from './web/konfiguration.ts';
-import { kalenderSeite, tagPlus, wocheUm } from './web/kalender.ts';
+import { kalenderSeite } from './web/kalender.ts';
 import { steuerSeite } from './web/steuer.ts';
 import { steuerCsv, steuerPdf } from './kartei/steuer.ts';
-import { berlinMitternachtUtc, datumBerlin } from './zeit.ts';
+import { datumText, zeitText } from './format.ts';
+import { berlinMitternachtUtc, heuteBerlin, tagPlus, wocheUm } from './zeit.ts';
 import { menueStand } from './web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from './web/preislisten.ts';
 import { dashboardSeite, PRAXIS_SKRIPT, rechnungSeite } from './web/rechnungen.ts';
@@ -120,6 +121,30 @@ function umleiten(res: ServerResponse, ziel: string): void {
   res.end();
 }
 
+/** Adresse um einen Abfrageparameter ergänzen – mit „?“ oder „&“, je nachdem, ob schon einer da ist */
+const mitParameter = (url: string, name: string, wert: string) => `${url}${url.includes('?') ? '&' : '?'}${name}=${encodeURIComponent(wert)}`;
+
+const FREMDE_HERKUNFT = 'Nur von den Seiten der Praxis-Assistenz';
+
+/** Aktion von einer fremden Seite? Dann ist 403 schon gesendet */
+function fremdeHerkunft(req: IncomingMessage, res: ServerResponse): boolean {
+  if (gleicheHerkunft(req)) return false;
+  senden(res, 403, 'text/plain', FREMDE_HERKUNFT);
+  return true;
+}
+
+/**
+ * Kopfzeilen für eine Datei (PDF, Bild, Original): zum Ansehen im eigenen Rahmen oder als Download.
+ * `sandbox` für fremde Inhalte (hochgeladene Originale, Screenshots) – nichts davon darf unter unserer Adresse Skripte ausführen.
+ */
+function dateiKopf(res: ServerResponse, typ: string, name: string, o: { inline?: boolean; sandbox?: boolean } = {}): void {
+  res.writeHead(200, {
+    'Content-Type': typ, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
+    'Content-Disposition': `${o.inline === false ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(name)}`,
+    ...(o.sandbox ? { 'Content-Security-Policy': "default-src 'none'; sandbox" } : { 'X-Frame-Options': 'SAMEORIGIN' }),
+  });
+}
+
 function senden(res: ServerResponse, status: number, typ: string, inhalt: string): void {
   res.writeHead(status, {
     'Content-Type': `${typ}; charset=utf-8`,
@@ -179,7 +204,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
         const daten: CockpitDaten = opt.cockpit
           ? await opt.cockpit({ namenZeigen })
           : { heute: new Date().toISOString().slice(0, 10), rechnungen: NICHT_VERBUNDEN, termine: NICHT_VERBUNDEN, protokoll: NICHT_VERBUNDEN, namenZeigen };
-        const jetzt = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }).format(new Date());
+        const jetzt = zeitText(new Date().toISOString());
         return senden(res, 200, 'text/html', cockpitSeite(daten, { wer, fassung: opt.fassung, jetzt }));
       }
       const meldung = MELDUNG[adresse.searchParams.get('ergebnis') ?? ''];
@@ -188,17 +213,17 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (st) {
         if (!opt.kartei) return senden(res, 503, 'text/plain', 'Die Liste braucht die Praxis-Datenbank');
         const jahrParam = Number(adresse.searchParams.get('jahr'));
-        const jahr = Number.isInteger(jahrParam) && jahrParam > 2000 ? jahrParam : Number(datumBerlin(new Date().toISOString()).slice(0, 4));
+        const jahr = Number.isInteger(jahrParam) && jahrParam > 2000 ? jahrParam : Number(heuteBerlin().slice(0, 4));
         // Erster Aufruf: maskiert. Formular: maskiert nur mit Haken. Exportlinks: namen=1 = ausgeschrieben
         const maskiert = adresse.searchParams.get('namen') === '1' ? false : adresse.searchParams.has('form') ? adresse.searchParams.has('maskiert') : true;
         const liste = await opt.kartei.steuer(jahr, maskiert);
         if (st[1] === '.csv') {
-          res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Disposition': `attachment; filename="steuerfreie-umsaetze-${jahr}.csv"` });
+          dateiKopf(res, 'text/csv; charset=utf-8', `steuerfreie-umsaetze-${jahr}.csv`, { inline: false });
           return void res.end(steuerCsv(liste));
         }
         if (st[1] === '.pdf') {
-          const pdf = steuerPdf(liste, { praxis: 'Praxis Lilli Nebel', erstellt: datumBerlin(new Date().toISOString()).split('-').reverse().join('.') });
-          res.writeHead(200, { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `inline; filename="steuerfreie-umsaetze-${jahr}.pdf"` });
+          const pdf = steuerPdf(liste, { praxis: 'Praxis Lilli Nebel', erstellt: datumText(heuteBerlin()) });
+          dateiKopf(res, 'application/pdf', `steuerfreie-umsaetze-${jahr}.pdf`);
           return void res.end(Buffer.from(pdf));
         }
         return senden(res, 200, 'text/html', steuerSeite(liste, { wer, fassung: opt.fassung }));
@@ -214,14 +239,14 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (rm && opt.rechnungen) {
         const [, id, teil] = rm as unknown as [string, string, string | undefined];
         if (teil === 'aktion') {
-          if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
+          if (fremdeHerkunft(req, res)) return;
           const f = await formular(req);
           const zurueck = /^\/finanzen\/rechnungen(\/\d+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : `/finanzen/rechnungen/${id}`;
           try {
             const ergebnis = await opt.rechnungen.aktion(id, aktionAus(f), wer);
-            return umleiten(res, `${zurueck}?ergebnis=${encodeURIComponent(ergebnis)}`);
+            return umleiten(res, mitParameter(zurueck, 'ergebnis', ergebnis));
           } catch (err) {
-            if (err instanceof AktionAbgelehnt) return umleiten(res, `${zurueck}?fehler=${encodeURIComponent(err.message)}`);
+            if (err instanceof AktionAbgelehnt) return umleiten(res, mitParameter(zurueck, 'fehler', err.message));
             throw err;
           }
         }
@@ -229,11 +254,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
           const p = await opt.rechnungen.pdf(id);
           if (!p) return senden(res, 404, 'text/plain', 'Kein PDF');
           // Ohne CSP, damit der PDF-Viewer des Browsers es zeigen darf; nur im eigenen Rahmen
-          res.writeHead(200, {
-            'Content-Type': 'application/pdf', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
-            'X-Frame-Options': 'SAMEORIGIN', 'Referrer-Policy': 'no-referrer',
-            'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(p.name)}`,
-          });
+          dateiKopf(res, 'application/pdf', p.name);
           const leser = p.antwort.body?.getReader();
           if (leser) for (let t = await leser.read(); !t.done; t = await leser.read()) res.write(t.value);
           return void res.end();
@@ -270,7 +291,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     const json = (status: number, inhalt: unknown) => senden(res, status, 'application/json', JSON.stringify(inhalt));
     if (!db) return pfad === '/rueckmeldung' ? json(503, { ok: false, fehler: 'Rückmeldungen sind hier nicht eingerichtet' }) : senden(res, 503, 'text/plain', 'Rückmeldungen sind hier nicht eingerichtet');
     if (pfad === '/rueckmeldung') {
-      if (!gleicheHerkunft(req)) return json(403, { ok: false, fehler: 'Nur von den Seiten der Praxis-Assistenz' });
+      if (!gleicheHerkunft(req)) return json(403, { ok: false, fehler: FREMDE_HERKUNFT });
       try {
         const daten = JSON.parse(await rumpf(req, 6 * 1024 * 1024)) as Parameters<typeof rueckmeldungSpeichern>[1];
         return json(200, { ok: true, id: await rueckmeldungSpeichern(db, daten, wer) });
@@ -280,15 +301,15 @@ export function praxisDienst(opt: DienstOptionen): Server {
       }
     }
     if (pfad === '/rueckmeldungen/aktion') {
-      if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
+      if (fremdeHerkunft(req, res)) return;
       const f = await formular(req);
       const zurueck = /^\/rueckmeldungen(\?status=\w+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/rueckmeldungen';
       try {
         const status = f.get('aktion') === 'offen' ? 'offen' : 'erledigt';
         await rueckmeldungStatus(db, f.get('id') ?? '', status, wer, f.get('antwort') ?? undefined);
-        return umleiten(res, `${zurueck}${zurueck.includes('?') ? '&' : '?'}meldung=${encodeURIComponent(status === 'erledigt' ? 'Als erledigt markiert.' : 'Wieder geöffnet.')}`);
+        return umleiten(res, mitParameter(zurueck, 'meldung', status === 'erledigt' ? 'Als erledigt markiert.' : 'Wieder geöffnet.'));
       } catch (err) {
-        if (err instanceof RueckmeldungFehler) return umleiten(res, `${zurueck}${zurueck.includes('?') ? '&' : '?'}fehler=${encodeURIComponent(err.message)}`);
+        if (err instanceof RueckmeldungFehler) return umleiten(res, mitParameter(zurueck, 'fehler', err.message));
         throw err;
       }
     }
@@ -296,7 +317,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (bild) {
       const b = await rueckmeldungBild(db, bild[1]!);
       if (!b) return senden(res, 404, 'text/plain', 'Kein Screenshot');
-      res.writeHead(200, { 'Content-Type': b.typ, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; sandbox" });
+      dateiKopf(res, b.typ, `rueckmeldung-${bild[1]}`, { sandbox: true });
       return void res.end(Buffer.from(b.daten));
     }
     if (pfad === '/rueckmeldungen') {
@@ -311,7 +332,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     const r = { wer, fassung: opt.fassung, meldung, fehler };
     if (!d) return senden(res, 503, 'text/plain', 'Die Patientenkartei braucht die Praxis-Datenbank und den Tresor-Schlüssel – noch nicht verbunden');
     if (pfad === '/patienten/aktion') {
-      if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
+      if (fremdeHerkunft(req, res)) return;
       const f = await formular(req);
       const zurueck = /^\/(patienten|rezepte|pinnwand|konfiguration)(\/[\w/-]*)?(\?[\w=&]+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
       // Drag & Drop auf der Pinnwand fragt per fetch und will eine Antwort als JSON statt einer Umleitung
@@ -320,18 +341,18 @@ export function praxisDienst(opt: DienstOptionen): Server {
         const e = await d.aktion(f, wer);
         if (alsJson) return senden(res, 200, 'application/json', JSON.stringify({ ok: true, meldung: e.meldung }));
         const [pfadTeil, anker] = (f.get('zurueck')?.startsWith('/rezepte') || f.get('zurueck')?.startsWith('/pinnwand') || f.get('zurueck') === '/konfiguration' ? zurueck : e.ziel).split('#');
-        return umleiten(res, `${pfadTeil}${pfadTeil!.includes('?') ? '&' : '?'}meldung=${encodeURIComponent(e.meldung)}${anker ? `#${anker}` : ''}`);
+        return umleiten(res, `${mitParameter(pfadTeil!, 'meldung', e.meldung)}${anker ? `#${anker}` : ''}`);
       } catch (err) {
         if (err instanceof KarteiFehler) {
           if (alsJson) return senden(res, 200, 'application/json', JSON.stringify({ ok: false, fehler: err.message }));
-          return umleiten(res, `${zurueck}${zurueck.includes('?') ? '&' : '?'}fehler=${encodeURIComponent(err.message)}`);
+          return umleiten(res, mitParameter(zurueck, 'fehler', err.message));
         }
         throw err;
       }
     }
     if (pfad === '/konfiguration') return senden(res, 200, 'text/html', konfigurationSeite(await d.konfiguration(), r));
     if (pfad === '/kalender') {
-      const heuteTag = datumBerlin(new Date().toISOString());
+      const heuteTag = heuteBerlin();
       const tagParam = adresse.searchParams.get('tag') ?? '';
       const tag = /^\d{4}-\d{2}-\d{2}$/.test(tagParam) && !Number.isNaN(Date.parse(`${tagParam}T12:00:00Z`)) ? tagParam : heuteTag;
       const ansicht = adresse.searchParams.get('ansicht') === 'woche' ? 'woche' : 'tag';
@@ -344,7 +365,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (rm[3]) {
         const pdf = await d.rechnungPdf(rm[1]!, rm[2]!);
         if (!pdf) return senden(res, 404, 'text/plain', 'Kein PDF aus Lexware');
-        res.writeHead(200, { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN', 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(pdf.name)}` });
+        dateiKopf(res, 'application/pdf', pdf.name);
         return void res.end(Buffer.from(pdf.daten));
       }
       const rd = await d.rechnung(rm[1]!, rm[2]!);
@@ -391,14 +412,14 @@ export function praxisDienst(opt: DienstOptionen): Server {
     const r = { wer, fassung: opt.fassung, meldung, fehler };
     if (!d) return senden(res, 503, 'text/plain', 'Preislisten brauchen die Praxis-Datenbank – noch nicht verbunden');
     if (pfad === '/preislisten/aktion') {
-      if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
+      if (fremdeHerkunft(req, res)) return;
       const f = await formular(req);
       const zurueck = /^\/preislisten(\/[\w/-]*)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/preislisten';
       try {
         const e = await d.aktion(f, wer);
-        return umleiten(res, `${e.ziel}${e.ziel.includes('?') ? '&' : '?'}meldung=${encodeURIComponent(e.meldung)}`);
+        return umleiten(res, mitParameter(e.ziel, 'meldung', e.meldung));
       } catch (err) {
-        if (err instanceof PreislisteFehler) return umleiten(res, `${zurueck}?fehler=${encodeURIComponent(err.message)}`);
+        if (err instanceof PreislisteFehler) return umleiten(res, mitParameter(zurueck, 'fehler', err.message));
         throw err;
       }
     }
@@ -415,11 +436,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (!o) return senden(res, 404, 'text/plain', 'Kein Original gespeichert');
       // PDF zum Ansehen; fremdes HTML nur als Download – nie unter unserer Adresse ausführen
       const pdf = o.typ.startsWith('application/pdf');
-      res.writeHead(200, {
-        'Content-Type': pdf ? 'application/pdf' : o.typ, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
-        'Content-Disposition': `${pdf ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(o.name)}`,
-        'Content-Security-Policy': "default-src 'none'; sandbox",
-      });
+      dateiKopf(res, pdf ? 'application/pdf' : o.typ, o.name, { inline: pdf, sandbox: true });
       return void res.end(Buffer.from(o.daten));
     }
     const m = /^\/preislisten\/(\d+)(?:\/(bearbeiten)|\/positionen\/(\d+))?$/.exec(pfad);

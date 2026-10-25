@@ -8,7 +8,7 @@ import { protokolliere, type Db } from '../db/index.ts';
 import type { GraphClient } from '../graph.ts';
 import { KATEGORIEN } from '../mail/kategorien.ts';
 import { entwurfKategorien, kalenderBasis } from '../umgebung.ts';
-import { OUTLOOK_ZONE } from '../zeit.ts';
+import { OUTLOOK_ZONE, ZONE } from '../zeit.ts';
 
 type Graph = Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'>;
 
@@ -31,7 +31,7 @@ export const initialen = (vorname: string, nachname: string) => `${vorname.trim(
 /** Ortszeit "2026-11-03T09:30:00" für den Kalender */
 function ortszeit(d: Date | string): string {
   const teile = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
       .formatToParts(new Date(d)).map((p) => [p.type, p.value]),
   ) as Record<string, string>;
   return `${teile.year}-${teile.month}-${teile.day}T${teile.hour}:${teile.minute}:${teile.second}`;

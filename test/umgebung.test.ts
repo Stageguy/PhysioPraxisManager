@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
-import { migriere, type Db } from '../src/db/index.ts';
 import { entwurfAnlegen } from '../src/mail/entwurf.ts';
 import { kategorienAnlegen } from '../src/mail/kategorien.ts';
 import { AktionAbgelehnt, ausfuehren } from '../src/rechnungen/dashboard.ts';
@@ -10,6 +8,7 @@ import {
   istTestadresse, kalenderBasis, kontaktordnerName, normiereAdresse, nurProduktion, patientenpostZulassen, pruefeEmpfaenger, SchrankeVerletzt,
 } from '../src/umgebung.ts';
 import { postfach, textAusAttrappe } from './postfach-attrappe.ts';
+import { testDb } from './testdb.ts';
 
 const T = ['shopping@2late.de'];
 const vorher = { u: process.env.PRAXIS_UMGEBUNG, a: process.env.TEST_ADRESSEN };
@@ -84,9 +83,7 @@ test('Schranke 3: Test-Termine nur im Kalender „Praxis-Test“ – wird angele
 
 test('Schranke 4 in Rechnungseingang, Dashboard und Kategorien', async () => {
   setze('test');
-  const pg = new PGlite();
-  const db = { query: (t: string, v?: unknown[]) => pg.query(t, v), exec: (s: string) => pg.exec(s) } as Db;
-  await migriere(db);
+  const db = await testDb();
   const einst = { seit: '2026-10-01', mailordner: 'Posteingang/Rechnungen', verarbeitet: 'x', ziel: 'Z', kategorien: { eingegangen: 'a', patient: 'b', unklar: 'c' }, lieferanten: [] };
   await assert.rejects(rechnungseingang(postfach([]), einst, { ausfuehren: true, db }), SchrankeVerletzt);
   await assert.rejects(ausfuehren({ db, graph: {} as never, wer: 'x' }, '1', { art: 'freigeben' }), AktionAbgelehnt);

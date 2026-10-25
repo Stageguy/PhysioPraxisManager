@@ -6,9 +6,9 @@
  */
 import type { Rueckmeldung } from '../entwicklung/rueckmeldung.ts';
 import { esc, seite } from './layout.ts';
+import { datumZeitText } from '../format.ts';
 import { symbol } from './symbole.ts';
 
-const datumZeit = (iso: string) => new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 
 /** Nur die erlaubten Auszeichnungen stehen in text_html (htmlBereinigen) – trotzdem alles andere maskieren */
 const sicheresHtml = (html: string) =>
@@ -18,7 +18,7 @@ export function rueckmeldungenSeite(d: { liste: Rueckmeldung[]; status: string; 
   const eintraege = d.liste.map((r) => `<article class="rm-eintrag ${r.status}" id="rm-${r.id}" data-hilfe="rueckmeldungen.eintrag">
     <header><span class="chip ${r.art === 'fehler' ? 'preset0' : 'preset7'}">${r.art === 'fehler' ? 'Fehler' : 'Hinweis'}</span>
       <b>${esc(r.elementTitel ?? r.element ?? 'Seite')}</b> <span class="hint">${esc(r.seite)}${r.element ? ` · ${esc(r.element)}` : ''}</span>
-      <span class="rechts hint">Nr. ${r.id} · ${datumZeit(r.erstelltAm)} · ${esc(r.von)}${r.status === 'erledigt' ? ` · erledigt ${r.erledigtAm ? datumZeit(r.erledigtAm) : ''}` : ''}</span></header>
+      <span class="rechts hint">Nr. ${r.id} · ${datumZeitText(r.erstelltAm, { wochentag: false, jahr: true })} · ${esc(r.von)}${r.status === 'erledigt' ? ` · erledigt ${r.erledigtAm ? datumZeitText(r.erledigtAm, { wochentag: false, jahr: true }) : ''}` : ''}</span></header>
     <div class="rm-inhalt">
       ${r.hatBild ? `<a href="/rueckmeldungen/${r.id}/bild" target="_blank" rel="noopener" data-hilfe="rueckmeldungen.bild"><img src="/rueckmeldungen/${r.id}/bild" alt="Screenshot zu Rückmeldung ${r.id}" loading="lazy"></a>` : '<span class="hint">kein Screenshot</span>'}
       <div class="rm-text">${sicheresHtml(r.textHtml)}

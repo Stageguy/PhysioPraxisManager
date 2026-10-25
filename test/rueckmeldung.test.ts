@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
 import type { Db } from '../src/db/index.ts';
 import { entwicklungMigrieren, entwicklungsAdresse, htmlBereinigen, rueckmeldungen, rueckmeldungSpeichern, RueckmeldungFehler } from '../src/entwicklung/rueckmeldung.ts';
 import { praxisDienst } from '../src/server.ts';
+import { testDb } from './testdb.ts';
 
 let basis = '';
 let db: Db;
@@ -14,9 +14,7 @@ const wer = { 'Tailscale-User-Login': 'lilli@example.org' };
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 before(async () => {
-  const pg = new PGlite();
-  db = { query: (q, v) => pg.query(q, v), exec: (s) => pg.exec(s) } as Db;
-  await entwicklungMigrieren(db);
+  db = await testDb(entwicklungMigrieren);
   server = praxisDienst({ erlaubt: ['lilli@example.org'], fassung: 't', angemeldet: async () => true, pruefen: async () => [], entwicklung: db });
   await new Promise<void>((f) => server.listen(0, '127.0.0.1', f));
   basis = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

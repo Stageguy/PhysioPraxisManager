@@ -4,6 +4,7 @@
  * erfundene Patienten, N28).
  */
 import type { Db } from '../db/index.ts';
+import { istId } from '../db/werte.ts';
 import type { GraphClient } from '../graph.ts';
 import type { Tresor } from '../tresor.ts';
 import { terminSpiegeln } from './kalender.ts';
@@ -15,7 +16,7 @@ import {
   type Fall, type Gespraechsgrund, type Kontaktart, type Patient, type PatientKurz, type RechnungKurz, type Serie, type TerminKurz, type VerlaufEintrag, type VerordnungKurz,
   type WellnessLeistung,
 } from './patienten.ts';
-import { anamneseErfassen, befundErfassen, erklaerungErfassen, erklaerungWiderrufen, fallDetails, phaseSetzen, PHASEN, pinnwand, type FallDetails, type Phase, type Spalte } from './pinnwand.ts';
+import { anamneseErfassen, befundErfassen, erklaerungErfassen, erklaerungWiderrufen, fallDetails, phaseSetzen, PHASEN, PHASEN_NAMEN, pinnwand, type FallDetails, type Phase, type Spalte } from './pinnwand.ts';
 import { einstellungen, einstellungSetzen, textbausteinAktiv, textbausteine, textbausteinSpeichern, type Textbaustein } from './konfiguration.ts';
 import {
   bausteinAendern, bausteinEntfernen, bausteinHinzufuegen, positionAendern, positionHinzufuegen, positionLoeschen, rechnungAnlegen, rechnungLesen, rechnungPdf, rechnungStatus, type Rechnung,
@@ -81,8 +82,6 @@ export interface KarteiDienst {
 const ARTEN: Kontaktart[] = ['mobil', 'telefon', 'whatsapp', 'email', 'sonstige'];
 const kontaktart = (s: string | null): Kontaktart => (ARTEN.includes(s as Kontaktart) ? (s as Kontaktart) : 'sonstige');
 const ganz = (s: string | null, standard = 0) => (s && /^\d+$/.test(s.trim()) ? Number(s) : standard);
-const istId = (s: string) => /^\d+$/.test(s);
-const PHASEN_NAME = (p: Phase) => ({ anfrage: 'Anfrage', aufnahme: 'Aufnahme', anamnese: 'Anamnese', befund_start: 'Befund', behandlung: 'Behandlung', abschluss: 'Abschluss', rechnung: 'Rechnung', nachsorge: 'Nachsorge', archiviert: 'Archiv' })[p];
 
 export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'> }): KarteiDienst {
   const { db, tresor: t } = q;
@@ -202,7 +201,7 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
           const nachPhase = g('nach') as Phase;
           if (!PHASEN.includes(nachPhase)) throw new KarteiFehler('Unbekannte Phase');
           await phaseSetzen(db, id, g('fall_id') ?? '', nachPhase, wer, g('grund'));
-          return nach(g('zurueck')?.startsWith('/pinnwand') ? g('zurueck')! : fallSeite(g('fall_id') ?? ''), `Verschoben nach „${PHASEN_NAME(nachPhase)}“.`);
+          return nach(g('zurueck')?.startsWith('/pinnwand') ? g('zurueck')! : fallSeite(g('fall_id') ?? ''), `Verschoben nach „${PHASEN_NAMEN[nachPhase]}“.`);
         }
         case 'anamnese_erfassen':
           await anamneseErfassen(db, t, id, g('fall_id') ?? '', { erhobenAm: g('erhoben_am'), art: g('art'), beschwerden: g('beschwerden'), vorgeschichte: g('vorgeschichte'), medikamente: g('medikamente'), allergien: g('allergien'), risiken: g('risiken'), sonstiges: g('sonstiges') }, wer);

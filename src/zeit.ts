@@ -1,5 +1,5 @@
 /** Die Praxis rechnet in deutscher Ortszeit – Graph in UTC. */
-const ZONE = 'Europe/Berlin';
+export const ZONE = 'Europe/Berlin';
 /** So heißt dieselbe Zone in Outlook-Terminen */
 export const OUTLOOK_ZONE = 'W. Europe Standard Time';
 
@@ -50,4 +50,21 @@ export function berlinZeitUtc(datum: string, zeit: string): string {
 /** Zeitpunkt (ISO, UTC) → Kalendertag in Deutschland, "2026-10-20" */
 export function datumBerlin(iso: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: ZONE }).format(new Date(iso));
+}
+
+/** Der heutige Kalendertag in Deutschland, "2026-10-26" */
+export const heuteBerlin = (): string => datumBerlin(new Date().toISOString());
+
+/** Kalendertag plus n Tage: "2026-10-26" + 1 → "2026-10-27" (auch über Monats- und Jahresgrenzen) */
+export const tagPlus = (tag: string, n: number): string => {
+  const d = new Date(`${tag}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Die Tage der Woche (Mo–So), die `tag` enthält */
+export function wocheUm(tag: string): string[] {
+  const d = new Date(`${tag}T12:00:00Z`);
+  const montag = tagPlus(tag, -((d.getUTCDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => tagPlus(montag, i));
 }

@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
-import { migriere, type Db } from '../src/db/index.ts';
+import type { Db } from '../src/db/index.ts';
 import { karteiDienst } from '../src/kartei/dienst.ts';
 import { telefonNormieren } from '../src/kartei/patienten.ts';
 import { testdatenAnlegen } from '../src/kartei/testdaten.ts';
 import { praxisDienst } from '../src/server.ts';
 import { neuerHauptschluessel, tresor } from '../src/tresor.ts';
+import { testDb } from './testdb.ts';
 
 let basis = '';
 let db: Db;
@@ -23,9 +23,7 @@ const ziel = (r: Response) => decodeURIComponent(r.headers.get('location') ?? ''
 const seite = async (pfad: string) => (await fetch(`${basis}${pfad}`, { headers: wer })).text();
 
 before(async () => {
-  const pg = new PGlite();
-  db = { query: (q, v) => pg.query(q, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db);
+  db = await testDb();
   server = praxisDienst({ erlaubt: ['lilli@example.org'], fassung: 't', angemeldet: async () => true, pruefen: async () => [], kartei: karteiDienst({ db, tresor: t }) });
   await new Promise<void>((f) => server.listen(0, '127.0.0.1', f));
   basis = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -161,9 +159,7 @@ test('Archivieren statt löschen; Archiv und zurück', async () => {
 });
 
 test('Testdaten: nur einmal, erfundene Adressen, verschiedene Kachelzustände', async () => {
-  const pg = new PGlite();
-  const db2 = { query: (q, v) => pg.query(q, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db2);
+  const db2 = await testDb();
   const e = await testdatenAnlegen(db2, t, { adresse: 'shopping@2late.de', wer: 'test' });
   assert.equal(e.patienten, 10);
   assert.ok(e.behandlungen > 10 && e.termine > 30 && e.rechnungen > 8);

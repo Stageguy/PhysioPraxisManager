@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
 import { cockpitDaten, initialen, protokoll, rechnungsstand } from '../src/cockpit/daten.ts';
-import { migriere, type Db } from '../src/db/index.ts';
 import { praxisDienst } from '../src/server.ts';
 import { cockpitSeite } from '../src/web/cockpit.ts';
+import { testDb } from './testdb.ts';
 
 test('Diskret-Modus: Initialen statt Namen', () => {
   assert.equal(initialen('Max Mustermann KG'), 'M. M. K.');
@@ -42,9 +41,7 @@ test('Termine heute aus dem Kalender: Zeitraum Berliner Tag, Initialen, Absagen 
 });
 
 test('Rechnungsstand und Protokoll aus der Datenbank', async () => {
-  const pg = new PGlite();
-  const db = { query: (t: string, v?: unknown[]) => pg.query(t, v), exec: (s: string) => pg.exec(s) } as Db;
-  await migriere(db);
+  const db = await testDb();
   const zeile = (id: string, klasse: string, status: string, betrag: number | null) => db.query(
     `INSERT INTO inbound_document (graph_message_id, attachment_id, received_at, sender_domain, subject_hash, sha256, size, klasse, status, betrag, lieferant)
      VALUES ($1, 'a', now(), 'x.de', 'h', $1, 1, $2, $3, $4, 'Telekom')`, [id, klasse, status, betrag]);
@@ -86,13 +83,9 @@ test('Dienst: Cockpit unter /, lokaler Zugang nur ohne Tailscale-Kopfzeile von 1
 });
 
 test('Termine heute: Klarname und Link aus der Kartei, wenn der Kalendereintrag von uns stammt; Kartei-Termine ohne Kalendereintrag erscheinen trotzdem', async () => {
-  const { PGlite } = await import('@electric-sql/pglite');
-  const { migriere } = await import('../src/db/index.ts');
   const { patientAnlegen, terminAnlegen } = await import('../src/kartei/patienten.ts');
   const { neuerHauptschluessel, tresor } = await import('../src/tresor.ts');
-  const pg = new PGlite();
-  const db = { query: (q: string, v?: unknown[]) => pg.query(q, v), exec: (s: string) => pg.exec(s) } as import('../src/db/index.ts').Db;
-  await migriere(db);
+  const db = await testDb();
   const t = tresor({ PRAXIS_TRESOR_SCHLUESSEL: neuerHauptschluessel() });
   const pid = await patientAnlegen(db, t, { vorname: 'Karin', nachname: 'Zwölfer' }, 'x');
   const { verordnungAnlegen } = await import('../src/kartei/patienten.ts');

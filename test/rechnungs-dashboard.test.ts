@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { beforeEach, test } from 'node:test';
-import { PGlite } from '@electric-sql/pglite';
-import { migriere, type Db } from '../src/db/index.ts';
+import type { Db } from '../src/db/index.ts';
 import { AktionAbgelehnt, auswertung, ausfuehren, filterAus, liste, neueRechnungen, type Umgebung } from '../src/rechnungen/dashboard.ts';
 import { rechnungsDienst } from '../src/rechnungen/dienst.ts';
 import { gleicheHerkunft, praxisDienst } from '../src/server.ts';
+import { testDb } from './testdb.ts';
 
-let pg: PGlite;
 let db: Db;
 
 /** OneDrive + Postfach als Attrappe: Ordner nach Pfad, Dateien mit Elternordner, Mail-Kategorien */
@@ -46,9 +45,7 @@ function umgebung() {
 }
 
 beforeEach(async () => {
-  pg = new PGlite();
-  db = { query: (t, v) => pg.query(t, v), exec: (s) => pg.exec(s) } as Db;
-  await migriere(db);
+  db = await testDb();
   const zeile = (id: number, mail: string, item: string, lieferant: string, betrag: number | null, datum: string, status = 'wartet_freigabe') => db.query(
     `INSERT INTO inbound_document (id, graph_message_id, attachment_id, received_at, sender_domain, subject_hash, sha256, size, klasse, status,
        lieferant, betrag, rechnungsdatum, attachment_name, absender_name, absender_adresse, onedrive_item_id, onedrive_path)

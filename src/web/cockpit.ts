@@ -8,6 +8,7 @@
  */
 import type { CockpitDaten, Quelle, RechnungZeile, Rechnungsstand, Termin } from '../cockpit/daten.ts';
 import { esc, seite } from './layout.ts';
+import { datumText, datumZeitText, euroText } from '../format.ts';
 import { symbol, type Symbol } from './symbole.ts';
 
 // ── Kacheln ─────────────────────────────────────────────────────────────────
@@ -75,10 +76,6 @@ export function protokollText(aktion: string, d: Record<string, unknown>): { sym
   }
 }
 
-const euro = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-const tagUndZeit = (iso: string) =>
-  new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
-const datum = (iso: string) => new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
 
 function leer<T>(q: Quelle<T>, sonst: (d: T) => string): string {
   if (q.stand === 'ok') return sonst(q.daten);
@@ -149,9 +146,9 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
     <h2 id="t-re">${symbol('rechnung')} Neue Rechnungseingänge</h2>
     ${zaehlerHtml(d.rechnungen)}
     ${leer(d.rechnungen, (r) => `${balken(r.zaehler)}
-      <p class="hint">Offen (eingegangen, noch nicht bezahlt): <b>${euro(r.offenerBetrag)}</b></p>
-      ${r.neueste.length ? `<ul class="zeilen">${r.neueste.map((z) => `<li><span>${datum(z.eingang)}</span><b>${esc(z.lieferant ?? 'unbekannt')}</b>
-        <span class="rechts">${z.betrag === null ? '' : euro(z.betrag)} ${statusChip(z)}</span></li>`).join('')}</ul>`
+      <p class="hint">Offen (eingegangen, noch nicht bezahlt): <b>${euroText(r.offenerBetrag)}</b></p>
+      ${r.neueste.length ? `<ul class="zeilen">${r.neueste.map((z) => `<li><span>${datumText(z.eingang)}</span><b>${esc(z.lieferant ?? 'unbekannt')}</b>
+        <span class="rechts">${z.betrag === null ? '' : euroText(z.betrag)} ${statusChip(z)}</span></li>`).join('')}</ul>`
         : '<p class="leer">Noch keine Rechnungen erfasst.</p>'}`)}
     <a class="mehr" href="/finanzen/rechnungen">Zum Rechnungs-Dashboard →</a>
   </section>`;
@@ -174,7 +171,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
   const log = `<section class="tafel breit" data-hilfe="uebersicht.protokoll" aria-labelledby="t-lo">
     <h2 id="t-lo">${symbol('protokoll')} Was sich geändert hat – letzte 7 Tage</h2>
     ${leer(d.protokoll, (l) => l.length
-      ? `<ol class="protokoll">${l.map((e) => { const p = protokollText(e.aktion, e.details); return `<li><span class="log-sym">${symbol(p.symbol, { groesse: 18 })}</span><time datetime="${esc(e.zeit)}">${tagUndZeit(e.zeit)}</time><span>${esc(p.text)}</span></li>`; }).join('')}</ol>`
+      ? `<ol class="protokoll">${l.map((e) => { const p = protokollText(e.aktion, e.details); return `<li><span class="log-sym">${symbol(p.symbol, { groesse: 18 })}</span><time datetime="${esc(e.zeit)}">${datumZeitText(e.zeit)}</time><span>${esc(p.text)}</span></li>`; }).join('')}</ol>`
       : '<p class="leer">In den letzten sieben Tagen hat sich nichts geändert.</p>')}
   </section>`;
 
