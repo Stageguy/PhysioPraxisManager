@@ -10,6 +10,7 @@ import { protokolliere, type Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
 import { berlinMitternachtUtc } from '../zeit.ts';
 import { phaseVorruecken, type Phase } from './pinnwand.ts';
+import { behandlungZuordnen, rechnungAusRezept, rechnungAusSerie, STATUS_TEXT as RECHNUNG_STATUS_TEXT } from './rechnungen.ts';
 
 export class KarteiFehler extends Error {}
 
@@ -90,6 +91,8 @@ export interface Patient extends PatientKurz {
   zwischenrechnungQuartale: number | null;
   exchangeKontaktId: string | null;
   lexwareKundennummer: string | null;
+  preisliste: { id: string; name: string } | null;
+  rechnungsversand: 'email' | 'post' | 'beides';
   kontakte: Kontakt[];
   adressen: Adresse[];
   bezugspersonen: Bezugsperson[];
@@ -178,12 +181,19 @@ export interface WellnessLeistung {
 export interface RechnungKurz {
   id: string;
   art: string;
+  steuerklasse: string;
   datum: string | null;
   faelligAm: string | null;
   nummer: string | null;
   betrag: number | null;
   status: string;
+  statusText: string;
+  statusFarbe: string;
   gemahnt: boolean;
+  positionen: number;
+  versandArt: string | null;
+  lexwareAbweichung: string | null;
+  pdf: boolean;
 }
 
 export interface Behandlung {
@@ -297,7 +307,8 @@ export async function patientLesen(db: Db, t: Tresor, id: string): Promise<Patie
   if (!istId(id)) return undefined;
   const r = (await db.query<KachelZeile>(
     `SELECT ${KACHEL_SQL}, p.geburtsdatum, p.geburtsname, p.sprache, p.kommunikationshilfe, p.beruf_belastung, p.notiz, p.abrechnungsmodus::text,
-       p.zwischenrechnung_quartale, p.exchange_kontakt_id, p.lexware_kundennummer FROM patient p WHERE p.id = $1`, [id],
+       p.zwischenrechnung_quartale, p.exchange_kontakt_id, p.lexware_kundennummer, p.preisliste_id::text, p.rechnungsversand,
+       (SELECT name FROM preisliste l WHERE l.id = p.preisliste_id) AS preisliste_name FROM patient p WHERE p.id = $1`, [id],
   )).rows[0];
   if (!r) return undefined;
   const kontakte = (await db.query<Kontakt>('SELECT id::text, art::text, wert, normiert, bezeichnung, primaer FROM patient_kontakt WHERE patient_id = $1 ORDER BY art, primaer DESC, reihenfolge, id', [id])).rows;
@@ -311,6 +322,7 @@ export async function patientLesen(db: Db, t: Tresor, id: string): Promise<Patie
     notiz: t.entschluesselnText(r.notiz as Uint8Array | null, 'patient.notiz'),
     abrechnungsmodus: String(r.abrechnungsmodus), zwischenrechnungQuartale: zahl(r.zwischenrechnung_quartale),
     exchangeKontaktId: text(r.exchange_kontakt_id), lexwareKundennummer: text(r.lexware_kundennummer),
+    preisliste: r.preisliste_id ? { id: String(r.preisliste_id), name: String(r.preisliste_name) } : null, rechnungsversand: (r.rechnungsversand as Patient['rechnungsversand']) ?? 'email',
     kontakte, adressen, bezugspersonen, versicherungen,
   };
 }
@@ -332,6 +344,8 @@ export interface Stammdaten {
   berufBelastung?: string;
   notiz?: string;
   patientennummer?: string;
+  preislisteId?: string;
+  rechnungsversand?: string;
 }
 
 const datumPruefen = (d: string | undefined, was: string): string | null => {
@@ -358,8 +372,8 @@ export async function patientAnlegen(
   for (const k of d.kontakte ?? []) kontaktPruefen(k.art, k.wert);
   const nummer = text(d.patientennummer);
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO patient (${nummer ? 'patientennummer, ' : ''}anrede, titel, vorname, nachname, geburtsname, geburtsdatum, patient_seit, ansprache_hinweis, besonderheiten, sprache, kommunikationshilfe, beruf_belastung, notiz, erstellt_von)
-     VALUES (${nummer ? '$15, ' : ''}$1, $2, $3, $4, $5, $6, COALESCE($7::date, CURRENT_DATE), $8, $9, $10, $11, $12, $13, $14) RETURNING id::text`,
+    `INSERT INTO patient (${nummer ? 'patientennummer, ' : ''}anrede, titel, vorname, nachname, geburtsname, geburtsdatum, patient_seit, ansprache_hinweis, besonderheiten, sprache, kommunikationshilfe, beruf_belastung, notiz, erstellt_von, preisliste_id)
+     VALUES (${nummer ? '$15, ' : ''}$1, $2, $3, $4, $5, $6, COALESCE($7::date, CURRENT_DATE), $8, $9, $10, $11, $12, $13, $14, (SELECT id FROM preisliste WHERE aktiv LIMIT 1)) RETURNING id::text`,
     [text(d.anrede), text(d.titel), d.vorname.trim(), d.nachname.trim(), text(d.geburtsname), datumPruefen(d.geburtsdatum, 'Geburtsdatum'), datumPruefen(d.patientSeit, 'Patient seit'),
       geheim(t, d.ansprache, 'patient.ansprache_hinweis'), geheim(t, d.besonderheiten, 'patient.besonderheiten'), text(d.sprache), text(d.kommunikationshilfe),
       geheim(t, d.berufBelastung, 'patient.beruf_belastung'), geheim(t, d.notiz, 'patient.notiz'), wer, ...(nummer ? [nummer] : [])],
@@ -382,11 +396,13 @@ export async function stammdatenSpeichern(db: Db, t: Tresor, id: string, d: Stam
   stammdatenPruefen(d);
   const r = await db.query(
     `UPDATE patient SET anrede = $2, titel = $3, vorname = $4, nachname = $5, geburtsname = $6, geburtsdatum = $7, patient_seit = COALESCE($8::date, patient_seit),
-       ansprache_hinweis = $9, besonderheiten = $10, sprache = $11, kommunikationshilfe = $12, beruf_belastung = $13, notiz = $14, geaendert_am = now()
+       ansprache_hinweis = $9, besonderheiten = $10, sprache = $11, kommunikationshilfe = $12, beruf_belastung = $13, notiz = $14,
+       preisliste_id = COALESCE($15::bigint, preisliste_id), rechnungsversand = COALESCE($16, rechnungsversand), geaendert_am = now()
      WHERE id = $1 RETURNING id`,
     [id, text(d.anrede), text(d.titel), d.vorname.trim(), d.nachname.trim(), text(d.geburtsname), datumPruefen(d.geburtsdatum, 'Geburtsdatum'), datumPruefen(d.patientSeit, 'Patient seit'),
       geheim(t, d.ansprache, 'patient.ansprache_hinweis'), geheim(t, d.besonderheiten, 'patient.besonderheiten'), text(d.sprache), text(d.kommunikationshilfe),
-      geheim(t, d.berufBelastung, 'patient.beruf_belastung'), geheim(t, d.notiz, 'patient.notiz')],
+      geheim(t, d.berufBelastung, 'patient.beruf_belastung'), geheim(t, d.notiz, 'patient.notiz'),
+      d.preislisteId && istId(d.preislisteId) ? d.preislisteId : null, ['email', 'post', 'beides'].includes(d.rechnungsversand ?? '') ? d.rechnungsversand : null],
   );
   if (!r.rows.length) throw new KarteiFehler('Diesen Patienten gibt es nicht');
   await protokolliere(db, { actor: wer, action: 'patient_geaendert', objectType: 'patient', objectId: id });
@@ -623,8 +639,15 @@ export async function verordnungAnlegen(
       geheim(t, d.diagnose, 'verordnung.diagnose'), art, !!d.langzeit, vorgaenger?.id ?? null, text(d.notiz), wer],
   );
   // Korrektur: das berichtigte Rezept gilt nicht mehr, seine Haken zählen in der Kette weiter
-  if (art === 'korrektur') await db.query("UPDATE verordnung SET status = 'ersetzt' WHERE id = $1", [vorgaenger!.id]);
+  if (art === 'korrektur') {
+    await db.query("UPDATE verordnung SET status = 'ersetzt' WHERE id = $1", [vorgaenger!.id]);
+    // Der Rechnungsentwurf des berichtigten Rezepts gehört jetzt zur Korrektur
+    await db.query("UPDATE rechnung SET verordnung_id = $2 WHERE verordnung_id = $1 AND status = 'entwurf'", [vorgaenger!.id, rows[0]!.id]);
+    await db.query("UPDATE rechnung_position SET verordnung_id = $2 WHERE verordnung_id = $1 AND rechnung_id IN (SELECT id FROM rechnung WHERE verordnung_id = $2 AND status = 'entwurf')", [vorgaenger!.id, rows[0]!.id]);
+  }
   await protokolliere(db, { actor: wer, action: 'verordnung_angelegt', objectType: 'patient', objectId: patientId, details: { anzahl: d.anzahl, art } });
+  // Jedes Rezept bekommt sofort seinen Rechnungsentwurf (W79) – die Korrektur übernimmt den des Vorgängers
+  if (art !== 'korrektur') await rechnungAusRezept(db, patientId, rows[0]!.id, wer);
   return rows[0]!.id;
 }
 
@@ -695,9 +718,17 @@ export async function wellnessAktiv(db: Db, id: string, aktiv: boolean): Promise
 
 export async function rechnungen(db: Db, patientId: string): Promise<RechnungKurz[]> {
   const { rows } = await db.query<Record<string, unknown>>(
-    'SELECT id::text, art::text, datum, faellig_am, nummer, betrag, status::text, gemahnt_am FROM rechnung WHERE patient_id = $1 ORDER BY coalesce(datum, erstellt_am::date) DESC, id DESC LIMIT 50', [patientId],
+    `SELECT id::text, art::text, steuerklasse::text, datum, faellig_am, nummer, betrag, status::text, gemahnt_am, versand_art, lexware_abweichung, (lexware_pdf IS NOT NULL) AS pdf,
+       (SELECT count(*) FROM rechnung_position p WHERE p.rechnung_id = rechnung.id) AS positionen
+     FROM rechnung WHERE patient_id = $1 ORDER BY status = 'entwurf' DESC, coalesce(datum, erstellt_am::date) DESC, id DESC LIMIT 50`, [patientId],
   );
-  return rows.map((r) => ({ id: String(r.id), art: String(r.art), datum: tag(r.datum), faelligAm: tag(r.faellig_am), nummer: text(r.nummer), betrag: zahl(r.betrag), status: String(r.status), gemahnt: r.gemahnt_am != null }));
+  return rows.map((r) => {
+    const [statusText, statusFarbe] = RECHNUNG_STATUS_TEXT[r.status as keyof typeof RECHNUNG_STATUS_TEXT] ?? [String(r.status), 'preset12'];
+    return {
+      id: String(r.id), art: String(r.art), steuerklasse: String(r.steuerklasse), datum: tag(r.datum), faelligAm: tag(r.faellig_am), nummer: text(r.nummer), betrag: zahl(r.betrag), status: String(r.status),
+      statusText, statusFarbe, gemahnt: r.gemahnt_am != null, positionen: Number(r.positionen), versandArt: text(r.versand_art), lexwareAbweichung: text(r.lexware_abweichung), pdf: Boolean(r.pdf),
+    };
+  });
 }
 
 // ── Akte (§ 630f) ───────────────────────────────────────────────────────────
@@ -763,6 +794,8 @@ export async function fallAnlegen(
   const id = rows[0]!.id;
   await db.query('INSERT INTO behandlungsfall_phase (fall_id, von, nach, wer, grund) VALUES ($1, NULL, $2::fall_phase, $3, $4)', [id, phase, wer, 'Fall angelegt']);
   await protokolliere(db, { actor: wer, action: 'fall_angelegt', objectType: 'patient', objectId: patientId });
+  // Serien ohne Rezept (Direktzugang, Wellness) bekommen ihren Rechnungsentwurf gleich mit (W79)
+  if (d.grundlage !== 'verordnung') await rechnungAusSerie(db, patientId, id, wer);
   return id;
 }
 
@@ -837,6 +870,8 @@ export async function behandlungErfassen(
       [behandlungId, d.verordnungId || null, preis?.preislisteId ?? null, preis?.positionId ?? null, nummer ?? '–', preis?.bezeichnung ?? bezeichnung ?? nummer ?? 'Behandlung', preis?.preis ?? 0, steuer],
     );
     if (d.verordnungId) {
+      const bl = (await db.query<{ id: string }>('SELECT id::text FROM behandlung_leistung WHERE behandlung_id = $1 AND verordnung_id = $2', [behandlungId, d.verordnungId])).rows[0];
+      if (bl) await behandlungZuordnen(db, d.verordnungId, bl.id, datum);
       // Ein Rezept ohne Fall gehört ab jetzt zu diesem Fall
       await db.query('UPDATE verordnung SET fall_id = $3 WHERE id = $1 AND patient_id = $2 AND fall_id IS NULL', [d.verordnungId, patientId, fallId]);
       await db.query(
@@ -851,4 +886,30 @@ export async function behandlungErfassen(
   await protokolliere(db, { actor: wer, action: 'behandlung_erfasst', objectType: 'patient', objectId: patientId, details: { rezept: !!d.verordnungId } });
   await phaseVorruecken(db, patientId, fallId, 'behandlung', wer, 'Behandlung erfasst');
   return { behandlungId, fallId };
+}
+
+/** Termine aller Patienten in einem Zeitraum (Kalenderseite, W82) */
+export interface TerminKalender {
+  id: string;
+  patientId: string;
+  vorname: string;
+  nachname: string;
+  patientennummer: string;
+  beginn: string;
+  ende: string;
+  art: string;
+  status: string;
+  rezept: boolean;
+  imKalender: boolean;
+}
+
+export async function termineZeitraum(db: Db, vonIso: string, bisIso: string): Promise<TerminKalender[]> {
+  const { rows } = await db.query<Record<string, unknown>>(
+    `SELECT t.id::text, t.patient_id::text, p.vorname, p.nachname, p.patientennummer, t.beginn, t.ende, t.art::text, t.status::text, (t.verordnung_id IS NOT NULL) AS rezept, (t.exchange_event_id IS NOT NULL) AS im_kalender
+     FROM termin t JOIN patient p ON p.id = t.patient_id WHERE t.beginn < $2 AND t.ende > $1 AND t.status NOT IN ('abgesagt_patient', 'abgesagt_praxis', 'verschoben') ORDER BY t.beginn`, [vonIso, bisIso],
+  );
+  return rows.map((r) => ({
+    id: String(r.id), patientId: String(r.patient_id), vorname: String(r.vorname), nachname: String(r.nachname), patientennummer: String(r.patientennummer),
+    beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), rezept: Boolean(r.rezept), imKalender: Boolean(r.im_kalender),
+  }));
 }

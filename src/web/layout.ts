@@ -316,6 +316,30 @@ details.stammdaten.tafel[open]>summary{margin-bottom:8px}
 .rz-mehr summary{list-style:none;display:inline-flex;margin-top:4px}.rz-mehr summary::-webkit-details-marker{display:none}
 .rz-aktionen{display:grid;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--rand)}.rz-aktionen form{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .rz-aktionen input{font:inherit;font-size:14px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:4px 8px;min-height:32px;flex:1 1 140px}
+/* Rechnungsseite, Konfiguration, Kalender */
+.kopf-kalender{margin-left:auto;display:inline-flex;gap:4px;align-items:center;color:var(--akzent);text-decoration:none;font-size:18px;font-weight:400}
+.konfig-link{margin-left:12px;display:inline-flex;gap:4px;align-items:center}
+.re-kopf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:8px}.re-kopf h2{font-size:16px;margin:0 0 6px}.re-kopf p{margin:0}
+.rp-liste{display:grid;gap:8px}
+.rp{display:grid;grid-template-columns:110px 70px minmax(0,1fr) 150px 110px auto auto;gap:10px;align-items:center;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:8px 14px;min-height:52px}
+.rp.erledigt{border-left:5px solid var(--ok)}.rp-nr{font-variant-numeric:tabular-nums;color:var(--grau)}.rp-menge{text-align:right;color:var(--grau);font-variant-numeric:tabular-nums}.rp-betrag{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.rp-edit{grid-column:6}.rp-edit summary{list-style:none;cursor:pointer}.rp-edit summary::-webkit-details-marker{display:none}.rp-edit[open]{grid-column:1/-1}.rp-edit[open] .formular{margin-top:8px}
+.rp.neu,.tb.neu,.tbk.neu{display:block;border-style:dashed}.rp.neu summary,.tb.neu summary,.tbk.neu summary{cursor:pointer;display:flex;gap:8px;align-items:center;min-height:36px;list-style:none;color:var(--akzent)}
+.rp.neu summary::-webkit-details-marker,.tb.neu summary::-webkit-details-marker,.tbk.neu summary::-webkit-details-marker{display:none}.rp.neu .formular,.tb.neu .formular,.tbk.neu .formular{margin-top:8px}
+.rp-plus{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--akzent);color:var(--bg);font-size:20px}
+.re-summen{display:flex;gap:16px;justify-content:flex-end;align-items:baseline;margin:10px 0 4px;font-variant-numeric:tabular-nums}.re-summen b{font-size:20px}
+.tb-liste,.tbk-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.tb,.tbk{background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tb header,.tbk header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tb header form{margin-left:auto}.tb textarea{width:100%}.tb p{margin:0;white-space:pre-wrap}
+.tbk.ab{opacity:.6}.tbk-code{display:inline-grid;place-items:center;min-width:34px;height:26px;padding:0 6px;border-radius:8px;background:var(--akzent);color:var(--bg);font-weight:700;font-size:13px}
+.tbk-text{margin:0;white-space:pre-wrap;color:var(--grau);font-size:14px}.tbk details summary{list-style:none;display:inline-flex}.tbk details summary::-webkit-details-marker{display:none}.tbk details .formular{margin:8px 0}
+.re-aktionen form{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.re-aktionen input[name=grund]{font:inherit;font-size:14px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:6px 10px;min-height:44px}
+.kal{display:grid;gap:10px;margin-top:12px}.kal.woche{grid-template-columns:repeat(7,minmax(150px,1fr));overflow-x:auto}.kal.tag{grid-template-columns:minmax(0,1fr)}
+.kal-tag{background:color-mix(in srgb,var(--akzent) 5%,var(--bg));border:1px solid var(--rand);border-radius:12px;padding:8px;min-height:120px}.kal-tag.heute{border-color:var(--akzent)}
+.kal-tag h2{font-size:15px;margin:0 0 6px;display:flex;gap:6px;align-items:center}.kal-tag h2 a{text-decoration:none}
+.kal-termin{display:flex;flex-direction:column;gap:2px;background:var(--karte);border:1px solid var(--rand);border-left:5px solid var(--rand);border-radius:10px;padding:6px 10px;margin-bottom:6px;color:var(--fg);text-decoration:none;font-size:14px}
+.kal-termin.rezept{border-left-color:var(--ok)}.kal-termin.erledigt{opacity:.6}.kal.tag .kal-termin{flex-direction:row;gap:12px;align-items:center;flex-wrap:wrap}
+@media (max-width:900px){.re-kopf{grid-template-columns:1fr}.rp{grid-template-columns:1fr 1fr;grid-auto-rows:auto}.rp-edit{grid-column:auto}.kal.woche{grid-template-columns:1fr}}
 /* Rückmeldungen: Fähnchen und Fenster */
 .rm-marke{position:absolute;z-index:1100;display:none;place-items:center;width:16px;height:16px;padding:0;border-radius:50%;border:1px solid var(--akzent);background:var(--karte);color:var(--akzent);cursor:pointer;opacity:.85}
 .rm-marke:hover{opacity:1;transform:scale(1.25)}

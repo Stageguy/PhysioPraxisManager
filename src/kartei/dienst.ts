@@ -16,6 +16,12 @@ import {
   type WellnessLeistung,
 } from './patienten.ts';
 import { anamneseErfassen, befundErfassen, erklaerungErfassen, erklaerungWiderrufen, fallDetails, phaseSetzen, PHASEN, pinnwand, type FallDetails, type Phase, type Spalte } from './pinnwand.ts';
+import { einstellungen, einstellungSetzen, textbausteinAktiv, textbausteine, textbausteinSpeichern, type Textbaustein } from './konfiguration.ts';
+import {
+  bausteinAendern, bausteinEntfernen, bausteinHinzufuegen, positionAendern, positionHinzufuegen, positionLoeschen, rechnungAnlegen, rechnungLesen, rechnungPdf, rechnungStatus, type Rechnung,
+} from './rechnungen.ts';
+import { termineZeitraum, type TerminKalender } from './patienten.ts';
+import { listen as preislistenListen, type Preisliste } from '../preise/preislisten.ts';
 
 export { KarteiFehler };
 
@@ -27,6 +33,8 @@ export interface PatientSeiteDaten {
   verordnungen: VerordnungKurz[];
   serien: Serie[];
   rechnungen: RechnungKurz[];
+  /** freigegebene Preislisten für die Stammdaten */
+  preislisten: Preisliste[];
 }
 
 export interface AkteDaten {
@@ -59,6 +67,10 @@ export interface KarteiDienst {
   akte(id: string, wer: string): Promise<AkteDaten | undefined>;
   neuAktion(id: string): Promise<NeuAktionDaten | undefined>;
   rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
+  rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[] } | undefined>;
+  rechnungPdf(patientId: string, rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
+  konfiguration(): Promise<{ textbausteine: Textbaustein[]; einstellungen: Record<string, string> }>;
+  kalender(vonIso: string, bisIso: string): Promise<TerminKalender[]>;
   wellness(): Promise<WellnessLeistung[]>;
   gruende(): Promise<Gespraechsgrund[]>;
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
@@ -98,6 +110,7 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
       return {
         patient, verlauf: await kontaktverlauf(db, t, id), gruende: await gespraechsgruende(db), termine: await termine(db, id, { kommend: true }),
         verordnungen: await verordnungen(db, { patientId: id }), serien: await serien(db, t, { patientId: id }), rechnungen: await rechnungen(db, id),
+        preislisten: (await preislistenListen(db)).filter((l) => l.status === 'freigegeben'),
       };
     },
     async akte(id, wer) {
@@ -117,6 +130,19 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
       return { verordnungen: await verordnungen(db, { nurAktiv: filter === 'aktiv' }), serien: await serien(db, t, { nurOffen: filter === 'aktiv' }), filter };
     },
     wellness: () => wellnessLeistungen(db, { alle: true }),
+    async rechnung(patientId, rechnungId) {
+      const patient = await patientLesen(db, t, patientId);
+      const rechnung = patient ? await rechnungLesen(db, patientId, rechnungId) : undefined;
+      if (!patient || !rechnung) return undefined;
+      const positionen = rechnung.preisliste
+        ? (await db.query<{ id: string; nummer: string; bezeichnung: string; preis: string | null }>('SELECT id::text, nummer, bezeichnung, coalesce(eigener_preis, gkv_preis)::text AS preis FROM preisliste_position WHERE preisliste_id = $1 AND uebernehmen ORDER BY reihenfolge', [rechnung.preisliste.id])).rows
+          .map((x) => ({ id: x.id, nummer: x.nummer, bezeichnung: x.bezeichnung, preis: x.preis === null ? null : Number(x.preis) }))
+        : [];
+      return { patient, rechnung, textbausteine: await textbausteine(db), preislistePositionen: positionen, wellness: await wellnessLeistungen(db) };
+    },
+    rechnungPdf: (patientId, rechnungId) => rechnungPdf(db, patientId, rechnungId),
+    async konfiguration() { return { textbausteine: await textbausteine(db, { alle: true }), einstellungen: await einstellungen(db) }; },
+    kalender: (von, bis) => termineZeitraum(db, von, bis),
     gruende: () => gespraechsgruende(db),
     async aktion(f, wer) {
       const id = f.get('id') ?? '';
@@ -142,6 +168,20 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
       if (aktion === 'wellness_speichern') {
         await wellnessSpeichern(db, { id: g('wellness_id'), code: g('code') ?? '', bezeichnung: g('bezeichnung') ?? '', dauerMin: ganz(f.get('dauer_min')) || undefined, preis: g('preis') ?? '' }, wer);
         return nach('/rezepte/wellness', 'Wellness-Leistung gespeichert.');
+      }
+      // Konfiguration (W80) – ohne Patient
+      if (aktion === 'textbaustein_speichern') {
+        await textbausteinSpeichern(db, { id: g('textbaustein_id'), kurzname: g('kurzname') ?? '', text: g('text') ?? '', wirkung: g('wirkung'), automatisch: g('automatisch') }, wer);
+        return nach('/konfiguration', 'Textbaustein gespeichert.');
+      }
+      if (aktion === 'textbaustein_aktiv') {
+        await textbausteinAktiv(db, g('textbaustein_id') ?? '', f.get('aktiv') === '1', wer);
+        return nach('/konfiguration', f.get('aktiv') === '1' ? 'Textbaustein wieder im Angebot.' : 'Textbaustein ausgeblendet – auf bestehenden Rechnungen bleibt er.');
+      }
+      if (aktion === 'einstellung') {
+        const schluessel = g('schluessel') ?? '';
+        await einstellungSetzen(db, schluessel, schluessel === 'kleinunternehmer' ? (f.has('wert_ja') ? 'ja' : 'nein') : (g('wert') ?? '').trim(), wer);
+        return nach('/konfiguration', 'Einstellung gespeichert.');
       }
       if (aktion === 'wellness_aktiv') {
         await wellnessAktiv(db, g('wellness_id') ?? '', f.get('aktiv') === '1');
@@ -177,7 +217,7 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
           await stammdatenSpeichern(db, t, id, {
             anrede: g('anrede'), titel: g('titel'), vorname: g('vorname') ?? '', nachname: g('nachname') ?? '', geburtsname: g('geburtsname'), geburtsdatum: g('geburtsdatum'),
             patientSeit: g('patient_seit'), ansprache: g('ansprache'), besonderheiten: g('besonderheiten'), sprache: g('sprache'), kommunikationshilfe: g('kommunikationshilfe'),
-            berufBelastung: g('beruf_belastung'), notiz: g('notiz'),
+            berufBelastung: g('beruf_belastung'), notiz: g('notiz'), preislisteId: g('preisliste_id'), rechnungsversand: g('rechnungsversand'),
           }, wer);
           return nach(seite, 'Stammdaten gespeichert.');
         case 'kontakt_speichern':
@@ -249,6 +289,35 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
             leistungNummer: g('leistung_nummer'), massnahmen: g('massnahmen'), verlaufWirkung: g('verlauf_wirkung'), reaktionen: g('reaktionen'), uebungen: g('uebungen'),
           }, wer);
           return nach(`/patienten/${id}/akte#b-${e.behandlungId}`, 'Behandlung in der Akte eingetragen.');
+        }
+        // Rechnungen (W79, W81)
+        case 'rechnung_neu': {
+          const rid = await rechnungAnlegen(db, id, { steuerklasse: g('steuerklasse') === 'wellness_19' ? 'wellness_19' : 'heilbehandlung_steuerfrei', fallId: g('fall_id') }, wer);
+          return nach(`/patienten/${id}/rechnungen/${rid}`, 'Rechnungsentwurf angelegt.');
+        }
+        case 'rechnung_position_hinzufuegen':
+          await positionHinzufuegen(db, id, g('rechnung_id') ?? '', { nummer: g('nummer'), wellnessId: g('wellness_id'), bezeichnung: g('bezeichnung'), anzahl: ganz(f.get('anzahl'), 1), einzelpreis: g('einzelpreis'), datum: g('datum') }, wer);
+          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Position hinzugefügt.');
+        case 'rechnung_position_aendern':
+          await positionAendern(db, id, g('rechnung_id') ?? '', g('position_id') ?? '', { datum: g('datum'), bezeichnung: g('bezeichnung'), anzahl: ganz(f.get('anzahl'), 1), einzelpreis: g('einzelpreis') }, wer);
+          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Position geändert.');
+        case 'rechnung_position_loeschen':
+          await positionLoeschen(db, id, g('rechnung_id') ?? '', g('position_id') ?? '', wer);
+          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Position entfernt.');
+        case 'rechnung_baustein_hinzufuegen':
+          await bausteinHinzufuegen(db, id, g('rechnung_id') ?? '', g('textbaustein_id') ?? '', wer);
+          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Text hinzugefügt.');
+        case 'rechnung_baustein_aendern':
+          await bausteinAendern(db, id, g('rechnung_id') ?? '', g('baustein_id') ?? '', g('text') ?? '', wer);
+          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Text übernommen.');
+        case 'rechnung_baustein_entfernen':
+          await bausteinEntfernen(db, id, g('rechnung_id') ?? '', g('baustein_id') ?? '', wer);
+          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Text entfernt.');
+        case 'rechnung_status': {
+          const a = g('status_aktion') as Parameters<typeof rechnungStatus>[3];
+          if (!['fertig', 'zurueck', 'in_lexware', 'versendet', 'bezahlt', 'storno'].includes(a)) throw new KarteiFehler('Unbekannte Aktion');
+          const meldung = await rechnungStatus(db, id, g('rechnung_id') ?? '', a, { versandArt: g('versand_art'), grund: g('grund'), nummer: g('nummer'), datum: g('datum') }, wer);
+          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, meldung);
         }
         case 'archivieren':
           await statusSetzen(db, id, 'archiviert', wer);

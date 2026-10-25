@@ -63,7 +63,7 @@ function plusMenue(p: Pick<PatientKurz, 'id'>): string {
     <a href="/patienten/${p.id}/neu/rezept" data-hilfe="plus.rezept">${symbol('rezept', { groesse: 18 })} Neues Rezept</a>
     <a href="/patienten/${p.id}/neu/direktzugang" data-hilfe="plus.direktzugang">${symbol('freigabe', { groesse: 18 })} Behandlung ohne Rezept</a>
     <a href="/patienten/${p.id}/neu/wellness" data-hilfe="plus.wellness">${symbol('wellness', { groesse: 18 })} Wellness</a>
-    <span class="aus" data-hilfe="plus.rechnung" tabindex="0">${symbol('rechnung', { groesse: 18 })} Neue Rechnung <small>kommt mit Lexware XL</small></span>
+    <a href="/patienten/${p.id}#rechnungen" data-hilfe="plus.rechnung">${symbol('rechnung', { groesse: 18 })} Neue Rechnung</a>
   </div></details>`;
 }
 
@@ -178,11 +178,13 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
     const [text, farbe] = RECHNUNG_STATUS[r.status] ?? [r.status, 'preset12'];
     const verzug = r.status === 'gesendet' && r.faelligAm && r.faelligAm < heute();
     const ART: Record<string, string> = { einzel: 'Einzelrechnung', zwischenrechnung: 'Zwischenrechnung', abschlussrechnung: 'Abschlussrechnung', monat: 'Monatsrechnung', ausfall: 'Ausfallgebühr' };
-    return `<article class="rk-pat ${verzug ? (r.gemahnt ? 'rot' : 'gelb') : ''}" data-hilfe="patient.rechnung" tabindex="0">
-      <header>${symbol('euro', { groesse: 18 })}<b>${esc(r.nummer ?? ART[r.art] ?? r.art)}</b><span class="chip ${verzug ? (r.gemahnt ? 'preset0' : 'preset3') : farbe}">${verzug ? (r.gemahnt ? 'gemahnt' : 'überfällig') : text}</span></header>
+    void text; void farbe;
+    return `<a class="rk-pat ${verzug ? (r.gemahnt ? 'rot' : 'gelb') : ''}" href="/patienten/${p.id}/rechnungen/${r.id}" data-hilfe="patient.rechnung">
+      <header>${symbol('euro', { groesse: 18 })}<b>${esc(r.nummer ?? `${ART[r.art] ?? r.art} (Entwurf)`)}</b><span class="chip ${verzug ? (r.gemahnt ? 'preset0' : 'preset3') : r.statusFarbe}">${verzug ? (r.gemahnt ? 'gemahnt' : 'überfällig') : esc(r.statusText)}</span></header>
       <span class="rk-pat-betrag">${euro(r.betrag)}</span>
-      <dl class="liste-dl klein"><dt>Art</dt><dd>${esc(ART[r.art] ?? r.art)}</dd><dt>Datum</dt><dd>${datum(r.datum)}</dd>${r.faelligAm ? `<dt>Fällig</dt><dd>${datum(r.faelligAm)}</dd>` : ''}</dl>
-    </article>`;
+      <dl class="liste-dl klein"><dt>Gruppe</dt><dd>${r.steuerklasse === 'wellness_19' ? 'Wellness' : 'Heilbehandlung'} · ${r.positionen} Pos.</dd><dt>Datum</dt><dd>${r.datum ? datum(r.datum) : '–'}</dd>${r.faelligAm ? `<dt>Fällig</dt><dd>${datum(r.faelligAm)}</dd>` : ''}${r.versandArt ? `<dt>Versand</dt><dd>${{ email: 'per Mail', post: 'per Post', beides: 'Mail + Post' }[r.versandArt] ?? r.versandArt}</dd>` : ''}</dl>
+      ${r.lexwareAbweichung ? `<span class="fk-warn">${symbol('warnung', { groesse: 14 })} ${esc(r.lexwareAbweichung)}</span>` : ''}${r.pdf ? `<span class="marke">${symbol('rechnung', { groesse: 12 })} PDF</span>` : ''}
+    </a>`;
   }).join('');
   const bezugspersonen = p.bezugspersonen.map((b) => `<li><span>${symbol('patient', { groesse: 18 })}</span><span><b>${esc(b.name)}</b> <span class="hint">${esc(b.rolle)}${b.beziehung ? ` · ${esc(b.beziehung)}` : ''}${b.berechtigungsgrund ? ` · ${esc(b.berechtigungsgrund)}` : ''}${b.telefon ? ` · ${esc(b.telefon)}` : ''}</span></span></li>`).join('');
   const feld = (label: string, nameAttr: string, wert: string | null | undefined, typ = 'text', extra = '') => `<label>${label}<input type="${typ}" name="${nameAttr}" value="${esc(wert ?? '')}"${extra}></label>`;
@@ -208,6 +210,8 @@ ${kachel(p, { kopf: true })}
     ${feld('Unterstützung bei der Verständigung', 'kommunikationshilfe', p.kommunikationshilfe)}
     <label>Beruf und Belastung im Alltag<textarea name="beruf_belastung" rows="2">${esc(p.berufBelastung ?? '')}</textarea></label>
     <label>Notiz<textarea name="notiz" rows="2">${esc(p.notiz ?? '')}</textarea></label>
+    <div class="zwei"><label>Preisliste<select name="preisliste_id" data-hilfe="patient.preisliste">${d.preislisten.map((l) => `<option value="${l.id}"${p.preisliste?.id === l.id ? ' selected' : ''}>${esc(l.name)}${l.aktiv ? ' (aktiv)' : ''}</option>`).join('')}${p.preisliste && !d.preislisten.some((l) => l.id === p.preisliste!.id) ? `<option value="${p.preisliste.id}" selected>${esc(p.preisliste.name)}</option>` : ''}${!d.preislisten.length && !p.preisliste ? '<option value="">keine freigegebene Preisliste</option>' : ''}</select></label>
+      <label>Rechnungen erhält der Patient<select name="rechnungsversand" data-hilfe="patient.rechnungsversand"><option value="email"${p.rechnungsversand === 'email' ? ' selected' : ''}>per Mail</option><option value="post"${p.rechnungsversand === 'post' ? ' selected' : ''}>per Post (drucken)</option><option value="beides"${p.rechnungsversand === 'beides' ? ' selected' : ''}>per Mail und Post</option></select></label></div>
     <p class="hint">Nummer ${esc(p.patientennummer)} · Abrechnung ${esc(p.abrechnungsmodus)}${p.lexwareKundennummer ? ` · Lexware ${esc(p.lexwareKundennummer)}` : ''}${p.exchangeKontaktId ? ' · im Postfach als Kontakt' : ' · noch nicht als Kontakt im Postfach'}</p>
     <div class="knopfreihe"><button class="knopf primaer" data-hilfe="patient.speichern">Speichern</button>
     ${p.status === 'archiviert' ? `<button class="knopf" name="aktion" value="reaktivieren" data-hilfe="patient.reaktivieren">Wieder aktiv</button>` : `<button class="knopf warnend" name="aktion" value="archivieren" data-hilfe="patient.archivieren">Archivieren</button>`}</div>`, { id: p.id, zurueck, klasse: 'formular' })}
@@ -228,7 +232,9 @@ ${offenBox}
 </section>
 
 <section class="pat-abschnitt" id="rechnungen"><h2>${symbol('euro')} Rechnungen</h2>
-  ${rechnungen ? `<div class="rk-pat-raster">${rechnungen}</div>` : '<p class="leer">Noch keine Rechnung.</p>'}
+  ${rechnungen ? `<div class="rk-pat-raster">${rechnungen}</div>` : '<p class="leer">Noch keine Rechnung – Rezepte und Serien legen ihren Entwurf selbst an.</p>'}
+  <div class="knopfreihe">${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="heilbehandlung_steuerfrei"><button class="knopf klein" data-hilfe="rechnung.neu.heil">${symbol('euro', { groesse: 16 })} Neue Rechnung Heilbehandlung</button>`, { id: p.id, zurueck })}
+  ${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="wellness_19"><button class="knopf klein" data-hilfe="rechnung.neu.wellness">${symbol('wellness', { groesse: 16 })} Neue Rechnung Wellness</button>`, { id: p.id, zurueck })}</div>
 </section>
 
 <section class="pat-abschnitt" id="kontakte"><h2>${symbol('anfrage')} Kontaktwege</h2>

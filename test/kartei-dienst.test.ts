@@ -298,6 +298,11 @@ test('Pinnwand: Karte wandert nur mit vollständigen Daten; Drag & Drop antworte
   assert.match(a.fehler!, /Grund/);
   a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'behandlung', grund: 'Patient kommt doch noch einmal' });
   assert.equal(a.ok, true);
+  // Der Rezept-Entwurf (W79) zählt als offene Rechnung – erst erledigen, dann Archiv
+  a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'archiviert' });
+  assert.match(a.fehler!, /offene Rechnung/);
+  const entwurf = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE verordnung_id = $1', [rezept])).rows[0]!.id;
+  await post({ aktion: 'rechnung_status', id: pid, rechnung_id: entwurf, status_aktion: 'storno', grund: 'Testfall' });
   a = await dnd({ aktion: 'phase', id: pid, fall_id: fall.id, nach: 'archiviert' });
   assert.equal(a.ok, true, a.fehler);
   const f2 = (await db.query<{ p: string; ab: Date | null; bis: Date | null }>('SELECT phase::text AS p, abgeschlossen_am AS ab, aufbewahren_bis AS bis FROM behandlungsfall WHERE id = $1', [fall.id])).rows[0]!;
@@ -317,4 +322,113 @@ test('Pinnwand: Karte wandert nur mit vollständigen Daten; Drag & Drop antworte
   const wf = (await db.query<{ id: string }>("SELECT id::text FROM behandlungsfall WHERE patient_id = $1 AND grundlage = 'praevention'", [pid])).rows[0]!.id;
   a = await dnd({ aktion: 'phase', id: pid, fall_id: wf, nach: 'behandlung' });
   assert.equal(a.ok, true, a.fehler);
+});
+
+test('Rechnungsentwürfe: Rezept legt Entwurf mit Positionen und R1 an; Preisliste des Patienten; Behandlung füllt die Position', async () => {
+  // Aktive Preisliste mit einer Position 21201 zu 50 €
+  const pl = (await db.query<{ id: string }>("INSERT INTO preisliste (name, status, aktiv) VALUES ('Privat Test', 'freigegeben', true) RETURNING id::text")).rows[0]!.id;
+  await db.query("INSERT INTO preisliste_position (preisliste_id, reihenfolge, nummer, bezeichnung, gkv_preis, eigener_preis, uebernehmen) VALUES ($1, 1, '21201', 'Manuelle Therapie', 35.59, 50, true)", [pl]);
+  const p = await post({ aktion: 'anlegen', vorname: 'Rita', nachname: 'Rechnung', strasse: 'Weg', hausnummer: '2', plz: '86825', ort: 'Bad Wörishofen' });
+  const pid = /\/patienten\/(\d+)/.exec(ziel(p))![1]!;
+  assert.equal((await db.query<{ p: string }>('SELECT preisliste_id::text AS p FROM patient WHERE id = $1', [pid])).rows[0]!.p, pl, 'neuer Patient bekommt die aktive Preisliste');
+  await post({ aktion: 'termin_anlegen', id: pid, datum: '2099-03-02', zeit: '08:00', dauer_min: '30' });
+  await post({ aktion: 'verordnung_anlegen', id: pid, ausgestellt_am: '2026-10-01', massnahme: 'Manuelle Therapie', leistung_nummer: '21201', anzahl: '3' });
+  const rezept = (await db.query<{ id: string }>('SELECT id::text FROM verordnung WHERE patient_id = $1', [pid])).rows[0]!.id;
+  const re = (await db.query<{ id: string; status: string; betrag: string; steuerklasse: string }>('SELECT id::text, status::text, betrag::text, steuerklasse::text FROM rechnung WHERE verordnung_id = $1', [rezept])).rows[0]!;
+  assert.equal(re.status, 'entwurf');
+  assert.equal(re.betrag, '150.00', '3 × 50 € aus der Preisliste des Patienten');
+  assert.equal(re.steuerklasse, 'heilbehandlung_steuerfrei');
+  const bausteine = (await db.query<{ code: string }>('SELECT code FROM rechnung_textbaustein WHERE rechnung_id = $1 ORDER BY reihenfolge', [re.id])).rows.map((b) => b.code);
+  assert.deepEqual(bausteine, ['R1'], 'Heilbehandlung bekommt § 4 Nr. 14 automatisch');
+  let html = await seite(`/patienten/${pid}/rechnungen/${re.id}`);
+  assert.match(html, /Entwurf/);
+  assert.match(html, /keine Umsatzsteuer/);
+  assert.match(html, /Steuerfrei – Heilbehandlung/);
+  assert.equal((html.match(/class="rp"/g) ?? []).length, 3, 'drei Positionen');
+  // Behandlung mit Rezept hängt sich an die erste offene Position
+  await post({ aktion: 'behandlung_erfassen', id: pid, fall_id: 'neu', grundlage: 'verordnung', datum: '2026-10-20', verordnung_id: rezept, massnahmen: 'MT', leistung_nummer: '21201' });
+  const pos = (await db.query<{ datum: Date; bl: string | null }>('SELECT datum, behandlung_leistung_id::text AS bl FROM rechnung_position WHERE rechnung_id = $1 ORDER BY reihenfolge', [re.id])).rows;
+  assert.ok(pos[0]!.bl, 'erste Position ist jetzt behandelt');
+  assert.equal(new Date(pos[0]!.datum).toISOString().slice(0, 10), '2026-10-20');
+  // Positionen bearbeiten: + ✎ −
+  assert.match(ziel(await post({ aktion: 'rechnung_position_hinzufuegen', id: pid, rechnung_id: re.id, nummer: '21201', anzahl: '2', datum: '2026-10-22' })), /Position hinzugefügt/);
+  assert.equal((await db.query<{ b: string }>('SELECT betrag::text AS b FROM rechnung WHERE id = $1', [re.id])).rows[0]!.b, '250.00');
+  const letzte = (await db.query<{ id: string }>('SELECT id::text FROM rechnung_position WHERE rechnung_id = $1 ORDER BY reihenfolge DESC LIMIT 1', [re.id])).rows[0]!.id;
+  await post({ aktion: 'rechnung_position_aendern', id: pid, rechnung_id: re.id, position_id: letzte, bezeichnung: 'MT lang', anzahl: '1', einzelpreis: '60,00', datum: '2026-10-22' });
+  assert.equal((await db.query<{ b: string }>('SELECT betrag::text AS b FROM rechnung WHERE id = $1', [re.id])).rows[0]!.b, '210.00');
+  await post({ aktion: 'rechnung_position_loeschen', id: pid, rechnung_id: re.id, position_id: letzte });
+  assert.equal((await db.query<{ b: string }>('SELECT betrag::text AS b FROM rechnung WHERE id = $1', [re.id])).rows[0]!.b, '150.00');
+  assert.match(ziel(await post({ aktion: 'rechnung_position_hinzufuegen', id: pid, rechnung_id: re.id, nummer: '99999' })), /fehler=.*nicht in der Preisliste/);
+  // Textbaustein § 19 gehört nicht auf Heilbehandlung
+  const r2 = (await db.query<{ id: string }>("SELECT id::text FROM textbaustein WHERE code = 'R2'")).rows[0]!.id;
+  assert.match(ziel(await post({ aktion: 'rechnung_baustein_hinzufuegen', id: pid, rechnung_id: re.id, textbaustein_id: r2 })), /fehler=.*Wellness/);
+  const r3 = (await db.query<{ id: string }>("SELECT id::text FROM textbaustein WHERE code = 'R3'")).rows[0]!.id;
+  await post({ aktion: 'rechnung_baustein_hinzufuegen', id: pid, rechnung_id: re.id, textbaustein_id: r3 });
+  html = await seite(`/patienten/${pid}/rechnungen/${re.id}`);
+  assert.match(html, /Vielen Dank/);
+  // Status: fertig → Nummer → versendet → bezahlt; zurück nur vor Lexware
+  assert.match(ziel(await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'fertig' })), /Fertig/);
+  assert.match(ziel(await post({ aktion: 'rechnung_position_loeschen', id: pid, rechnung_id: re.id, position_id: letzte })), /fehler=.*Entwurf/);
+  await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'zurueck' });
+  assert.equal((await db.query<{ s: string }>('SELECT status::text AS s FROM rechnung WHERE id = $1', [re.id])).rows[0]!.s, 'entwurf');
+  await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'fertig' });
+  assert.match(ziel(await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'in_lexware', nummer: 'RE-2026-0042' })), /RE-2026-0042/);
+  assert.match(ziel(await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'zurueck' })), /fehler=/);
+  assert.match(ziel(await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'versendet', versand_art: 'post' })), /per Post/);
+  html = await seite(`/patienten/${pid}`);
+  assert.match(html, /RE-2026-0042/);
+  assert.match(html, /Versendet/);
+  await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'bezahlt' });
+  assert.equal((await db.query<{ s: string }>('SELECT status::text AS s FROM rechnung WHERE id = $1', [re.id])).rows[0]!.s, 'bezahlt');
+  assert.match(ziel(await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'storno', grund: 'x' })), /fehler=.*bezahlte/);
+});
+
+test('Wellness-Rechnung: Kleinunternehmer → R2 und keine USt; ohne Kleinunternehmer 19 %; Gruppen nie gemischt; Lexware-Abweichung', async () => {
+  const { lexwareStandUebernehmen } = await import('../src/kartei/rechnungen.ts');
+  const p = await post({ aktion: 'anlegen', vorname: 'Willi', nachname: 'Wellnessrechnung' });
+  const pid = /\/patienten\/(\d+)/.exec(ziel(p))![1]!;
+  await post({ aktion: 'wellness_speichern', code: 'HOT50', bezeichnung: 'Hot Stone 50', preis: '79' });
+  const w = (await db.query<{ id: string }>("SELECT id::text FROM wellness_leistung WHERE code = 'HOT50'")).rows[0]!.id;
+  await post({ aktion: 'serie_anlegen', id: pid, grundlage: 'praevention', wellness_id: w });
+  let re = (await db.query<{ id: string; betrag: string; ust: string; ku: boolean }>("SELECT id::text, betrag::text, ust::text, kleinunternehmer AS ku FROM rechnung WHERE patient_id = $1 AND steuerklasse = 'wellness_19'", [pid])).rows[0]!;
+  assert.equal(re.betrag, '79.00');
+  assert.equal(re.ust, '0.00', 'Kleinunternehmer: keine USt');
+  assert.ok(re.ku);
+  assert.deepEqual((await db.query<{ code: string }>('SELECT code FROM rechnung_textbaustein WHERE rechnung_id = $1', [re.id])).rows.map((b) => b.code), ['R2']);
+  // § 19-Baustein entfernen → 19 % werden gerechnet
+  const b = (await db.query<{ id: string }>('SELECT id::text FROM rechnung_textbaustein WHERE rechnung_id = $1', [re.id])).rows[0]!.id;
+  await post({ aktion: 'rechnung_baustein_entfernen', id: pid, rechnung_id: re.id, baustein_id: b });
+  re = (await db.query<{ id: string; betrag: string; ust: string; ku: boolean }>('SELECT id::text, betrag::text, ust::text, kleinunternehmer AS ku FROM rechnung WHERE id = $1', [re.id])).rows[0]!;
+  assert.equal(re.betrag, '79.00');
+  assert.equal(re.ust, '12.61', '79 brutto bei 19 % → 12,61 USt');
+  // Heilbehandlungs-Nummer auf eine Wellness-Rechnung geht nicht
+  assert.match(ziel(await post({ aktion: 'rechnung_position_hinzufuegen', id: pid, rechnung_id: re.id, nummer: '21201' })), /fehler=.*Wellness-Katalog/);
+  // Konfiguration: Kleinunternehmer aus → neue Wellness-Rechnung ohne R2, mit USt
+  assert.match(ziel(await post({ aktion: 'einstellung', schluessel: 'kleinunternehmer' })), /konfiguration\?meldung=/);
+  await post({ aktion: 'rechnung_neu', id: pid, steuerklasse: 'wellness_19' });
+  const neu = (await db.query<{ id: string }>("SELECT id::text FROM rechnung WHERE patient_id = $1 AND steuerklasse = 'wellness_19' ORDER BY id DESC LIMIT 1", [pid])).rows[0]!.id;
+  assert.equal((await db.query<{ n: string }>('SELECT count(*)::text AS n FROM rechnung_textbaustein WHERE rechnung_id = $1', [neu])).rows[0]!.n, '0');
+  await post({ aktion: 'rechnung_position_hinzufuegen', id: pid, rechnung_id: neu, wellness_id: w });
+  assert.equal((await db.query<{ u: string }>('SELECT ust::text AS u FROM rechnung WHERE id = $1', [neu])).rows[0]!.u, '12.61');
+  await post({ aktion: 'einstellung', schluessel: 'kleinunternehmer', wert_ja: '1' });
+  // Konfiguration: Textbaustein anlegen → nächste Kennung R4
+  assert.match(ziel(await post({ aktion: 'textbaustein_speichern', kurzname: 'Hinweis Termin', text: 'Bitte Termine 24 h vorher absagen.' })), /Textbaustein gespeichert/);
+  assert.match(await seite('/konfiguration'), /R4/);
+  // Lexware meldet: storniert → hier storniert + Abweichung; anderer Betrag → Abweichung
+  await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'fertig' });
+  await lexwareStandUebernehmen(db, re.id, { invoiceId: 'lx-1', nummer: 'RE-7', status: 'open', betrag: 80 }, 'abgleich');
+  let r = (await db.query<{ s: string; a: string | null; n: string }>('SELECT status::text AS s, lexware_abweichung AS a, nummer AS n FROM rechnung WHERE id = $1', [re.id])).rows[0]!;
+  assert.equal(r.s, 'in_lexware');
+  assert.equal(r.n, 'RE-7');
+  assert.match(r.a!, /80,00 € statt 79,00 €/);
+  await lexwareStandUebernehmen(db, re.id, { status: 'voided', betrag: 79 }, 'abgleich');
+  r = (await db.query<{ s: string; a: string | null; n: string }>('SELECT status::text AS s, lexware_abweichung AS a, nummer AS n FROM rechnung WHERE id = $1', [re.id])).rows[0]!;
+  assert.equal(r.s, 'storniert');
+  assert.match(await seite(`/patienten/${pid}`), /Storniert/);
+  // Kalenderseite zeigt Termine der Woche
+  await post({ aktion: 'termin_anlegen', id: pid, datum: '2099-03-04', zeit: '09:00', dauer_min: '60' });
+  const kal = await seite('/kalender?tag=2099-03-02&ansicht=woche');
+  assert.match(kal, /W\. W\./);
+  assert.match(kal, /09:00–10:00/);
+  assert.match(await seite('/kalender?tag=2099-03-04&namen=1'), /Willi Wellnessrechnung/);
 });

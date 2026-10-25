@@ -14,16 +14,25 @@ import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite,
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from '../src/web/rezepte.ts';
 import { rueckmeldungenSeite } from '../src/web/rueckmeldung.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from '../src/web/pinnwand.ts';
+import { rechnungSeite as ausgangsrechnungSeite } from '../src/web/rechnung.ts';
+import { konfigurationSeite } from '../src/web/konfiguration.ts';
+import { kalenderSeite } from '../src/web/kalender.ts';
 import type { Karte } from '../src/kartei/pinnwand.ts';
 import type { Patient } from '../src/kartei/patienten.ts';
 
+const Q: QuelleKurz = { id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2026', gueltigAb: '2026-01-01', abgerufenAm: '2026-10-23T03:00:00Z', url: 'https://x' };
+const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
+  id: '5', name: 'Privat 2026', status: 'entwurf', aktiv: false, genutzt: false, erstelltAm: '2026-10-23T10:00:00Z', erstelltVon: 'lilli',
+  freigegebenAm: null, freigegebenVon: null, archiviertAm: null, standardFaktor: 1.3, aufrunden: false, notiz: null, gkv: Q, beihilfe: { ...Q, id: '2', art: 'beihilfe', version: 'BBhV Anlage 9' },
+  basis: null, vorlage: { id: '1', name: 'GebüTh 15. Auflage' }, positionen: 58, uebernommen: 50, ...o,
+});
 const PK = { id: '1', art: 'mobil' as const, wert: '0151 1', normiert: '+491511', bezeichnung: null, primaer: true };
 const PAT: Patient = {
   id: '1', patientennummer: 'P-1001', status: 'aktiv', anrede: 'Frau', titel: null, vorname: 'Anna', nachname: 'Test', patientSeit: '2026-01-10', ansprache: 'sie/ihr', besonderheiten: 'Hörgerät',
   telefon: PK, whatsapp: { ...PK, id: '2', art: 'whatsapp' }, email: { ...PK, id: '3', art: 'email', wert: 'a@example.org', normiert: 'a@example.org' },
   letzteBehandlung: { id: '5', datum: '2026-10-20', fallId: '1' }, naechsterTermin: { id: '7', beginn: '2026-11-02T08:00:00Z', rezept: true }, rechnungsstand: 'gelb', offeneAnrufe: 1,
   geburtsdatum: '1984-03-12', geburtsname: null, sprache: null, kommunikationshilfe: null, berufBelastung: null, notiz: null, abrechnungsmodus: 'pro_serie', zwischenrechnungQuartale: null,
-  exchangeKontaktId: null, lexwareKundennummer: null, kontakte: [PK, { ...PK, id: '4', primaer: false }],
+  exchangeKontaktId: null, lexwareKundennummer: null, preisliste: { id: '5', name: 'Privat 2026' }, rechnungsversand: 'email', kontakte: [PK, { ...PK, id: '4', primaer: false }],
   adressen: [{ id: '1', bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kurpromenade', hausnummer: '3', plz: '86825', ort: 'Bad Wörishofen', land: 'DE', rechnungsadresse: true }],
   bezugspersonen: [{ id: '1', rolle: 'notfallkontakt', name: 'Max', beziehung: 'Bruder', berechtigungsgrund: null, telefon: null, email: null }], versicherungen: [],
 };
@@ -32,6 +41,7 @@ const VERORDNUNG = { id: '1', patientId: '1', patientName: 'Anna Test', art: 'er
 const SERIE = { id: '2', patientId: '1', patientName: 'Anna Test', nummer: 2, grundlage: 'praevention' as const, bezeichnung: 'Entspannung', wellness: { id: '1', bezeichnung: 'Wellnessmassage 60', preis: 65 }, begonnenAm: '2026-10-01', abgeschlossenAm: null, behandlungen: 2, letzteAm: '2026-10-20' };
 const WELLNESS = { id: '1', code: 'WM60', bezeichnung: 'Wellnessmassage 60', dauerMin: 60, preis: 65, aktiv: true };
 const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true };
+const RK = { id: '1', art: 'einzel', steuerklasse: 'heilbehandlung_steuerfrei', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', statusText: 'Versendet', statusFarbe: 'preset4', gemahnt: false, positionen: 2, versandArt: 'email', lexwareAbweichung: null, pdf: false };
 const PATIENT_DATEN = {
   patient: PAT, gruende: [{ code: 'absage_patient', bezeichnung: 'Absage Patient' }],
   verlauf: [
@@ -39,8 +49,17 @@ const PATIENT_DATEN = {
     { id: '2', art: 'whatsapp', am: '2026-10-23T09:00:00Z', grund: { code: 'absage_patient', bezeichnung: 'Absage Patient' }, notiz: 'krank', offen: false, kontakt: null, erfasstVon: 'lilli' },
   ],
   termine: [TERMIN], verordnungen: [VERORDNUNG, { ...VERORDNUNG, id: '3', art: 'korrektur' as const, status: 'ersetzt', vorgaengerId: '1' }], serien: [SERIE, { ...SERIE, id: '4', grundlage: 'direktzugang' as const, wellness: null, abgeschlossenAm: '2026-10-22' }],
-  rechnungen: [{ id: '1', art: 'einzel', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', gemahnt: false }],
+  rechnungen: [RK, { ...RK, id: '2', status: 'entwurf', statusText: 'Entwurf', statusFarbe: 'preset10', nummer: null, datum: null, faelligAm: null, lexwareAbweichung: 'in Lexware storniert', pdf: true, steuerklasse: 'wellness_19' }],
+  preislisten: [PL({ status: 'freigegeben', aktiv: true })],
 };
+const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abschlussrechnung', steuerklasse: 'heilbehandlung_steuerfrei' as const, status: 'entwurf' as const, empfaenger: { name: 'Anna Test', strasse: 'Kurpromenade 3', plz: '86825', ort: 'Bad Wörishofen' },
+  preisliste: { id: '5', name: 'Privat 2026' }, zeitraumVon: null, zeitraumBis: null, datum: null, faelligAm: null, nummer: null, netto: 92.54, ust: 0, ustSatz: 0, betrag: 92.54, kleinunternehmer: false, versandArt: null, versendetAm: null, bezahltAm: null, storniertAm: null, stornoGrund: null,
+  lexware: { invoiceId: null, status: null, betrag: null, geprueftAm: null, abweichung: null, pdfAm: null }, notiz: null, erstelltAm: '2026-10-25T10:00:00Z',
+  positionen: [{ id: '1', reihenfolge: 1, datum: '2026-10-26', nummer: '21201', bezeichnung: 'Manuelle Therapie', anzahl: 1, einzelpreis: 46.27, betrag: 46.27, verordnungId: '1', terminId: '7', behandlungLeistungId: '3' }, { id: '2', reihenfolge: 2, datum: null, nummer: '21201', bezeichnung: 'Manuelle Therapie', anzahl: 1, einzelpreis: 46.27, betrag: 46.27, verordnungId: '1', terminId: null, behandlungLeistungId: null }],
+  bausteine: [{ id: '1', code: 'R1', kurzname: 'Steuerfrei – Heilbehandlung', text: '§ 4 Nr. 14', wirkung: 'steuerfrei_heilbehandlung' }] };
+const TB = { id: '1', code: 'R1', kurzname: 'Steuerfrei', text: 'x', wirkung: 'steuerfrei_heilbehandlung' as const, automatisch: 'heilbehandlung' as const, aktiv: true };
+const RECHNUNG_DATEN = { patient: PAT, rechnung: RGE, textbausteine: [TB, { ...TB, id: '3', code: 'R3', kurzname: 'Dank', wirkung: 'keine' as const, automatisch: 'nie' as const }], preislistePositionen: [{ id: '9', nummer: '21201', bezeichnung: 'MT', preis: 46.27 }], wellness: [WELLNESS] };
+const KT = { id: '7', patientId: '1', vorname: 'Anna', nachname: 'Test', patientennummer: 'P-1001', beginn: '2026-10-26T07:00:00Z', ende: '2026-10-26T07:30:00Z', art: 'behandlung', status: 'bestaetigt', rezept: true, imKalender: false };
 const AKTE = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', steuerklasse: 'heilbehandlung_steuerfrei', bezeichnung: 'Schulter', anlass: 'Schmerz', diagnoseArzt: 'M75.1', begonnenAm: '2026-10-01', abgeschlossenAm: null,
   behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
 const NEU_AKTION = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', bezeichnung: 'Schulter' }], verordnungen: [VERORDNUNG], alleVerordnungen: [VERORDNUNG], termine: [TERMIN], wellness: [WELLNESS] };
@@ -53,15 +72,9 @@ const FALL = { patient: PAT, details: { karte: KARTE, anlass: 'Schmerz', diagnos
   erklaerungen: [{ id: '1', art: 'behandlungseinwilligung', am: '2026-10-01', form: 'schriftlich', inhalt: 'MT', fassung: null, gueltigBis: null, widerrufenAm: null, fallId: '1' }, { id: '2', art: 'einwilligung_whatsapp', am: '2026-10-01', form: 'textform', inhalt: null, fassung: 'v1', gueltigBis: null, widerrufenAm: '2026-10-10', fallId: null }],
   phasen: [{ von: 'befund_start' as const, nach: 'behandlung' as const, am: '2026-10-20T08:00:00Z', wer: 'lilli', grund: 'automatisch: Eingangsbefund erfasst' }],
   naechste: [{ phase: 'abschluss' as const, name: 'Abschluss', fehlt: ['Rezept noch nicht abgehakt'] }, { phase: 'rechnung' as const, name: 'Rechnung', fehlt: [] }] },
-  verordnungen: [VERORDNUNG], termine: [TERMIN], rechnungen: [{ id: '1', art: 'einzel', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', gemahnt: false }] };
+  verordnungen: [VERORDNUNG], termine: [TERMIN], rechnungen: [RK] };
 const RM = { id: '1', art: 'fehler' as const, status: 'offen' as const, seite: '/patienten', element: 'kachel.plus', elementTitel: '„+“', textHtml: '<p>Der Knopf <b>fehlt</b></p>', hatBild: true, fassung: '0.9.0', umgebung: 'test', browser: 'Safari', fenster: '393×852', von: 'lilli', erstelltAm: '2026-10-24T10:00:00Z', erledigtAm: null, erledigtVon: null, antwort: null };
 
-const Q: QuelleKurz = { id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2026', gueltigAb: '2026-01-01', abgerufenAm: '2026-10-23T03:00:00Z', url: 'https://x' };
-const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
-  id: '5', name: 'Privat 2026', status: 'entwurf', aktiv: false, genutzt: false, erstelltAm: '2026-10-23T10:00:00Z', erstelltVon: 'lilli',
-  freigegebenAm: null, freigegebenVon: null, archiviertAm: null, standardFaktor: 1.3, aufrunden: false, notiz: null, gkv: Q, beihilfe: { ...Q, id: '2', art: 'beihilfe', version: 'BBhV Anlage 9' },
-  basis: null, vorlage: { id: '1', name: 'GebüTh 15. Auflage' }, positionen: 58, uebernommen: 50, ...o,
-});
 const POS: Position = { id: '9', reihenfolge: 0, nummer: '20501', kuerzel: 'KG', gruppe: 'Krankengymnastik', bezeichnung: 'Allgemeine Krankengymnastik (KG)', regelzeit: '15 bis 25 Minuten',
   gkvPreis: 29.63, beihilfeHoechstbetrag: 29, beihilfeNummer: '4', uebernehmen: true, faktor: 1.35, eigenerPreis: 40, notiz: null };
 const QP = { id: '7', nummer: '4', bezeichnung: 'Krankengymnastik (KG)', preis: 29, gruppe: 'Krankengymnastik', daten: {} };
@@ -125,6 +138,13 @@ const seiten = () => [
   fallNeuSeite({ patienten: [PAT], wellness: [WELLNESS] }, R),
   fallSeite(FALL, R),
   fallSeite({ ...FALL, details: { ...FALL.details, anamnese: null, befunde: [], erklaerungen: [], phasen: [] }, verordnungen: [], termine: [], rechnungen: [] }, R),
+  ausgangsrechnungSeite(RECHNUNG_DATEN, R),
+  ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'freigegeben', steuerklasse: 'wellness_19', ustSatz: 19, ust: 14.77, netto: 77.77, lexware: { ...RGE.lexware, abweichung: 'Betrag weicht ab', pdfAm: '2026-10-25T10:00:00Z', status: 'open' }, stornoGrund: 'x', storniertAm: '2026-10-25', zeitraumVon: '2026-10-01', zeitraumBis: '2026-10-20' } }, R),
+  ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'in_lexware', nummer: 'RE-2026-001' } }, R),
+  ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'gesendet', nummer: 'RE-2026-001' } }, R),
+  konfigurationSeite({ textbausteine: [TB, { ...TB, id: '2', code: 'R2', aktiv: false, wirkung: 'kleinunternehmer' as const, automatisch: 'wellness' as const }], einstellungen: { kleinunternehmer: 'ja', ust_satz_wellness: '19' } }, R),
+  kalenderSeite({ tag: '2026-10-26', ansicht: 'tag', termine: [KT], namenZeigen: false, heute: '2026-10-26' }, R),
+  kalenderSeite({ tag: '2026-10-26', ansicht: 'woche', termine: [KT, { ...KT, id: '8', rezept: false, imKalender: true, status: 'erledigt' }], namenZeigen: true, heute: '2026-10-25' }, R),
   rueckmeldungenSeite({ liste: [RM, { ...RM, id: '2', status: 'erledigt', hatBild: false, antwort: 'behoben', erledigtAm: '2026-10-25T10:00:00Z' }], status: 'alle', offen: 1 }, R),
 ];
 /** Eine Seite einmal in der Testumgebung – dort gibt es das Band */

@@ -130,6 +130,18 @@ für die Termine der Praxis-Assistenz (lila Kategorie), neben deinem normalen Ka
 
 > Antwort:
 
+**21. Kleinunternehmerregelung:** Gilt § 19 UStG für dich noch (Vorjahresumsatz bis 25.000 €, laufend bis
+100.000 €)? Sobald nicht mehr, schalten wir in der Konfiguration um – dann rechnen Wellness-Rechnungen 19 %.
+Mit der Steuerberatung klären. (W80)
+
+> Antwort:
+
+**22. Rechnungsversand:** Welche Patienten wollen die Rechnung per Mail, welche per Post? Standard ist Mail;
+in den Stammdaten einstellbar. Und: Was steht heute als Text unter deinen Rechnungen (Dank, Bankverbindung,
+Zahlungsziel)? Das werden die Textbausteine R3 ff. (W80)
+
+> Antwort:
+
 ## Zugang und Ablage
 
 **12. Ein Konto oder zwei?** Heute arbeitest du und das System mit praxis@lilli-nebel.de. Reicht

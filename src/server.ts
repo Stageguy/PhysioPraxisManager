@@ -23,6 +23,10 @@ import { cockpitSeite } from './web/cockpit.ts';
 import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from './web/patienten.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
+import { rechnungSeite as ausgangsrechnungSeite } from './web/rechnung.ts';
+import { konfigurationSeite } from './web/konfiguration.ts';
+import { kalenderSeite, tagPlus, wocheUm } from './web/kalender.ts';
+import { berlinMitternachtUtc, datumBerlin } from './zeit.ts';
 import { menueStand } from './web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from './web/preislisten.ts';
 import { dashboardSeite, PRAXIS_SKRIPT, rechnungSeite } from './web/rechnungen.ts';
@@ -226,7 +230,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (pfad === '/status') return senden(res, 200, 'text/html', statusseite(await opt.pruefen(), wer, opt.fassung));
       const freieMeldung = meldung ?? adresse.searchParams.get('meldung')?.slice(0, 300) ?? undefined;
       if (pfad.startsWith('/preislisten')) return await preislistenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
-      if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte') || pfad.startsWith('/pinnwand')) return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
+      if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte') || pfad.startsWith('/pinnwand') || pfad === '/konfiguration' || pfad === '/kalender') return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad === '/rueckmeldung.js') return senden(res, 200, 'text/javascript', RUECKMELDUNG_SKRIPT);
       if (pfad === '/html2canvas.js') return senden(res, 200, 'text/javascript', await html2canvas());
       if (pfad.startsWith('/rueckmeldung')) return await rueckmeldungSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
@@ -288,13 +292,13 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (pfad === '/patienten/aktion') {
       if (!gleicheHerkunft(req)) return senden(res, 403, 'text/plain', 'Nur von den Seiten der Praxis-Assistenz');
       const f = await formular(req);
-      const zurueck = /^\/(patienten|rezepte|pinnwand)(\/[\w/-]*)?(\?[\w=&]+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
+      const zurueck = /^\/(patienten|rezepte|pinnwand|konfiguration)(\/[\w/-]*)?(\?[\w=&]+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
       // Drag & Drop auf der Pinnwand fragt per fetch und will eine Antwort als JSON statt einer Umleitung
       const alsJson = (req.headers.accept ?? '').includes('application/json');
       try {
         const e = await d.aktion(f, wer);
         if (alsJson) return senden(res, 200, 'application/json', JSON.stringify({ ok: true, meldung: e.meldung }));
-        const [pfadTeil, anker] = (f.get('zurueck')?.startsWith('/rezepte') || f.get('zurueck')?.startsWith('/pinnwand') ? zurueck : e.ziel).split('#');
+        const [pfadTeil, anker] = (f.get('zurueck')?.startsWith('/rezepte') || f.get('zurueck')?.startsWith('/pinnwand') || f.get('zurueck') === '/konfiguration' ? zurueck : e.ziel).split('#');
         return umleiten(res, `${pfadTeil}${pfadTeil!.includes('?') ? '&' : '?'}meldung=${encodeURIComponent(e.meldung)}${anker ? `#${anker}` : ''}`);
       } catch (err) {
         if (err instanceof KarteiFehler) {
@@ -303,6 +307,27 @@ export function praxisDienst(opt: DienstOptionen): Server {
         }
         throw err;
       }
+    }
+    if (pfad === '/konfiguration') return senden(res, 200, 'text/html', konfigurationSeite(await d.konfiguration(), r));
+    if (pfad === '/kalender') {
+      const heuteTag = datumBerlin(new Date().toISOString());
+      const tagParam = adresse.searchParams.get('tag') ?? '';
+      const tag = /^\d{4}-\d{2}-\d{2}$/.test(tagParam) && !Number.isNaN(Date.parse(`${tagParam}T12:00:00Z`)) ? tagParam : heuteTag;
+      const ansicht = adresse.searchParams.get('ansicht') === 'woche' ? 'woche' : 'tag';
+      const tage = ansicht === 'woche' ? wocheUm(tag) : [tag];
+      const termine = await d.kalender(berlinMitternachtUtc(tage[0]!), berlinMitternachtUtc(tagPlus(tage[tage.length - 1]!, 1)));
+      return senden(res, 200, 'text/html', kalenderSeite({ tag, ansicht, termine, namenZeigen: adresse.searchParams.get('namen') === '1', heute: heuteTag }, r));
+    }
+    const rm = /^\/patienten\/(\d+)\/rechnungen\/(\d+)(\/pdf)?$/.exec(pfad);
+    if (rm) {
+      if (rm[3]) {
+        const pdf = await d.rechnungPdf(rm[1]!, rm[2]!);
+        if (!pdf) return senden(res, 404, 'text/plain', 'Kein PDF aus Lexware');
+        res.writeHead(200, { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN', 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(pdf.name)}` });
+        return void res.end(Buffer.from(pdf.daten));
+      }
+      const rd = await d.rechnung(rm[1]!, rm[2]!);
+      return rd ? senden(res, 200, 'text/html', ausgangsrechnungSeite(rd, r)) : senden(res, 404, 'text/plain', 'Diese Rechnung gibt es nicht');
     }
     if (pfad === '/pinnwand') {
       const ansicht = adresse.searchParams.get('ansicht') === 'vertikal' ? 'vertikal' : 'horizontal';

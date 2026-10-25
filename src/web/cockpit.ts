@@ -188,7 +188,8 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
     <section class="bereich" aria-labelledby="b-pa"><h2 id="b-pa" data-hilfe="bereich.patienten" tabindex="0">${symbol('patient')} Patienten</h2>
       <div class="kacheln">${PATIENTEN.map(kachelHtml).join('')}</div></section>
   </div>
-  <section class="uebersicht" aria-labelledby="b-ue"><h2 id="b-ue" class="spaltenkopf" data-hilfe="bereich.uebersicht" tabindex="0">${symbol('auge')} Heute im Blick</h2>
+  <section class="uebersicht" aria-labelledby="b-ue"><h2 id="b-ue" class="spaltenkopf" data-hilfe="bereich.uebersicht" tabindex="0">${symbol('auge')} Heute im Blick
+      <a class="kopf-kalender" href="/kalender" data-hilfe="uebersicht.kalender" aria-label="Kalender öffnen">→ ${symbol('kalender', { groesse: 22 })}</a></h2>
     ${termine}${rechnungen}${anfragen}</section>
   ${log}
 </div>`,
