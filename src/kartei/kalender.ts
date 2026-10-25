@@ -88,7 +88,8 @@ export async function terminSpiegeln(db: Db, graph: Graph, terminId: string, wer
 /** Alle künftigen Termine ohne Kalendereintrag nachtragen (Befehl `termine:abgleich`) */
 export async function alleTermineSpiegeln(db: Db, graph: Graph, wer: string): Promise<{ angelegt: number; fehler: number }> {
   const { rows } = await db.query<{ id: string }>(
-    "SELECT id::text FROM termin WHERE exchange_event_id IS NULL AND status IN ('vorgeschlagen', 'bestaetigt') AND ende >= now() ORDER BY beginn",
+    // Auch Termine des laufenden Tages, die schon vorbei sind – „Heute im Blick“ zeigt den ganzen Tag
+    "SELECT id::text FROM termin WHERE exchange_event_id IS NULL AND status IN ('vorgeschlagen', 'bestaetigt', 'erledigt') AND ende >= date_trunc('day', now() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin' ORDER BY beginn",
   );
   let angelegt = 0;
   let fehler = 0;
