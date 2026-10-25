@@ -166,7 +166,7 @@ test('Testdaten: nur einmal, erfundene Adressen, verschiedene Kachelzustände', 
   await migriere(db2);
   const e = await testdatenAnlegen(db2, t, { adresse: 'shopping@2late.de', wer: 'test' });
   assert.equal(e.patienten, 10);
-  assert.ok(e.behandlungen > 10 && e.termine > 5 && e.rechnungen > 8);
+  assert.ok(e.behandlungen > 10 && e.termine > 30 && e.rechnungen > 8);
   assert.ok((await testdatenAnlegen(db2, t, { adresse: 'shopping@2late.de', wer: 'test' })).uebersprungen);
   const mails = (await db2.query<{ normiert: string }>("SELECT normiert FROM patient_kontakt WHERE art = 'email'")).rows.map((r) => r.normiert);
   assert.ok(mails.every((m) => /^shopping\+[a-z]+@2late\.de$/.test(m)), mails.join(','));

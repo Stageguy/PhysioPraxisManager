@@ -130,7 +130,11 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
       }, wer);
       const erledigt = Math.min(i + 1, 5);
       for (let k = 0; k < erledigt; k++) {
+        // Zu jeder vergangenen Behandlung ein (erledigter) Termin – so ist der Kalender auch rückwärts gefüllt
+        const terminId = await terminAnlegen(db, id, { datum: tag(-30 - i * 2 + k * 4), zeit: `${String(8 + ((i + k) % 8)).padStart(2, '0')}:${k % 2 ? '30' : '00'}`, dauerMin: 30, verordnungId: rezept }, wer);
+        termine++;
         await behandlungErfassen(db, t, id, {
+          terminId,
           fallId: k === 0 ? undefined : (await db.query<{ id: string }>('SELECT id::text FROM behandlungsfall WHERE patient_id = $1 ORDER BY nummer DESC LIMIT 1', [id])).rows[0]!.id,
           neuerFall: k === 0 ? { grundlage: 'verordnung', bezeichnung: ['Rücken', 'Schulter rechts', 'Knie links', 'Nacken'][i % 4], anlass: 'Schmerzen seit mehreren Wochen, Alltag eingeschränkt (erfunden)', diagnoseArzt: ['Kreuzschmerz', 'Impingement Schulter', 'Gonarthrose', 'Zervikalgie'][i % 4] } : undefined,
           datum: tag(-30 - i * 2 + k * 4), dauerMin: 20 + (i % 3) * 10, verordnungId: rezept, leistungNummer: nummer,
@@ -197,6 +201,11 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
       if (i === 3) await phaseSetzen(db, id, fall, 'aufnahme', wer, 'Anamnese steht noch aus (erfunden)');
     } else if (i === 8) {
       await fallAnlegen(db, t, id, { grundlage: 'verordnung', bezeichnung: 'Haltung, Schule', anlass: 'Eltern bitten um Termin (erfunden)', phase: 'anfrage' }, wer);
+    }
+    // Heute immer etwas im Blick: drei Termine am Erzeugungstag (Anna, Elif, Greta)
+    if (i === 0 || i === 4 || i === 6) {
+      await terminAnlegen(db, id, { datum: tag(0), zeit: { 0: '09:00', 4: '11:00', 6: '14:30' }[i]!, dauerMin: 30 }, wer);
+      termine++;
     }
     // Kontaktverlauf: ein paar Gespräche, bei Anna ein offener Anruf
     await verlaufEintragen(db, t, id, { art: 'anruf_eingehend', grund: 'terminvereinbarung', notiz: 'Erstkontakt, Termin vereinbart (erfunden)' }, wer);
