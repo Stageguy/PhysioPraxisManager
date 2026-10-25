@@ -10,7 +10,7 @@ import { protokolliere, type Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
 import { berlinZeitUtc } from '../zeit.ts';
 import { phaseVorruecken, type Phase } from './pinnwand.ts';
-import { behandlungZuordnen, rechnungAusRezept, rechnungAusSerie, STATUS_TEXT as RECHNUNG_STATUS_TEXT, terminZuordnen } from './rechnungen.ts';
+import { behandlungZuordnen, entwurfAnKorrekturAnpassen, rechnungAusRezept, rechnungAusSerie, STATUS_TEXT as RECHNUNG_STATUS_TEXT, terminZuordnen } from './rechnungen.ts';
 
 export class KarteiFehler extends Error {}
 
@@ -642,9 +642,9 @@ export async function verordnungAnlegen(
   // Korrektur: das berichtigte Rezept gilt nicht mehr, seine Haken zählen in der Kette weiter
   if (art === 'korrektur') {
     await db.query("UPDATE verordnung SET status = 'ersetzt' WHERE id = $1", [vorgaenger!.id]);
-    // Der Rechnungsentwurf des berichtigten Rezepts gehört jetzt zur Korrektur
-    await db.query("UPDATE rechnung SET verordnung_id = $2 WHERE verordnung_id = $1 AND status = 'entwurf'", [vorgaenger!.id, rows[0]!.id]);
-    await db.query("UPDATE rechnung_position SET verordnung_id = $2 WHERE verordnung_id = $1 AND rechnung_id IN (SELECT id FROM rechnung WHERE verordnung_id = $2 AND status = 'entwurf')", [vorgaenger!.id, rows[0]!.id]);
+    // Entwurf und offene Termine des berichtigten Rezepts gehören jetzt zur Korrektur; die Positionen folgen der neuen Anzahl
+    await entwurfAnKorrekturAnpassen(db, patientId, vorgaenger!.id, rows[0]!.id, d.anzahl, text(d.leistungNummer), d.massnahme.trim());
+    await db.query("UPDATE termin SET verordnung_id = $2 WHERE verordnung_id = $1 AND status IN ('vorgeschlagen', 'bestaetigt')", [vorgaenger!.id, rows[0]!.id]);
   }
   await protokolliere(db, { actor: wer, action: 'verordnung_angelegt', objectType: 'patient', objectId: patientId, details: { anzahl: d.anzahl, art } });
   // Jedes Rezept bekommt sofort seinen Rechnungsentwurf (W79) – die Korrektur übernimmt den des Vorgängers

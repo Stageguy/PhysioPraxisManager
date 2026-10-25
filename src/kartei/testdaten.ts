@@ -5,8 +5,14 @@
  */
 import type { Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
-import { anrufBeginnen, behandlungErfassen, fallAnlegen, patientAnlegen, terminAnlegen, verlaufEintragen, verordnungAnlegen, wellnessSpeichern, type Kontaktart } from './patienten.ts';
+import {
+  adresseSpeichern, anrufBeginnen, behandlungErfassen, fallAnlegen, kontaktSpeichern, patientAnlegen, statusSetzen, terminAnlegen, terminStatus, verlaufEintragen,
+  verordnungAbbrechen, verordnungAnlegen, wellnessSpeichern, zweitschriftVermerken, type Kontaktart,
+} from './patienten.ts';
 import { anamneseErfassen, befundErfassen, erklaerungErfassen, phaseSetzen } from './pinnwand.ts';
+import { bausteinHinzufuegen, lexwareStandUebernehmen, rechnungStatus } from './rechnungen.ts';
+import { textbausteinSpeichern, textbausteine } from './konfiguration.ts';
+import { aktivSetzen, anlegen as preislisteAnlegen, freigeben as preislisteFreigeben, quellen } from '../preise/preislisten.ts';
 
 const PERSONEN: { vorname: string; nachname: string; anrede: string; geboren: string; ort: string; strasse: string; plz: string; besonderheiten?: string; ansprache?: string; sprache?: string }[] = [
   { vorname: 'Anna', nachname: 'Beispiel', anrede: 'Frau', geboren: '1984-03-12', ort: 'Bad Wörishofen', strasse: 'Kurpromenade 3', plz: '86825' },
@@ -213,4 +219,250 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
     if (i === 0) await anrufBeginnen(db, id, (await db.query<{ id: string }>("SELECT id::text FROM patient_kontakt WHERE patient_id = $1 AND art = 'mobil'", [id])).rows[0]?.id, wer);
   }
   return { uebersprungen: false, patienten: PERSONEN.length, behandlungen, termine, rechnungen };
+}
+
+/** Termine eines Rezepts auf Wochentage verteilen (1 = Mo … 5 = Fr), ab `start` Tagen, bis alle Einheiten vergeben sind */
+async function termineVerteilen(db: Db, patientId: string, rezept: string, fallId: string, anzahl: number, tage: number[], zeit: string, start: number, dauer = 30, wer = 'testdaten'): Promise<string[]> {
+  const ids: string[] = [];
+  for (let v = start; ids.length < anzahl && v < start + 60; v++) {
+    const d = new Date();
+    d.setUTCHours(12, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() + v);
+    if (!tage.includes(d.getUTCDay())) continue;
+    ids.push(await terminAnlegen(db, patientId, { datum: d.toISOString().slice(0, 10), zeit, dauerMin: dauer, verordnungId: rezept, fallId }, wer));
+  }
+  return ids;
+}
+
+/**
+ * Erweiterte Testdaten (Testerrolle, 26.10.2026): zwei Preislisten aus der aktuellen GKV-Liste („Gerundet“
+ * Faktor 1,0 aufgerundet = aktiv; „Tagesgast“ Faktor 1,6 aufgerundet), sechs Patienten mit drei Adressen und
+ * der Mailadresse shopping@2late.de, Rezepte mit 6 und 12 Einheiten samt Terminen und automatischen
+ * Rechnungsentwürfen – dazu je ein Beispiel für jede Phase der Pinnwand, jeden Rechnungsstatus, Korrektur,
+ * Zweitschrift, Abbruch, Storno, Lexware-Abweichung, Wellness, Direktzugang, Bezugspersonen, Kontaktverlauf.
+ * Läuft nur einmal (T-1021).
+ */
+export async function testdatenErweitert(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; preislisten: number; patienten: number; termine: number; rechnungen: number }> {
+  if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1021'")).rows.length) return { uebersprungen: true, preislisten: 0, patienten: 0, termine: 0, rechnungen: 0 };
+  const wer = o.wer;
+  let termine = 0;
+
+  // ── Preislisten aus der aktuellen GKV-Fassung ──
+  let preislisten = 0;
+  let tagesgast: string | null = null;
+  const gkv = (await quellen(db, 'gkv'))[0];
+  if (gkv) {
+    const beihilfe = (await quellen(db, 'beihilfe'))[0];
+    const fertigmachen = async (id: string) => {
+      // Positionen ohne GKV-Preis (z. B. Pauschalen) abwählen, sonst lässt sich die Liste nicht freigeben
+      await db.query('UPDATE preisliste_position SET uebernehmen = false WHERE preisliste_id = $1 AND eigener_preis IS NULL', [id]);
+      await preislisteFreigeben(db, id, wer);
+    };
+    // Nach einem Neuaufbau der Patienten gibt es die Listen schon – dann wiederverwenden
+    const vorhanden = async (name: string) => (await db.query<{ id: string }>("SELECT id::text FROM preisliste WHERE name = $1 AND status = 'freigegeben' ORDER BY id DESC LIMIT 1", [name])).rows[0]?.id;
+    let gerundet = await vorhanden('Gerundet (GKV × 1,0)');
+    if (!gerundet) {
+      gerundet = await preislisteAnlegen(db, { name: 'Gerundet (GKV × 1,0)', gkvQuelleId: gkv.id, beihilfeQuelleId: beihilfe?.id, standardFaktor: 1, aufrunden: true, wer });
+      await fertigmachen(gerundet);
+      preislisten++;
+    }
+    await aktivSetzen(db, gerundet, wer);
+    tagesgast = (await vorhanden('Tagesgast (GKV × 1,6)')) ?? null;
+    if (!tagesgast) {
+      tagesgast = await preislisteAnlegen(db, { name: 'Tagesgast (GKV × 1,6)', gkvQuelleId: gkv.id, beihilfeQuelleId: beihilfe?.id, standardFaktor: 1.6, aufrunden: true, wer });
+      await fertigmachen(tagesgast);
+      preislisten++;
+    }
+  }
+  // Ein weiterer Textbaustein für die Rechnungen
+  if (!(await textbausteine(db, { alle: true })).some((b) => b.kurzname === 'Bankverbindung')) {
+    await textbausteinSpeichern(db, { kurzname: 'Bankverbindung', text: 'Bankverbindung: Praxis Lilli Nebel · IBAN DE00 0000 0000 0000 0000 00 (erfunden) · Verwendungszweck: Rechnungsnummer', wirkung: 'keine', automatisch: 'alle' }, wer);
+  }
+  const bankbaustein = (await textbausteine(db)).find((b) => b.kurzname === 'Bankverbindung');
+
+  // ── Sechs Patienten mit drei Adressen, Rezept mit 6 bzw. 12 Einheiten ──
+  const SECHS = [
+    { vorname: 'Nora', nachname: 'Sechser', anrede: 'Frau', geboren: '1972-02-14', einheiten: 6, massnahme: 'Krankengymnastik', nummer: '20501', tage: [1, 3], zeit: '09:00' },
+    { vorname: 'Oskar', nachname: 'Zwölfer', anrede: 'Herr', geboren: '1965-07-30', einheiten: 12, massnahme: 'Manuelle Therapie', nummer: '21201', tage: [2, 4], zeit: '09:00' },
+    { vorname: 'Petra', nachname: 'Rundlich', anrede: 'Frau', geboren: '1980-11-11', einheiten: 6, massnahme: 'Klassische Massagetherapie', nummer: '20106', tage: [1, 3, 5], zeit: '13:00' },
+    { vorname: 'Quirin', nachname: 'Tagesgast', anrede: 'Herr', geboren: '1990-05-21', einheiten: 12, massnahme: 'Manuelle Therapie', nummer: '21201', tage: [1, 2, 4], zeit: '15:30' },
+    { vorname: 'Rosa', nachname: 'Lymph', anrede: 'Frau', geboren: '1955-09-09', einheiten: 6, massnahme: 'Manuelle Lymphdrainage 45 Min.', nummer: '20201', tage: [2, 5], zeit: '11:00' },
+    { vorname: 'Sven', nachname: 'Kraft', anrede: 'Herr', geboren: '1988-03-03', einheiten: 12, massnahme: 'Krankengymnastik', nummer: '20501', tage: [3, 5], zeit: '16:30' },
+  ];
+  const ids: string[] = [];
+  const rezepte: string[] = [];
+  for (const [i, p] of SECHS.entries()) {
+    const nr = String(21 + i).padStart(3, '0');
+    const id = await patientAnlegen(db, t, {
+      patientennummer: `T-${1021 + i}`, anrede: p.anrede, vorname: p.vorname, nachname: p.nachname, geburtsdatum: p.geboren, patientSeit: tag(-10 - i),
+      kontakte: [{ art: 'mobil', wert: `030 23125 ${nr}` }, { art: 'whatsapp', wert: `030 23125 ${nr}` }, { art: 'email', wert: o.adresse }],
+      adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Hauptstraße', hausnummer: String(10 + i), plz: '86825', ort: 'Bad Wörishofen' },
+    }, wer);
+    ids.push(id);
+    await adresseSpeichern(db, id, { bezeichnung: 'Arbeit', strasse: 'Gewerbering', hausnummer: String(2 + i), plz: '87719', ort: 'Mindelheim' }, wer, { ohneProtokoll: true });
+    await adresseSpeichern(db, id, { bezeichnung: i % 2 ? 'Ferienwohnung' : 'Eltern', strasse: 'Seeweg', hausnummer: String(i + 1), plz: '87700', ort: 'Memmingen' }, wer, { ohneProtokoll: true });
+    // Die zweite Hälfte rechnet nach der Tagesgast-Liste
+    if (i >= 3 && tagesgast) await db.query('UPDATE patient SET preisliste_id = $2 WHERE id = $1', [id, tagesgast]);
+    await db.query("INSERT INTO patient_versicherung (patient_id, art, versicherer, tarif) VALUES ($1, $2, $3, $4)", [id, i % 3 === 0 ? 'beihilfe' : 'pkv', i % 3 === 0 ? 'Beihilfe Bayern + PKV' : ['Allianz (erfunden)', 'DKV (erfunden)'][i % 2], i % 3 === 0 ? '50 % Beihilfe' : 'Tarif Privat']);
+    await erklaerungErfassen(db, t, id, { art: 'datenschutzinformation', form: 'schriftlich', am: tag(-10 - i), fassung: 'Datenschutzinformation 2026-01' }, wer);
+    const fall = await fallAnlegen(db, t, id, { grundlage: 'verordnung', bezeichnung: ['Rücken', 'Schulter links', 'Nacken', 'Knie rechts', 'Lymphödem Bein', 'Hüfte'][i], anlass: 'Beschwerden laut Verordnung (erfunden)', begonnenAm: tag(-5), phase: 'aufnahme' }, wer);
+    await erklaerungErfassen(db, t, id, { fallId: fall, art: 'behandlungseinwilligung', form: 'schriftlich', am: tag(-5), inhalt: `${p.massnahme} laut Verordnung` }, wer);
+    const rezept = await verordnungAnlegen(db, t, id, {
+      ausgestelltAm: tag(-7), arzt: 'Dr. med. Erika Beispielarzt, Orthopädie Bad Wörishofen', massnahme: p.massnahme, leistungNummer: p.nummer, anzahl: p.einheiten,
+      frequenz: `${p.tage.length}× pro Woche`, diagnose: ['M54.5', 'M75.4', 'M54.2', 'M23.2', 'I89.0', 'M16.1'][i], fallId: fall,
+    }, wer);
+    rezepte.push(rezept);
+    termine += (await termineVerteilen(db, id, rezept, fall, p.einheiten, p.tage, p.zeit, 1 + i, p.nummer === '20201' ? 45 : 30, wer)).length;
+    if (bankbaustein) {
+      const re = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE verordnung_id = $1', [rezept])).rows[0];
+      if (re && !(await db.query('SELECT 1 FROM rechnung_textbaustein WHERE rechnung_id = $1 AND textbaustein_id = $2', [re.id, bankbaustein.id])).rows.length) await bausteinHinzufuegen(db, id, re.id, bankbaustein.id, wer);
+    }
+    await verlaufEintragen(db, t, id, { art: ['anruf_eingehend', 'email', 'whatsapp', 'persoenlich', 'sms', 'brief'][i]!, grund: ['terminvereinbarung', 'rueckfrage_rechnung', 'terminverschiebung', 'rueckfrage_behandlung', 'erinnerung', 'sonstiges'][i], notiz: 'Erfundener Kontakt' }, wer);
+  }
+  // Oskar: zwei Termine abgesagt bzw. nicht erschienen; Petra: Zweitschrift; Sven: Korrektur 12 → 10; Rosa: offener Anruf; Nora: Storno einer zweiten Rechnung
+  const oskarTermine = (await db.query<{ id: string }>('SELECT id::text FROM termin WHERE patient_id = $1 ORDER BY beginn', [ids[1]])).rows;
+  if (oskarTermine[0]) await terminStatus(db, ids[1]!, oskarTermine[0].id, 'abgesagt_patient', wer);
+  if (oskarTermine[1]) await terminStatus(db, ids[1]!, oskarTermine[1].id, 'nicht_erschienen', wer);
+  await zweitschriftVermerken(db, ids[2]!, rezepte[2]!, tag(-2), wer);
+  await verordnungAnlegen(db, t, ids[5]!, { ausgestelltAm: tag(-3), arzt: 'Dr. med. Erika Beispielarzt, Orthopädie Bad Wörishofen', massnahme: 'Krankengymnastik', leistungNummer: '20501', anzahl: 10, art: 'korrektur', vorgaengerId: rezepte[5], notiz: 'Anzahl berichtigt: 10 statt 12' }, wer);
+  await anrufBeginnen(db, ids[4]!, (await db.query<{ id: string }>("SELECT id::text FROM patient_kontakt WHERE patient_id = $1 AND art = 'mobil'", [ids[4]])).rows[0]?.id, wer);
+  {
+    const { rechnungAnlegen } = await import('./rechnungen.ts');
+    const zweite = await rechnungAnlegen(db, ids[0]!, { steuerklasse: 'heilbehandlung_steuerfrei', art: 'einzel', notiz: 'Versehentlich angelegt' }, wer);
+    await rechnungStatus(db, ids[0]!, zweite, 'storno', { grund: 'Doppelt angelegt (erfunden)' }, wer);
+  }
+
+  // ── Pinnwand: je Phase ein Fall, Rechnungen in jedem Status ──
+  const phasen = async (nr: number, vorname: string, nachname: string, geboren: string): Promise<string> => {
+    const n = String(nr).padStart(3, '0');
+    const id = await patientAnlegen(db, t, {
+      patientennummer: `T-1${n}`, anrede: 'Frau', vorname, nachname, geburtsdatum: geboren, patientSeit: tag(-60),
+      kontakte: [{ art: 'mobil', wert: `030 23125 ${n}` }, { art: 'email', wert: o.adresse }],
+      adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kurallee', hausnummer: String(nr), plz: '86825', ort: 'Bad Wörishofen' },
+    }, wer);
+    await erklaerungErfassen(db, t, id, { art: 'datenschutzinformation', form: 'schriftlich', am: tag(-60), fassung: 'Datenschutzinformation 2026-01' }, wer);
+    return id;
+  };
+  // Anfrage: Kind mit Eltern als Vertragspartner und Rechnungsempfängerin
+  const kind = await phasen(27, 'Lea', 'Anfrage', '2016-06-06');
+  await db.query("INSERT INTO patient_bezugsperson (patient_id, rolle, name, beziehung, berechtigungsgrund, telefon, strasse, plz, ort) VALUES ($1, 'vertragspartner', 'Sabine Anfrage', 'Mutter', 'Sorgerecht', '030 23125 927', 'Kurallee', '86825', 'Bad Wörishofen')", [kind]);
+  await db.query("INSERT INTO patient_bezugsperson (patient_id, rolle, name, beziehung, strasse, plz, ort) VALUES ($1, 'rechnungsempfaenger', 'Sabine Anfrage', 'Mutter', 'Kurallee 27', '86825', 'Bad Wörishofen')", [kind]);
+  await fallAnlegen(db, t, kind, { grundlage: 'verordnung', bezeichnung: 'Haltung', anlass: 'Mutter bittet um Termin (erfunden)', phase: 'anfrage' }, wer);
+  await verlaufEintragen(db, t, kind, { art: 'email', grund: 'terminvereinbarung', notiz: 'Anfrage per Mail, Rückruf vereinbart' }, wer);
+  // Anamnese-Phase: Termin, Einwilligung, Rezept – Anamnese fehlt noch
+  const anam = await phasen(28, 'Mia', 'Anamnese', '1999-01-20');
+  {
+    const fall = await fallAnlegen(db, t, anam, { grundlage: 'verordnung', bezeichnung: 'Sprunggelenk', phase: 'aufnahme' }, wer);
+    await erklaerungErfassen(db, t, anam, { fallId: fall, art: 'behandlungseinwilligung', form: 'schriftlich', am: tag(-1) }, wer);
+    const rezept = await verordnungAnlegen(db, t, anam, { ausgestelltAm: tag(-2), arzt: 'Dr. med. Karl Musterarzt, Allgemeinmedizin', massnahme: 'Krankengymnastik', leistungNummer: '20501', anzahl: 6, fallId: fall }, wer);
+    termine += (await termineVerteilen(db, anam, rezept, fall, 6, [1, 4], '10:00', 2, 30, wer)).length;
+    await phaseSetzen(db, anam, fall, 'anamnese', wer);
+  }
+  // Befund-Phase: Anamnese da, Eingangsbefund fehlt
+  const bef = await phasen(29, 'Nina', 'Befund', '1983-04-12');
+  {
+    const fall = await fallAnlegen(db, t, bef, { grundlage: 'verordnung', bezeichnung: 'LWS', phase: 'aufnahme' }, wer);
+    await erklaerungErfassen(db, t, bef, { fallId: fall, art: 'behandlungseinwilligung', form: 'schriftlich', am: tag(-3) }, wer);
+    const rezept = await verordnungAnlegen(db, t, bef, { ausgestelltAm: tag(-4), arzt: 'Dr. med. Karl Musterarzt, Allgemeinmedizin', massnahme: 'Manuelle Therapie', leistungNummer: '21201', anzahl: 6, fallId: fall }, wer);
+    termine += (await termineVerteilen(db, bef, rezept, fall, 6, [2, 5], '08:30', 1, 30, wer)).length;
+    await phaseSetzen(db, bef, fall, 'anamnese', wer);
+    await anamneseErfassen(db, t, bef, fall, { art: 'online', beschwerden: 'Schmerzen im unteren Rücken beim Sitzen (erfunden)', vorgeschichte: 'Bandscheibenvorfall 2020' }, wer);
+  }
+  // Abschluss-Phase: 6er-Rezept voll abgehakt, Rechnung „Fertig – wartet auf Lexware“
+  const abs = await phasen(30, 'Olga', 'Abschluss', '1960-10-10');
+  {
+    const fall = await fallAnlegen(db, t, abs, { grundlage: 'verordnung', bezeichnung: 'Schulter rechts', phase: 'aufnahme', begonnenAm: tag(-40) }, wer);
+    await erklaerungErfassen(db, t, abs, { fallId: fall, art: 'behandlungseinwilligung', form: 'schriftlich', am: tag(-40) }, wer);
+    const rezept = await verordnungAnlegen(db, t, abs, { ausgestelltAm: tag(-42), arzt: 'Dr. med. Erika Beispielarzt, Orthopädie Bad Wörishofen', massnahme: 'Manuelle Therapie', leistungNummer: '21201', anzahl: 6, fallId: fall }, wer);
+    await phaseSetzen(db, abs, fall, 'anamnese', wer);
+    await anamneseErfassen(db, t, abs, fall, { art: 'gespraech', beschwerden: 'Schulter eingeschränkt (erfunden)' }, wer);
+    await befundErfassen(db, t, abs, fall, { art: 'eingang', text: 'Abduktion 90°, Schmerz NRS 6', messwerte: 'ABD 90°' }, wer);
+    for (let k = 0; k < 6; k++) {
+      const terminId = await terminAnlegen(db, abs, { datum: tag(-38 + k * 5), zeit: '10:00', dauerMin: 30, verordnungId: rezept, fallId: fall }, wer);
+      termine++;
+      await behandlungErfassen(db, t, abs, { fallId: fall, datum: tag(-38 + k * 5), dauerMin: 30, verordnungId: rezept, terminId, massnahmen: `MT Schulter, Sitzung ${k + 1} (erfunden)`, verlaufWirkung: `NRS ${6 - k}/10` }, wer);
+    }
+    await phaseSetzen(db, abs, fall, 'abschluss', wer);
+    const re = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE verordnung_id = $1', [rezept])).rows[0]!.id;
+    await rechnungStatus(db, abs, re, 'fertig', {}, wer);
+  }
+  // Rechnungs-Phase: Abschlussbefund da, Rechnung in Lexware mit Nummer, versendet; Lexware meldet anderen Betrag
+  const rech = await phasen(31, 'Paula', 'Rechnung', '1978-12-24');
+  {
+    const fall = await fallAnlegen(db, t, rech, { grundlage: 'verordnung', bezeichnung: 'Knie links', phase: 'aufnahme', begonnenAm: tag(-50) }, wer);
+    await erklaerungErfassen(db, t, rech, { fallId: fall, art: 'behandlungseinwilligung', form: 'schriftlich', am: tag(-50) }, wer);
+    const rezept = await verordnungAnlegen(db, t, rech, { ausgestelltAm: tag(-52), arzt: 'Dr. med. Erika Beispielarzt, Orthopädie Bad Wörishofen', massnahme: 'Krankengymnastik', leistungNummer: '20501', anzahl: 6, fallId: fall }, wer);
+    await phaseSetzen(db, rech, fall, 'anamnese', wer);
+    await anamneseErfassen(db, t, rech, fall, { art: 'tablet', beschwerden: 'Knie instabil nach Sturz (erfunden)' }, wer);
+    await befundErfassen(db, t, rech, fall, { art: 'eingang', text: 'Flexion 100°, Erguss' }, wer);
+    for (let k = 0; k < 6; k++) {
+      const terminId = await terminAnlegen(db, rech, { datum: tag(-48 + k * 4), zeit: '14:00', dauerMin: 30, verordnungId: rezept, fallId: fall }, wer);
+      termine++;
+      await behandlungErfassen(db, t, rech, { fallId: fall, datum: tag(-48 + k * 4), dauerMin: 30, verordnungId: rezept, terminId, massnahmen: `KG Knie, Sitzung ${k + 1} (erfunden)` }, wer);
+    }
+    await phaseSetzen(db, rech, fall, 'abschluss', wer);
+    await befundErfassen(db, t, rech, fall, { art: 'abschluss', text: 'Volle Beweglichkeit, Ziele erreicht (erfunden)' }, wer);
+    const re = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE verordnung_id = $1', [rezept])).rows[0]!.id;
+    await rechnungStatus(db, rech, re, 'fertig', {}, wer);
+    await rechnungStatus(db, rech, re, 'in_lexware', { nummer: 'RE-2026-0101', datum: tag(-20) }, wer);
+    const betrag = Number((await db.query<{ b: string }>('SELECT betrag::text AS b FROM rechnung WHERE id = $1', [re])).rows[0]!.b);
+    await lexwareStandUebernehmen(db, re, { invoiceId: 'lx-test-101', nummer: 'RE-2026-0101', status: 'open', betrag: betrag + 5 }, wer);
+  }
+  // Nachsorge: Rechnung bezahlt (von Lexware gemeldet), Fall in Nachsorge; dazu ein archivierter Fall und ein archivierter Patient
+  const nach = await phasen(32, 'Rita', 'Nachsorge', '1970-02-02');
+  {
+    const fall = await fallAnlegen(db, t, nach, { grundlage: 'verordnung', bezeichnung: 'HWS', phase: 'aufnahme', begonnenAm: tag(-90) }, wer);
+    await erklaerungErfassen(db, t, nach, { fallId: fall, art: 'behandlungseinwilligung', form: 'schriftlich', am: tag(-90) }, wer);
+    const rezept = await verordnungAnlegen(db, t, nach, { ausgestelltAm: tag(-92), arzt: 'Dr. med. Karl Musterarzt, Allgemeinmedizin', massnahme: 'Manuelle Therapie', leistungNummer: '21201', anzahl: 6, fallId: fall }, wer);
+    await phaseSetzen(db, nach, fall, 'anamnese', wer);
+    await anamneseErfassen(db, t, nach, fall, { art: 'gespraech', beschwerden: 'Nackenverspannung (erfunden)' }, wer);
+    await befundErfassen(db, t, nach, fall, { art: 'eingang', text: 'Rotation eingeschränkt' }, wer);
+    for (let k = 0; k < 6; k++) {
+      const terminId = await terminAnlegen(db, nach, { datum: tag(-88 + k * 4), zeit: '09:30', dauerMin: 30, verordnungId: rezept, fallId: fall }, wer);
+      termine++;
+      await behandlungErfassen(db, t, nach, { fallId: fall, datum: tag(-88 + k * 4), dauerMin: 30, verordnungId: rezept, terminId, massnahmen: `MT HWS, Sitzung ${k + 1} (erfunden)` }, wer);
+    }
+    await phaseSetzen(db, nach, fall, 'abschluss', wer);
+    await befundErfassen(db, t, nach, fall, { art: 'abschluss', text: 'Beschwerdefrei' }, wer);
+    const re = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE verordnung_id = $1', [rezept])).rows[0]!.id;
+    await rechnungStatus(db, nach, re, 'fertig', {}, wer);
+    await rechnungStatus(db, nach, re, 'in_lexware', { nummer: 'RE-2026-0077', datum: tag(-55) }, wer);
+    await rechnungStatus(db, nach, re, 'versendet', { versandArt: 'post' }, wer);
+    const betrag = Number((await db.query<{ b: string }>('SELECT betrag::text AS b FROM rechnung WHERE id = $1', [re])).rows[0]!.b);
+    await lexwareStandUebernehmen(db, re, { invoiceId: 'lx-test-077', nummer: 'RE-2026-0077', status: 'paid', betrag, bezahltAm: tag(-40) }, wer);
+    await phaseSetzen(db, nach, fall, 'nachsorge', wer);
+    // Ein früherer, archivierter Fall derselben Patientin (Wellness-Serie, abgeschlossen)
+    const wl = (await db.query<{ id: string }>('SELECT id::text FROM wellness_leistung WHERE aktiv ORDER BY id LIMIT 1')).rows[0]?.id
+      ?? (await wellnessSpeichern(db, { code: 'WM45', bezeichnung: 'Wellnessmassage 45 Minuten', dauerMin: 45, preis: '59,00' }, wer));
+    const alt = await fallAnlegen(db, t, nach, { grundlage: 'praevention', wellnessLeistungId: wl, begonnenAm: tag(-200) }, wer);
+    await behandlungErfassen(db, t, nach, { fallId: alt, datum: tag(-200), dauerMin: 45, massnahmen: 'Wellnessmassage (erfunden)' }, wer);
+    const wre = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE fall_id = $1', [alt])).rows[0]!.id;
+    await rechnungStatus(db, nach, wre, 'fertig', {}, wer);
+    await rechnungStatus(db, nach, wre, 'in_lexware', { nummer: 'RE-2026-0012', datum: tag(-195) }, wer);
+    await rechnungStatus(db, nach, wre, 'versendet', { versandArt: 'email' }, wer);
+    await rechnungStatus(db, nach, wre, 'bezahlt', { datum: tag(-180) }, wer);
+    await phaseSetzen(db, nach, alt, 'archiviert', wer, 'Serie beendet (erfunden)');
+  }
+  // Archivierter Patient und eine Direktzugangs-Serie mit abgebrochenem Rezept
+  const archiv = await phasen(33, 'Uta', 'Archiviert', '1950-05-05');
+  await statusSetzen(db, archiv, 'archiviert', wer);
+  const direkt = await phasen(34, 'Vera', 'Direktzugang', '1992-08-18');
+  {
+    await erklaerungErfassen(db, t, direkt, { art: 'kosteninformation', form: 'textform', am: tag(-6), inhalt: 'Kosteninformation per Mail (erfunden)' }, wer);
+    await fallAnlegen(db, t, direkt, { grundlage: 'direktzugang', bezeichnung: 'Verspannung nach Sport', anlass: 'ohne Verordnung, sektorale HP-Erlaubnis (erfunden)', begonnenAm: tag(-6) }, wer);
+    const fall2 = await fallAnlegen(db, t, direkt, { grundlage: 'verordnung', bezeichnung: 'Altes Rezept', begonnenAm: tag(-120), phase: 'behandlung' }, wer);
+    const rezept = await verordnungAnlegen(db, t, direkt, { ausgestelltAm: tag(-122), massnahme: 'Krankengymnastik', leistungNummer: '20501', anzahl: 10, fallId: fall2 }, wer);
+    await behandlungErfassen(db, t, direkt, { fallId: fall2, datum: tag(-118), verordnungId: rezept, massnahmen: 'KG (erfunden)' }, wer);
+    await verordnungAbbrechen(db, direkt, rezept, 'Patientin verzogen (erfunden)', wer);
+    // Die Rechnung über die eine erbrachte Einheit: versendet und überfällig (rote Kachel)
+    const abbruchRe = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE verordnung_id = $1', [rezept])).rows[0]!.id;
+    await db.query('DELETE FROM rechnung_position WHERE rechnung_id = $1 AND behandlung_leistung_id IS NULL', [abbruchRe]);
+    await rechnungStatus(db, direkt, abbruchRe, 'fertig', {}, wer);
+    await rechnungStatus(db, direkt, abbruchRe, 'in_lexware', { nummer: 'RE-2026-0050', datum: tag(-40) }, wer);
+    await rechnungStatus(db, direkt, abbruchRe, 'versendet', { versandArt: 'post' }, wer);
+    await db.query('UPDATE rechnung SET gemahnt_am = $2 WHERE id = $1', [abbruchRe, tag(-10)]);
+    await kontaktSpeichern(db, direkt, { art: 'telefon', wert: '030 23125 934', bezeichnung: 'Arbeit' }, wer, { ohneProtokoll: true });
+  }
+  const rechnungen = Number((await db.query<{ n: string }>("SELECT count(*)::text AS n FROM rechnung WHERE patient_id IN (SELECT id FROM patient WHERE patientennummer >= 'T-1021')")).rows[0]!.n);
+  return { uebersprungen: false, preislisten, patienten: 14, termine, rechnungen };
 }

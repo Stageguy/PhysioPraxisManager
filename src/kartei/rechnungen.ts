@@ -212,6 +212,31 @@ export async function rechnungAusSerie(db: Db, patientId: string, fallId: string
   return id;
 }
 
+/** Korrektur eines Rezepts: der Entwurf wandert mit und bekommt so viele Positionen wie die berichtigte Anzahl */
+export async function entwurfAnKorrekturAnpassen(db: Db, patientId: string, altId: string, neuId: string, anzahl: number, nummer: string | null, massnahme: string): Promise<void> {
+  const r = (await db.query<{ id: string; preisliste_id: string | null }>("SELECT id::text, preisliste_id::text FROM rechnung WHERE verordnung_id = $1 AND patient_id = $2 AND status = 'entwurf' ORDER BY id DESC LIMIT 1", [altId, patientId])).rows[0];
+  if (!r) return;
+  await db.query('UPDATE rechnung SET verordnung_id = $2 WHERE id = $1', [r.id, neuId]);
+  await db.query('UPDATE rechnung_position SET verordnung_id = $2 WHERE rechnung_id = $1 AND verordnung_id = $3', [r.id, neuId, altId]);
+  const da = Number((await db.query<{ n: string }>('SELECT count(*)::text AS n FROM rechnung_position WHERE rechnung_id = $1 AND verordnung_id = $2', [r.id, neuId])).rows[0]!.n);
+  if (da > anzahl) {
+    // Überzählige Positionen ohne Behandlung von hinten entfernen
+    await db.query(
+      `DELETE FROM rechnung_position WHERE id IN (SELECT id FROM rechnung_position WHERE rechnung_id = $1 AND verordnung_id = $2 AND behandlung_leistung_id IS NULL ORDER BY reihenfolge DESC LIMIT $3)`,
+      [r.id, neuId, da - anzahl],
+    );
+  } else if (da < anzahl) {
+    const preis = nummer ? await preisAus(db, r.preisliste_id, nummer) : null;
+    for (let i = da; i < anzahl; i++) {
+      await db.query(
+        'INSERT INTO rechnung_position (rechnung_id, reihenfolge, nummer, bezeichnung, anzahl, einzelpreis, betrag, verordnung_id, preisliste_position_id) VALUES ($1, (SELECT coalesce(max(reihenfolge), 0) + 1 FROM rechnung_position WHERE rechnung_id = $1), $2, $3, 1, $4, $4, $5, $6)',
+        [r.id, nummer, preis?.bezeichnung ?? massnahme, preis?.preis ?? 0, neuId, preis?.positionId ?? null],
+      );
+    }
+  }
+  await summenBerechnen(db, r.id);
+}
+
 /** Ein neuer Termin zum Rezept gibt der nächsten Position ohne Datum ihr Datum (Termine kommen oft nach dem Rezept) */
 export async function terminZuordnen(db: Db, verordnungId: string, terminId: string, datum: string): Promise<void> {
   const r = (await db.query<{ id: string }>("SELECT id::text FROM rechnung WHERE verordnung_id = $1 AND status = 'entwurf' ORDER BY id DESC LIMIT 1", [verordnungId])).rows[0];
