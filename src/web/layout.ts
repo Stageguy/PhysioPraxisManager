@@ -42,6 +42,12 @@ th{color:var(--grau);font-weight:600;font-size:13px}
 .chip.preset4{background:#a9e4a2}.chip.preset5{background:#9fe0d8}.chip.preset7{background:#9fd3f5}.chip.preset8{background:#d7b8e8}.chip.preset19{background:#6fbf73}
 .marke{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--rand);color:var(--grau);white-space:nowrap}
 .marke.jetzt{border-color:var(--ok);color:var(--ok)}
+a.marke.wa{text-decoration:none;color:#1f8a4c;border-color:#1f8a4c}
+.wa-knoepfe .knopf{gap:6px}
+fieldset.anhaenge{border:1px solid var(--rand);border-radius:8px;padding:6px 12px 8px;margin:8px 0}
+fieldset.anhaenge legend{color:var(--grau);font-size:13px;padding:0 4px}
+fieldset.anhaenge label.haken{display:block;margin:4px 0}
+form.nachricht textarea{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--rand);border-radius:8px;background:var(--karte);color:var(--fg)}
 ol.schritte{padding-left:22px} ol.schritte li{margin:6px 0}
 footer{margin-top:32px;font-size:13px;color:var(--grau)}
 kbd{font:inherit;font-size:.85em;padding:1px 5px;border:1px solid var(--rand);border-radius:4px}

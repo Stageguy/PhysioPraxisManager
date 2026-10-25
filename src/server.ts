@@ -29,6 +29,7 @@ import { kalenderSeite } from './web/kalender.ts';
 import { steuerSeite } from './web/steuer.ts';
 import { steuerCsv, steuerPdf } from './kartei/steuer.ts';
 import { datumText, zeitText } from './format.ts';
+import { eingehendeNachrichten, signaturGueltig, webhookBestaetigung } from './whatsapp/schnittstelle.ts';
 import { berlinMitternachtUtc, heuteBerlin, tagPlus, wocheUm } from './zeit.ts';
 import { menueStand } from './web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from './web/preislisten.ts';
@@ -48,6 +49,8 @@ export interface DienstOptionen {
   kartei?: KarteiDienst;
   /** Entwicklungs-Datenbank für Rückmeldungen (W72) – getrennt von den Patientendaten */
   entwicklung?: Db;
+  /** WhatsApp Cloud API (W90): Webhook nur mit App-Secret (Signatur) und Verify-Token */
+  whatsapp?: { verifyToken?: string; appSecret?: string };
   /**
    * Nur für die Bauphase ohne Tailscale (Zugang per SSH-Tunnel bzw. kubectl port-forward): Anfragen
    * von 127.0.0.1 ohne Tailscale-Kopfzeile gelten als dieses Konto. Nie zusammen mit dem
@@ -187,13 +190,15 @@ export function praxisDienst(opt: DienstOptionen): Server {
     try {
       const adresse = new URL(req.url ?? '/', 'http://localhost');
       const pfad = adresse.pathname;
-      const istAktion = req.method === 'POST' && (/^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad) || ['/preislisten/aktion', '/patienten/aktion', '/rueckmeldung', '/rueckmeldungen/aktion'].includes(pfad));
+      const istAktion = req.method === 'POST' && (/^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad) || ['/preislisten/aktion', '/patienten/aktion', '/rueckmeldung', '/rueckmeldungen/aktion', '/whatsapp/webhook'].includes(pfad));
       if (req.method !== 'GET' && !istAktion) return senden(res, 405, 'text/plain', 'Nur GET');
 
       if (pfad === '/api/health') {
         const ok = await opt.angemeldet();
         return senden(res, ok ? 200 : 503, 'application/json', JSON.stringify({ ok, fassung: opt.fassung }));
       }
+      // WhatsApp-Webhook (W90): Meta ruft von außen – ohne Tailnet-Konto, dafür mit Signatur
+      if (pfad === '/whatsapp/webhook') return await whatsappWebhook(req, res, adresse);
 
       const wer = tailnetKonto(req, opt.lokalerZugang);
       if (!wer || !erlaubt.has(wer)) {
@@ -284,6 +289,27 @@ export function praxisDienst(opt: DienstOptionen): Server {
       console.error('Fehler bei', req.method, req.url, (err as Error).message);
       if (!res.headersSent) senden(res, 500, 'text/plain', 'Interner Fehler');
     }
+  }
+
+  /** GET: Einrichtung bei Meta bestätigen (Verify-Token). POST: signierte Nachrichten in den Kontaktverlauf */
+  async function whatsappWebhook(req: IncomingMessage, res: ServerResponse, adresse: URL): Promise<void> {
+    const w = opt.whatsapp;
+    if (!w?.appSecret || !opt.kartei) return senden(res, 404, 'text/plain', 'Nicht eingerichtet');
+    if (req.method === 'GET') {
+      const challenge = webhookBestaetigung(w.verifyToken ?? '', adresse.searchParams);
+      return challenge ? senden(res, 200, 'text/plain', challenge) : senden(res, 403, 'text/plain', 'Falsches Verify-Token');
+    }
+    const roh = await rumpf(req, 1024 * 1024);
+    if (!signaturGueltig(w.appSecret, roh, req.headers['x-hub-signature-256'] as string | undefined)) return senden(res, 403, 'text/plain', 'Signatur ungültig');
+    let body: unknown;
+    try {
+      body = JSON.parse(roh);
+    } catch {
+      return senden(res, 400, 'text/plain', 'Kein JSON');
+    }
+    const ergebnis = { zugeordnet: 0, medien: 0, unbekannt: 0 };
+    for (const n of eingehendeNachrichten(body)) ergebnis[await opt.kartei.whatsappEingang(n)]++;
+    return senden(res, 200, 'application/json', JSON.stringify(ergebnis));
   }
 
   async function rueckmeldungSeiten(req: IncomingMessage, res: ServerResponse, pfad: string, adresse: URL, wer: string, meldung?: string, fehler?: string): Promise<void> {

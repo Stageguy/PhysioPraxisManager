@@ -46,9 +46,16 @@ const RK = { id: '1', art: 'einzel', steuerklasse: 'heilbehandlung_steuerfrei', 
 const PATIENT_DATEN = {
   patient: PAT, gruende: [{ code: 'absage_patient', bezeichnung: 'Absage Patient' }],
   verlauf: [
-    { id: '1', art: 'anruf_ausgehend', am: '2026-10-24T09:00:00Z', grund: null, notiz: null, offen: true, kontakt: { art: 'mobil' as const, wert: '0151 1' }, erfasstVon: 'lilli' },
-    { id: '2', art: 'whatsapp', am: '2026-10-23T09:00:00Z', grund: { code: 'absage_patient', bezeichnung: 'Absage Patient' }, notiz: 'krank', offen: false, kontakt: null, erfasstVon: 'lilli' },
+    { id: '1', art: 'anruf_ausgehend', am: '2026-10-24T09:00:00Z', grund: null, notiz: null, offen: true, kontakt: { art: 'mobil' as const, wert: '0151 1' }, erfasstVon: 'lilli', link: null },
+    { id: '2', art: 'whatsapp', am: '2026-10-23T09:00:00Z', grund: { code: 'absage_patient', bezeichnung: 'Absage Patient' }, notiz: 'krank', offen: false, kontakt: null, erfasstVon: 'lilli', link: null },
+    { id: '3', art: 'email', am: '2026-10-22T09:00:00Z', grund: null, notiz: 'Entwurf „Ihr Termin“ im Postfach', offen: false, kontakt: null, erfasstVon: 'lilli', link: 'https://outlook.office.com/owa/x' },
   ],
+  dokumente: [{ id: '1', titel: 'Rezept Scan', mime: 'application/pdf', groesse: 1234, art: 'verordnung', datum: '2026-10-01' }],
+  whatsapp: [
+    { code: 'terminbestaetigung', name: 'Terminbestätigung', link: 'https://wa.me/491511?text=x', terminId: '7' },
+    { code: 'rueckruf_bitte', name: 'Bitte um Rückruf', link: 'https://wa.me/491511?text=y' },
+  ],
+  whatsappCloud: true,
   termine: [TERMIN], verordnungen: [VERORDNUNG, { ...VERORDNUNG, id: '3', art: 'korrektur' as const, status: 'ersetzt', vorgaengerId: '1' }], serien: [SERIE, { ...SERIE, id: '4', grundlage: 'direktzugang' as const, wellness: null, abgeschlossenAm: '2026-10-22' }],
   rechnungen: [RK, { ...RK, id: '2', status: 'entwurf', statusText: 'Entwurf', statusFarbe: 'preset10', nummer: null, datum: null, faelligAm: null, lexwareAbweichung: 'in Lexware storniert', pdf: true, steuerklasse: 'wellness_19' }],
   preislisten: [PL({ status: 'freigegeben', aktiv: true })],

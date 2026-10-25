@@ -143,6 +143,21 @@ Lillis Gerät ──Tailscale──▶ Knoten „praxis“ (tailscale serve, HTT
 5. Starten: `docker compose up -d --build`, dann `https://praxis.<tailnet>.ts.net` öffnen.
 6. **Lilli einladen** (Users → Invite), Tailscale auf ihrem Gerät installieren und anmelden.
 
+## Nachrichten an Patienten (W90, W91)
+
+Auf der Patientenseite steht der Abschnitt „Nachricht an …“:
+
+- **WhatsApp-Knöpfe** (an Patient und Termin) öffnen WhatsApp mit fertigem Text aus den Vorlagen
+  (`src/nachrichten/vorlagen.ts`); gesendet wird vom Handy. Der Tipp wird im Kontaktverlauf vermerkt.
+- **Mail-Entwurf**: Vorlage, Termin, Rechnung, eigener Text und Anhänge (Rechnungs-PDF, Unterlagen) →
+  Entwurf im Praxispostfach unter „Entwürfe“; gesendet wird in Outlook oder Apple Mail. Der Verlauf
+  zeigt „in Outlook öffnen“.
+- **WhatsApp Cloud API** (optional, `WHATSAPP_*` in `.env`): direkter Versand nur mit Einwilligung des
+  Patienten; Antworten kommen über `/whatsapp/webhook` (Signaturprüfung) als offene Einträge in den
+  Kontaktverlauf. Der Webhook braucht eine öffentliche Adresse (Tailscale Funnel) – siehe E8.
+- Nie Gesundheitsdaten in Nachrichten: Vorlagen enthalten nur Organisatorisches, eigener Text wird auf
+  Gesundheitsbegriffe geprüft (Hinweis bei Mail, Ablehnung bei WhatsApp-Versand).
+
 ## Datenschutz
 
 Im Postfach und im OneDrive stehen Gesundheitsdaten (Art. 9 DSGVO). Deshalb:

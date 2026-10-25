@@ -6,6 +6,7 @@
  */
 import type { AkteDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
 import { VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz } from '../kartei/patienten.ts';
+import { VORLAGEN } from '../nachrichten/vorlagen.ts';
 import { rezeptKachel, serieKachel, serienKnoepfe } from './rezepte.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText, zeitText } from '../format.ts';
@@ -137,7 +138,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
   const offene = d.verlauf.filter((v) => v.offen);
   const gruende = (feld = 'grund') => d.gruende.map((g) => `<label class="wahl-chip"><input type="radio" name="${feld}" value="${esc(g.code)}" required> ${esc(g.bezeichnung)}</label>`).join('');
   const offenBox = offene.map((v) => `<div class="hinweis-muster" data-hilfe="verlauf.offen">
-    <p><b>${esc(VERLAUF_ART[v.art]?.[1] ?? v.art)} ${datumZeitText(v.am, { jahr: true })}</b>${v.kontakt ? ` · ${esc(v.kontakt.wert)}` : ''} – worum ging es?</p>
+    <p><b>${esc(VERLAUF_ART[v.art]?.[1] ?? v.art)} ${datumZeitText(v.am, { jahr: true })}</b>${v.kontakt ? ` · ${esc(v.kontakt.wert)}` : ''} – worum ging es?${v.notiz ? `<br><span class="hint">${esc(v.notiz)}</span>` : ''}</p>
     ${form('verlauf_abschliessen', `<input type="hidden" name="eintrag_id" value="${v.id}"><div class="chips" data-hilfe="verlauf.grund">${gruende()}</div>
       <label class="notiz">Notiz (optional)<input name="notiz" maxlength="500"></label>
       <div class="knopfreihe"><button class="knopf primaer">Eintragen</button></div>`, { id: p.id, zurueck, klasse: 'formular' })}
@@ -145,8 +146,10 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
   </div>`).join('');
   const verlauf = d.verlauf.filter((v) => !v.offen).map((v) => {
     const [sym, text] = VERLAUF_ART[v.art] ?? ['protokoll', v.art];
-    return `<li><span class="kanal-sym">${symbol(sym, { groesse: 18 })}</span><span><b>${v.grund ? esc(v.grund.bezeichnung) : esc(text)}</b> <span class="hint">${esc(text)} · ${datumZeitText(v.am, { jahr: true })}${v.kontakt ? ` · ${esc(v.kontakt.wert)}` : ''}</span>${v.notiz ? `<br>${esc(v.notiz)}` : ''}</span></li>`;
+    return `<li><span class="kanal-sym">${symbol(sym, { groesse: 18 })}</span><span><b>${v.grund ? esc(v.grund.bezeichnung) : esc(text)}</b> <span class="hint">${esc(text)} · ${datumZeitText(v.am, { jahr: true })}${v.kontakt ? ` · ${esc(v.kontakt.wert)}` : ''}${v.link ? ` · <a href="${esc(v.link)}" target="_blank" rel="noopener" data-hilfe="verlauf.oeffnen">in Outlook öffnen</a>` : ''}</span>${v.notiz ? `<br>${esc(v.notiz)}` : ''}</span></li>`;
   }).join('');
+  const waTermin = (terminId: string) => d.whatsapp.filter((w) => w.terminId === terminId).map((w) =>
+    `<a class="marke wa" href="${esc(w.link)}" target="_blank" rel="noopener" data-whatsapp="${p.id}" data-vorlage="${w.code}" data-termin="${w.terminId}" data-hilfe="termin.whatsapp">${symbol('whatsapp', { groesse: 12 })} ${esc(w.name)}</a>`).join('');
   const kontakte = p.kontakte.map((k) => `<li>
       <span class="kanal-sym">${symbol(KONTAKT_SYMBOL[k.art]!, { groesse: 18 })}</span>
       <span><b>${esc(k.wert)}</b> <span class="hint">${esc(KONTAKT_NAME[k.art] ?? k.art)}${k.bezeichnung ? ` · ${esc(k.bezeichnung)}` : ''}${k.primaer ? ' · primär' : ''}</span></span>
@@ -155,7 +158,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
     </li>`).join('');
   const termine = d.termine.map((t) => `<article class="tk ${t.verordnungId ? 'rezept' : ''}" data-hilfe="termine.kachel">
     <b>${datumZeitText(t.beginn, { jahr: true })}</b><span class="hint">bis ${zeitText(t.ende)} · ${esc(t.art)}</span>
-    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}</span>
+    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}${waTermin(t.id)}</span>
     ${t.status === 'bestaetigt' || t.status === 'vorgeschlagen' ? form('termin_status', `<input type="hidden" name="termin_id" value="${t.id}"><select name="status" data-hilfe="termin.status" data-auto-senden><option value="">ändern …</option><option value="abgesagt_patient">abgesagt (Patient)</option><option value="abgesagt_praxis">abgesagt (Praxis)</option><option value="nicht_erschienen">nicht erschienen</option></select><button class="knopf klein nur-ohne-js">ok</button>`, { id: p.id, zurueck, klasse: 'tk-fuss' }) : ''}
   </article>`).join('');
   const rechnungen = d.rechnungen.map((r) => {
@@ -217,6 +220,27 @@ ${offenBox}
   ${rechnungen ? `<div class="rk-pat-raster">${rechnungen}</div>` : '<p class="leer">Noch keine Rechnung – Rezepte und Serien legen ihren Entwurf selbst an.</p>'}
   <div class="knopfreihe">${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="heilbehandlung_steuerfrei"><button class="knopf klein" data-hilfe="rechnung.neu.heil">${symbol('euro', { groesse: 16 })} Neue Rechnung Heilbehandlung</button>`, { id: p.id, zurueck })}
   ${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="wellness_19"><button class="knopf klein" data-hilfe="rechnung.neu.wellness">${symbol('wellness', { groesse: 16 })} Neue Rechnung Wellness</button>`, { id: p.id, zurueck })}</div>
+</section>
+
+<section class="pat-abschnitt" id="nachricht"><h2>${symbol('email')} Nachricht an ${esc(p.vorname)} <span class="hint">WhatsApp vom Handy · Mail-Entwurf für Outlook</span></h2>
+  ${d.whatsapp.length
+    ? `<div class="knopfreihe wa-knoepfe" data-hilfe="nachricht.whatsapp">${d.whatsapp.filter((w) => !w.terminId).map((w) => `<a class="knopf klein" href="${esc(w.link)}" target="_blank" rel="noopener" data-whatsapp="${p.id}" data-vorlage="${w.code}">${symbol('whatsapp', { groesse: 16 })} ${esc(w.name)}</a>`).join('')}</div>
+  <p class="hint">Terminbestätigung und -erinnerung stehen oben an jedem Termin. Der Knopf öffnet WhatsApp mit fertigem Text – Sie lesen, ändern und senden selbst. Keine Gesundheitsangaben (Leitplanke 9).</p>`
+    : '<p class="hint">Keine WhatsApp-Nummer hinterlegt – unten unter Kontaktwege eintragen, dann erscheinen hier die WhatsApp-Knöpfe.</p>'}
+  ${p.email ? `<form method="post" action="/patienten/aktion" class="formular nachricht"><input type="hidden" name="id" value="${p.id}"><input type="hidden" name="zurueck" value="${zurueck}">
+    <div class="zwei"><label>Vorlage<select name="vorlage" data-hilfe="nachricht.vorlage">${VORLAGEN.filter((v) => v.kanaele.includes('email')).map((v) => `<option value="${v.code}">${esc(v.name)}</option>`).join('')}</select></label>
+    <label>Termin <span class="hint">(Bestätigung, Erinnerung, Absage)</span><select name="termin_id" data-hilfe="nachricht.termin"><option value="">–</option>${d.termine.map((t) => `<option value="${t.id}">${esc(datumZeitText(t.beginn, { jahr: true }))}</option>`).join('')}</select></label></div>
+    <div class="zwei"><label>Rechnung <span class="hint">(Zusenden, Erinnerung)</span><select name="rechnung_id" data-hilfe="nachricht.rechnung"><option value="">–</option>${d.rechnungen.filter((r) => r.nummer).map((r) => `<option value="${r.id}">${esc(r.nummer!)} · ${euroText(r.betrag)}</option>`).join('')}</select></label>
+    <label>Text <span class="hint">(bei Freier Text, Terminvorschlag, Ersatztermin)</span><textarea name="freitext" rows="3" maxlength="2000" data-hilfe="nachricht.text"></textarea></label></div>
+    <fieldset class="anhaenge" data-hilfe="nachricht.anhang"><legend>Anhänge</legend>
+      ${d.rechnungen.filter((r) => r.pdf).map((r) => `<label class="haken"><input type="checkbox" name="anhang_rechnung" value="${r.id}"> Rechnung ${esc(r.nummer ?? r.id)} (PDF)</label>`).join('')}
+      ${d.dokumente.map((x) => `<label class="haken"><input type="checkbox" name="anhang_dokument" value="${x.id}"> ${esc(x.titel)} <span class="hint">${esc(x.art)}${x.datum ? ` · ${datumText(x.datum)}` : ''}</span></label>`).join('')}
+      ${d.rechnungen.some((r) => r.pdf) || d.dokumente.length ? '' : '<span class="hint">Noch nichts anhängbar – Rechnungs-PDFs kommen aus Lexware, Unterlagen aus der Akte.</span>'}
+    </fieldset>
+    <div class="knopfreihe"><button class="knopf primaer" name="aktion" value="mail_entwurf" data-hilfe="nachricht.mail">${symbol('email', { groesse: 18 })} Entwurf in Outlook anlegen</button>
+    ${d.whatsappCloud && p.whatsapp ? `<button class="knopf" name="aktion" value="whatsapp_senden" data-hilfe="nachricht.whatsapp-senden">${symbol('whatsapp', { groesse: 18 })} Per WhatsApp senden</button>` : ''}</div>
+    <p class="hint">Der Entwurf landet an ${esc(p.email.wert)} im Postfach der Praxis (Outlook, Apple Mail: „Entwürfe“) – gesendet wird dort von Hand.</p>
+  </form>` : '<p class="hint">Keine Mailadresse hinterlegt – unten unter Kontaktwege eintragen, dann lässt sich hier ein Mail-Entwurf anlegen.</p>'}
 </section>
 
 <section class="pat-abschnitt" id="kontakte"><h2>${symbol('anfrage')} Kontaktwege</h2>

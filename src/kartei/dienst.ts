@@ -24,6 +24,8 @@ import {
 import { termineZeitraum, type TerminKalender } from './patienten.ts';
 import { listen as preislistenListen, type Preisliste } from '../preise/preislisten.ts';
 import { steuerfreieUmsaetze, type SteuerListe } from './steuer.ts';
+import { dokumente, mailEntwurf, whatsappAngebote, whatsappEingang, whatsappSenden, whatsappVermerken, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
+import type { EingehendeNachricht, WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
 
 export { KarteiFehler };
 
@@ -37,6 +39,12 @@ export interface PatientSeiteDaten {
   rechnungen: RechnungKurz[];
   /** freigegebene Preislisten für die Stammdaten */
   preislisten: Preisliste[];
+  /** Unterlagen der Akte, die man einer Mail anhängen kann (W91) */
+  dokumente: DokumentKurz[];
+  /** WhatsApp-Knöpfe mit fertigem Text (Click-to-Chat, W90) */
+  whatsapp: WhatsAppAngebot[];
+  /** Cloud API eingerichtet – dann gibt es zusätzlich „Senden“ */
+  whatsappCloud: boolean;
 }
 
 export interface AkteDaten {
@@ -76,6 +84,8 @@ export interface KarteiDienst {
   steuer(jahr: number, maskiert: boolean): Promise<SteuerListe>;
   wellness(): Promise<WellnessLeistung[]>;
   gruende(): Promise<Gespraechsgrund[]>;
+  /** Eingehende WhatsApp-Nachricht vom Webhook (W90) */
+  whatsappEingang(n: EingehendeNachricht): Promise<'zugeordnet' | 'medien' | 'unbekannt'>;
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
 }
 
@@ -83,7 +93,7 @@ const ARTEN: Kontaktart[] = ['mobil', 'telefon', 'whatsapp', 'email', 'sonstige'
 const kontaktart = (s: string | null): Kontaktart => (ARTEN.includes(s as Kontaktart) ? (s as Kontaktart) : 'sonstige');
 const ganz = (s: string | null, standard = 0) => (s && /^\d+$/.test(s.trim()) ? Number(s) : standard);
 
-export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'> }): KarteiDienst {
+export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'>; whatsapp?: WhatsAppCloud }): KarteiDienst {
   const { db, tresor: t } = q;
   /** Termin in den Kalender spiegeln; scheitert der Kalender, bleibt der Termin in der Kartei und die Meldung sagt es */
   const spiegeln = async (terminId: string, wer: string): Promise<string> => {
@@ -108,12 +118,15 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
     async patient(id) {
       const patient = await patientLesen(db, t, id);
       if (!patient) return undefined;
+      const kommende = await termine(db, id, { kommend: true });
       return {
-        patient, verlauf: await kontaktverlauf(db, t, id), gruende: await gespraechsgruende(db), termine: await termine(db, id, { kommend: true }),
+        patient, verlauf: await kontaktverlauf(db, t, id), gruende: await gespraechsgruende(db), termine: kommende,
         verordnungen: await verordnungen(db, { patientId: id }), serien: await serien(db, t, { patientId: id }), rechnungen: await rechnungen(db, id),
         preislisten: (await preislistenListen(db)).filter((l) => l.status === 'freigegeben'),
+        dokumente: await dokumente(db, t, id), whatsapp: whatsappAngebote(patient, kommende), whatsappCloud: Boolean(q.whatsapp),
       };
     },
+    whatsappEingang: (n) => whatsappEingang(db, t, n),
     async akte(id, wer) {
       const patient = await patientLesen(db, t, id);
       return patient ? { patient, faelle: await akte(db, t, id, wer) } : undefined;
@@ -321,6 +334,22 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
           const meldung = await rechnungStatus(db, id, g('rechnung_id') ?? '', a, { versandArt: g('versand_art'), grund: g('grund'), nummer: g('nummer'), datum: g('datum') }, wer);
           return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, meldung);
         }
+        // Nachrichten (W90, W91)
+        case 'mail_entwurf': {
+          const e = await mailEntwurf(db, t, q.graph, id, {
+            vorlage: g('vorlage') ?? '', terminId: g('termin_id') || undefined, rechnungId: g('rechnung_id') || undefined, freitext: g('freitext'),
+            anhangRechnungen: f.getAll('anhang_rechnung'), anhangDokumente: f.getAll('anhang_dokument'),
+          }, wer);
+          return nach(`${seite}#verlauf`, `Entwurf liegt im Postfach – in Outlook unter „Entwürfe“ prüfen und senden.${e.anhaenge ? ` ${e.anhaenge} Anhang dabei.` : ''}${e.hinweise.length ? ` ${e.hinweise.join(' ')}` : ''}`);
+        }
+        case 'whatsapp_senden': {
+          if (!q.whatsapp) throw new KarteiFehler('WhatsApp-Versand ist nicht eingerichtet – der WhatsApp-Knopf öffnet die Nachricht auf dem Handy');
+          await whatsappSenden(db, t, q.whatsapp, id, { vorlage: g('vorlage') ?? '', terminId: g('termin_id') || undefined, rechnungId: g('rechnung_id') || undefined, freitext: g('freitext') }, wer);
+          return nach(`${seite}#verlauf`, 'WhatsApp-Nachricht gesendet und im Verlauf vermerkt.');
+        }
+        case 'whatsapp_vermerken':
+          await whatsappVermerken(db, t, id, { vorlage: g('vorlage') ?? '', terminId: g('termin_id') || undefined }, wer);
+          return nach(`${seite}#verlauf`, 'WhatsApp vermerkt.');
         case 'archivieren':
           await statusSetzen(db, id, 'archiviert', wer);
           return nach('/patienten', 'Patient archiviert – die Akte bleibt erhalten.');

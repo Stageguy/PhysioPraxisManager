@@ -8,6 +8,7 @@
  */
 import { protokolliere, type Db } from '../db/index.ts';
 import { iso, istId, tag, text, zahl } from '../db/werte.ts';
+import { telefonNormieren } from '../telefon.ts';
 import type { Tresor } from '../tresor.ts';
 import { berlinZeitUtc } from '../zeit.ts';
 import { phaseVorruecken, type Phase } from './pinnwand.ts';
@@ -109,6 +110,8 @@ export interface VerlaufEintrag {
   offen: boolean;
   kontakt: { art: Kontaktart; wert: string } | null;
   erfasstVon: string;
+  /** Verweis nach außen, z. B. der Mail-Entwurf in Outlook Web (W91) */
+  link: string | null;
 }
 
 export interface Gespraechsgrund {
@@ -227,14 +230,7 @@ export interface Fall {
 
 // ── Normierung der Kontaktwege ───────────────────────────────────────────────
 
-/** Telefonnummer nach E.164 für tel:/wa.me-Links („0151 123 45 67“ → „+491511234567“); Deutschland ist Standard */
-export function telefonNormieren(wert: string): string {
-  let z = wert.replace(/[^\d+]/g, '');
-  if (z.startsWith('00')) z = `+${z.slice(2)}`;
-  else if (z.startsWith('0')) z = `+49${z.slice(1)}`;
-  else if (!z.startsWith('+')) z = `+49${z}`;
-  return z;
-}
+export { telefonNormieren };
 
 export function kontaktNormieren(art: Kontaktart, wert: string): string {
   const w = wert.trim();
@@ -492,12 +488,13 @@ export const gespraechsgruende = async (db: Db): Promise<Gespraechsgrund[]> =>
 
 export async function kontaktverlauf(db: Db, t: Tresor, patientId: string, limit = 50): Promise<VerlaufEintrag[]> {
   const { rows } = await db.query<Record<string, unknown>>(
-    `SELECT v.id::text, v.art::text, v.am, v.grund_code, g.bezeichnung AS grund_text, v.notiz, v.offen, v.erfasst_von, k.art::text AS k_art, k.wert AS k_wert
+    `SELECT v.id::text, v.art::text, v.am, v.grund_code, g.bezeichnung AS grund_text, v.notiz, v.offen, v.erfasst_von, v.quelle_ref, k.art::text AS k_art, k.wert AS k_wert
      FROM patient_kontaktverlauf v LEFT JOIN gespraechsgrund g ON g.code = v.grund_code LEFT JOIN patient_kontakt k ON k.id = v.kontakt_id
      WHERE v.patient_id = $1 ORDER BY v.offen DESC, v.am DESC LIMIT $2`, [patientId, limit],
   );
   return rows.map((r) => ({
     id: String(r.id), art: String(r.art), am: iso(r.am)!, offen: Boolean(r.offen), erfasstVon: String(r.erfasst_von),
+    link: typeof r.quelle_ref === 'string' && /^https:\/\//.test(r.quelle_ref) ? r.quelle_ref : null,
     grund: r.grund_code ? { code: String(r.grund_code), bezeichnung: String(r.grund_text ?? r.grund_code) } : null,
     notiz: t.entschluesselnText(r.notiz as Uint8Array | null, 'kontaktverlauf.notiz'),
     kontakt: r.k_art ? { art: r.k_art as Kontaktart, wert: String(r.k_wert) } : null,

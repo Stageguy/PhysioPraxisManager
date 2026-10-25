@@ -10,11 +10,14 @@
  * 6. Entwürfe aus der Testumgebung tragen die Kategorie „TEST“
  * 7. Patientenkontakte (Hybrid mit Exchange, §4b) nur im eigenen Kontaktordner: „Patienten-Test“
  *    statt „Patienten“ – und nur mit Testadressen
+ * 8. WhatsApp über die Cloud API (W90) schreibt in der Testumgebung nur an TEST_TELEFONE
  *
  * PRAXIS_UMGEBUNG=test schaltet die Testumgebung ein (sonst Produktion);
- * TEST_ADRESSEN: Testadressen, durch Komma getrennt (Plus-Varianten zählen mit).
+ * TEST_ADRESSEN: Testadressen, durch Komma getrennt (Plus-Varianten zählen mit);
+ * TEST_TELEFONE: Testnummern für WhatsApp, durch Komma getrennt (jede Schreibweise, wird normiert).
  */
 import type { GraphClient } from './graph.ts';
+import { telefonNormieren } from './telefon.ts';
 
 export type Umgebung = 'prod' | 'test';
 
@@ -57,6 +60,19 @@ export function pruefeEmpfaenger(adressen: string[], u: Umgebung = umgebung(), l
   const fremd = adressen.filter((a) => !istTestadresse(a, liste));
   if (fremd.length) {
     throw new SchrankeVerletzt(`Die Testumgebung schreibt nur an Testadressen – ${fremd.length} andere Empfänger abgewiesen`);
+  }
+}
+
+export const testTelefone = (env: NodeJS.ProcessEnv = process.env): string[] =>
+  (env.TEST_TELEFONE ?? '').split(',').map((s) => s.trim()).filter((s) => /\d{5,}/.test(s)).map(telefonNormieren);
+
+/** Schranke 8: WhatsApp in der Testumgebung nur an Testnummern */
+export function pruefeTelefonEmpfaenger(nummern: string[], u: Umgebung = umgebung(), liste = testTelefone()): void {
+  if (u !== 'test') return;
+  if (!liste.length) throw new SchrankeVerletzt('Testumgebung ohne TEST_TELEFONE – es darf per WhatsApp an niemanden geschrieben werden');
+  const fremd = nummern.map(telefonNormieren).filter((n) => !liste.includes(n));
+  if (fremd.length) {
+    throw new SchrankeVerletzt(`Die Testumgebung schreibt per WhatsApp nur an Testnummern – ${fremd.length} andere Empfänger abgewiesen`);
   }
 }
 

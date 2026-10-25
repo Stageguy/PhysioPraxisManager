@@ -249,6 +249,13 @@ export const PRAXIS_SKRIPT = String.raw`
   function deutsch(n, stellen) { return n.toLocaleString('de-DE', { minimumFractionDigits: stellen === 2 ? 2 : 0, maximumFractionDigits: stellen, useGrouping: false }); }
   // Patientenkachel: Tipp auf Telefon/WhatsApp/Mail vermerkt den Kontakt im Verlauf, der Link selbst läuft weiter (W67)
   document.addEventListener('click', function (e) {
+    // WhatsApp-Knopf mit Vorlage (W90): den Tipp im Verlauf vermerken, WhatsApp öffnet sich über den Link
+    var w = e.target && e.target.closest && e.target.closest('a[data-whatsapp]');
+    if (w && navigator.sendBeacon) {
+      var wd = new URLSearchParams({ aktion: 'whatsapp_vermerken', id: w.getAttribute('data-whatsapp'), vorlage: w.getAttribute('data-vorlage') || '', termin_id: w.getAttribute('data-termin') || '', zurueck: '/patienten' });
+      navigator.sendBeacon('/patienten/aktion', new Blob([wd.toString()], { type: 'application/x-www-form-urlencoded' }));
+      return;
+    }
     var a = e.target && e.target.closest && e.target.closest('a[data-anruf]');
     if (!a || !navigator.sendBeacon) return;
     var daten = new URLSearchParams({ aktion: 'anruf', id: a.getAttribute('data-anruf'), kontakt_id: a.getAttribute('data-kontakt') || '', zurueck: '/patienten' });
