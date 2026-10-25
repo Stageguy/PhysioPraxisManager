@@ -225,12 +225,13 @@ export async function terminZuordnen(db: Db, verordnungId: string, terminId: str
 export async function behandlungZuordnen(db: Db, verordnungId: string, behandlungLeistungId: string, datum: string): Promise<void> {
   const r = (await db.query<{ id: string }>("SELECT id::text FROM rechnung WHERE verordnung_id = $1 AND status = 'entwurf' ORDER BY id DESC LIMIT 1", [verordnungId])).rows[0];
   if (!r) return;
-  // Erst die Position mit gleichem Datum, sonst die erste ohne Behandlung
+  // Erst die Position mit gleichem Datum, dann eine ohne Datum, sonst die erste ohne Behandlung – das Behandlungsdatum zählt
   const pos = (await db.query<{ id: string }>(
-    `SELECT id::text FROM rechnung_position WHERE rechnung_id = $1 AND behandlung_leistung_id IS NULL ORDER BY (datum = $2::date) DESC NULLS LAST, reihenfolge LIMIT 1`, [r.id, datum],
+    `SELECT id::text FROM rechnung_position WHERE rechnung_id = $1 AND behandlung_leistung_id IS NULL
+     ORDER BY CASE WHEN datum = $2::date THEN 0 WHEN datum IS NULL THEN 1 ELSE 2 END, reihenfolge LIMIT 1`, [r.id, datum],
   )).rows[0];
   if (!pos) return;
-  await db.query('UPDATE rechnung_position SET behandlung_leistung_id = $2, datum = COALESCE(datum, $3::date) WHERE id = $1', [pos.id, behandlungLeistungId, datum]);
+  await db.query('UPDATE rechnung_position SET behandlung_leistung_id = $2, datum = $3::date WHERE id = $1', [pos.id, behandlungLeistungId, datum]);
 }
 
 // ── Positionen und Bausteine bearbeiten (nur im Entwurf) ────────────────────

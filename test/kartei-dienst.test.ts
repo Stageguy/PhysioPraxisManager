@@ -350,9 +350,10 @@ test('Rechnungsentwürfe: Rezept legt Entwurf mit Positionen und R1 an; Preislis
   assert.equal((html.match(/class="rp"/g) ?? []).length, 3, 'drei Positionen');
   // Behandlung mit Rezept hängt sich an die erste offene Position
   await post({ aktion: 'behandlung_erfassen', id: pid, fall_id: 'neu', grundlage: 'verordnung', datum: '2026-10-20', verordnung_id: rezept, massnahmen: 'MT', leistung_nummer: '21201' });
-  const pos = (await db.query<{ datum: Date; bl: string | null }>('SELECT datum, behandlung_leistung_id::text AS bl FROM rechnung_position WHERE rechnung_id = $1 ORDER BY reihenfolge', [re.id])).rows;
-  assert.ok(pos[0]!.bl, 'erste Position ist jetzt behandelt');
-  assert.equal(new Date(pos[0]!.datum).toISOString().slice(0, 10), '2026-10-20');
+  const pos = (await db.query<{ datum: Date | null; bl: string | null }>('SELECT datum, behandlung_leistung_id::text AS bl FROM rechnung_position WHERE rechnung_id = $1 ORDER BY reihenfolge', [re.id])).rows;
+  assert.equal(pos[0]!.bl, null, 'die Position mit dem geplanten Termin bleibt frei');
+  assert.ok(pos[1]!.bl, 'die erste Position ohne Datum ist jetzt behandelt');
+  assert.equal(new Date(pos[1]!.datum!).toISOString().slice(0, 10), '2026-10-20');
   // Positionen bearbeiten: + ✎ −
   assert.match(ziel(await post({ aktion: 'rechnung_position_hinzufuegen', id: pid, rechnung_id: re.id, nummer: '21201', anzahl: '2', datum: '2026-10-22' })), /Position hinzugefügt/);
   assert.equal((await db.query<{ b: string }>('SELECT betrag::text AS b FROM rechnung WHERE id = $1', [re.id])).rows[0]!.b, '250.00');
