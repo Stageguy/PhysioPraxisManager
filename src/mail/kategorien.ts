@@ -63,7 +63,7 @@ export const KATEGORIEN = {
     tun: 'Nichts – sie zählt nicht in der Praxisbuchhaltung. Haken wieder weg nimmt das zurück.', ab: 'jetzt',
   },
   termin: {
-    name: 'Praxis-Termin', farbe: 'preset8', farbname: 'Lila',
+    name: 'Praxis-Termin', farbe: 'preset24', farbname: 'Brombeer (dunkles Cranberry – die Farbe der Praxis-Assistenz)',
     wann: 'Die Praxis-Assistenz hat den Termin aus der Kartei in den Kalender gespiegelt (Betreff nur Initialen und Patientennummer).',
     tun: 'Nichts – ändern bitte in der Praxis-Assistenz, nicht im Kalender. Alle anderen Einträge im Kalender gelten als belegt (privat oder von Hand).', ab: 'jetzt',
   },

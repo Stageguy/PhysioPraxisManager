@@ -109,7 +109,7 @@ a.kachel:hover,a.kachel:focus-visible{transform:translateY(-2px);box-shadow:0 6p
 .protokoll time{color:var(--grau);font-variant-numeric:tabular-nums;min-width:110px}
 .log-sym{color:var(--akzent)}
 .zahlspalte{text-align:right;font-variant-numeric:tabular-nums}
-.chip.preset5{background:#9fe0d8}.chip.preset19{background:#6fbf73}.chip.preset0{background:#f4a3a8}.chip.preset12{background:#cfcfd4}.chip.preset9{background:#f0a6bf}
+.chip.preset5{background:#9fe0d8}.chip.preset19{background:#6fbf73}.chip.preset0{background:#f4a3a8}.chip.preset12{background:#cfcfd4}.chip.preset9{background:#f0a6bf}.chip.preset24{background:#722e61;color:#fff}
 /* Testumgebung: nicht zu übersehen, auf jeder Seite */
 .testband{position:sticky;top:0;z-index:1000;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;
   padding:8px 16px;font-size:14px;font-weight:600;color:#1b1519;text-align:center;
