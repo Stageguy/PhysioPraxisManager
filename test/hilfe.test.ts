@@ -31,7 +31,7 @@ const VERORDNUNG = { id: '1', patientId: '1', patientName: 'Anna Test', art: 'er
   anzahlVerordnet: 6, abgehakt: 2, status: 'aktiv', arzt: 'Dr. B', fallId: '1', fallNummer: 1, vorgaengerId: null, zweitschriftAm: '2026-10-05', notiz: 'x' };
 const SERIE = { id: '2', patientId: '1', patientName: 'Anna Test', nummer: 2, grundlage: 'praevention' as const, bezeichnung: 'Entspannung', wellness: { id: '1', bezeichnung: 'Wellnessmassage 60', preis: 65 }, begonnenAm: '2026-10-01', abgeschlossenAm: null, behandlungen: 2, letzteAm: '2026-10-20' };
 const WELLNESS = { id: '1', code: 'WM60', bezeichnung: 'Wellnessmassage 60', dauerMin: 60, preis: 65, aktiv: true };
-const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1' };
+const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true };
 const PATIENT_DATEN = {
   patient: PAT, gruende: [{ code: 'absage_patient', bezeichnung: 'Absage Patient' }],
   verlauf: [

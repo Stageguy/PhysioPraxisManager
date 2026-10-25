@@ -119,6 +119,8 @@ export interface TerminKurz {
   art: string;
   status: string;
   verordnungId: string | null;
+  /** im Exchange-Kalender gespiegelt (W77) */
+  imKalender: boolean;
 }
 
 export type VerordnungArt = 'erst' | 'folge_unveraendert' | 'folge_angepasst' | 'wiederaufnahme' | 'korrektur';
@@ -532,9 +534,9 @@ export async function verlaufVerwerfen(db: Db, patientId: string, eintragId: str
 
 export async function termine(db: Db, patientId: string, o: { kommend?: boolean } = {}): Promise<TerminKurz[]> {
   const { rows } = await db.query<Record<string, unknown>>(
-    `SELECT id::text, beginn, ende, art::text, status::text, verordnung_id::text FROM termin WHERE patient_id = $1 ${o.kommend ? 'AND ende >= now()' : ''} ORDER BY beginn ${o.kommend ? '' : 'DESC'} LIMIT 50`, [patientId],
+    `SELECT id::text, beginn, ende, art::text, status::text, verordnung_id::text, exchange_event_id FROM termin WHERE patient_id = $1 ${o.kommend ? 'AND ende >= now()' : ''} ORDER BY beginn ${o.kommend ? '' : 'DESC'} LIMIT 50`, [patientId],
   );
-  return rows.map((r) => ({ id: String(r.id), beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), verordnungId: text(r.verordnung_id) }));
+  return rows.map((r) => ({ id: String(r.id), beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), verordnungId: text(r.verordnung_id), imKalender: r.exchange_event_id != null }));
 }
 
 export async function terminAnlegen(

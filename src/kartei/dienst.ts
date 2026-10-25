@@ -4,7 +4,9 @@
  * erfundene Patienten, N28).
  */
 import type { Db } from '../db/index.ts';
+import type { GraphClient } from '../graph.ts';
 import type { Tresor } from '../tresor.ts';
+import { terminSpiegeln } from './kalender.ts';
 import {
   adresseLoeschen, adresseSpeichern, akte, anrufBeginnen, behandlungErfassen, fallAnlegen, gespraechsgruende, KarteiFehler, kontaktLoeschen, kontaktSpeichern, kontaktverlauf,
   offeneFaelle, patientAnlegen, patientenListe, patientLesen, rechnungen, rechnungsadresseSetzen, serieAbschliessen, serien, stammdatenSpeichern, statusSetzen, terminAnlegen,
@@ -68,8 +70,19 @@ const ganz = (s: string | null, standard = 0) => (s && /^\d+$/.test(s.trim()) ? 
 const istId = (s: string) => /^\d+$/.test(s);
 const PHASEN_NAME = (p: Phase) => ({ anfrage: 'Anfrage', aufnahme: 'Aufnahme', anamnese: 'Anamnese', befund_start: 'Befund', behandlung: 'Behandlung', abschluss: 'Abschluss', rechnung: 'Rechnung', nachsorge: 'Nachsorge', archiviert: 'Archiv' })[p];
 
-export function karteiDienst(q: { db: Db; tresor: Tresor }): KarteiDienst {
+export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'> }): KarteiDienst {
   const { db, tresor: t } = q;
+  /** Termin in den Kalender spiegeln; scheitert der Kalender, bleibt der Termin in der Kartei und die Meldung sagt es */
+  const spiegeln = async (terminId: string, wer: string): Promise<string> => {
+    if (!q.graph) return ' Noch nicht im Kalender (kein Postfach verbunden).';
+    try {
+      const e = await terminSpiegeln(db, q.graph, terminId, wer);
+      return e === 'angelegt' ? ' Steht auch im Kalender.' : e === 'entfernt' ? ' Aus dem Kalender genommen.' : e === 'aktualisiert' ? ' Kalender aktualisiert.' : '';
+    } catch (err) {
+      console.warn(`Kalender: ${(err as Error).message.slice(0, 200)}`);
+      return ' Der Kalender war nicht erreichbar – der Abgleich holt es nach.';
+    }
+  };
   return {
     liste: (o) => patientenListe(db, t, o),
     pinnwand: (o) => pinnwand(db, t, o),
@@ -197,12 +210,13 @@ export function karteiDienst(q: { db: Db; tresor: Tresor }): KarteiDienst {
         case 'verlauf_eintragen':
           await verlaufEintragen(db, t, id, { art: g('art') ?? 'notiz', grund: g('grund'), notiz: g('notiz'), kontaktId: g('kontakt_id') }, wer);
           return nach(`${seite}#verlauf`, 'Eintrag gespeichert.');
-        case 'termin_anlegen':
-          await terminAnlegen(db, id, { datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), fallId: g('fall_id') }, wer);
-          return nach(`${seite}#termine`, 'Termin angelegt – er steht bisher nur hier, noch nicht im Kalender.');
+        case 'termin_anlegen': {
+          const terminId = await terminAnlegen(db, id, { datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), fallId: g('fall_id') }, wer);
+          return nach(`${seite}#termine`, `Termin angelegt.${await spiegeln(terminId, wer)}`);
+        }
         case 'termin_status':
           await terminStatus(db, id, g('termin_id') ?? '', g('status') ?? '', wer);
-          return nach(`${seite}#termine`, 'Termin geändert.');
+          return nach(`${seite}#termine`, `Termin geändert.${await spiegeln(g('termin_id') ?? '', wer)}`);
         case 'verordnung_anlegen': {
           const art = g('art') ?? 'erst';
           await verordnungAnlegen(db, t, id, {

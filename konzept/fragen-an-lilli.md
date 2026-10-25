@@ -123,6 +123,13 @@ Praxis-iPhone an? (W69)
 
 > Antwort:
 
+**20. Kalender und Siri:** Welcher Kalender ist auf deinem iPhone der Standardkalender (Einstellungen →
+Kalender → Standardkalender)? Für Siri-Termine muss es der Exchange-Kalender von praxis@ sein, sonst sieht
+die Praxis-Assistenz sie nicht und kann keine Kollision vermeiden. Passt dir ein eigener Kalender „Praxis“
+für die Termine der Praxis-Assistenz (lila Kategorie), neben deinem normalen Kalender? (E27, W77)
+
+> Antwort:
+
 ## Zugang und Ablage
 
 **12. Ein Konto oder zwei?** Heute arbeitest du und das System mit praxis@lilli-nebel.de. Reicht

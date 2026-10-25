@@ -9,7 +9,7 @@
  * (030) 23125 xxx – sie erreichen niemanden. Läuft nur einmal: gibt es „T-1001“ schon, passiert nichts.
  */
 import { migriere, verbinde, type Db } from '../db/index.ts';
-import { testdatenAnlegen } from '../kartei/testdaten.ts';
+import { testdatenAnlegen, testtermineAnlegen } from '../kartei/testdaten.ts';
 import { tresor } from '../tresor.ts';
 import { testAdressen, umgebung } from '../umgebung.ts';
 
@@ -27,6 +27,8 @@ try {
   await migriere(db);
   const e = await testdatenAnlegen(db as Db, tresor(), { adresse, wer: 'testdaten' });
   console.log(e.uebersprungen ? '✓ Testdaten sind schon da – nichts geändert' : `✓ ${e.patienten} erfundene Patienten angelegt (${e.behandlungen} Behandlungen, ${e.termine} Termine, ${e.rechnungen} Rechnungen)`);
+  const z = await testtermineAnlegen(db as Db, tresor(), { adresse, wer: 'testdaten' });
+  console.log(z.uebersprungen ? '✓ Testtermine sind schon da' : `✓ ${z.patienten} Patienten mit 12er-Rezept und ${z.termine} Terminen in den nächsten Wochen – Kalender: npm run termine:abgleich`);
 } finally {
   await db.ende();
 }

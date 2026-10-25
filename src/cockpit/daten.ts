@@ -8,6 +8,7 @@
  */
 import type { Db } from '../db/index.ts';
 import type { GraphClient } from '../graph.ts';
+import { kalenderBasis } from '../umgebung.ts';
 import { berlinMitternachtUtc, datumBerlin, OUTLOOK_ZONE } from '../zeit.ts';
 
 export type Quelle<T> = { stand: 'ok'; daten: T } | { stand: 'nicht-verbunden'; hinweis: string } | { stand: 'fehler'; hinweis: string };
@@ -109,7 +110,7 @@ const naechsterTag = (tag: string): string => {
 };
 
 export async function termineHeute(
-  graph: Pick<GraphClient, 'paginate'> | undefined,
+  graph: Pick<GraphClient, 'paginate' | 'get' | 'post'> | undefined,
   heute: string,
   namenZeigen: boolean,
 ): Promise<Quelle<Termin[]>> {
@@ -118,11 +119,13 @@ export async function termineHeute(
     const von = berlinMitternachtUtc(heute);
     const bis = berlinMitternachtUtc(naechsterTag(heute));
     const termine: Termin[] = [];
+    // Produktion: Hauptkalender; Testumgebung: Kalender „Praxis-Test“ (Schranke 3)
+    const basis = await kalenderBasis(graph);
     for await (const e of graph.paginate<{
       subject?: string; isAllDay: boolean; showAs?: string; isCancelled?: boolean;
       start: { dateTime: string }; end: { dateTime: string };
     }>(
-      `/me/calendarView?startDateTime=${von}&endDateTime=${bis}&$select=subject,start,end,isAllDay,showAs,isCancelled&$orderby=start/dateTime&$top=100`,
+      `${basis}/calendarView?startDateTime=${von}&endDateTime=${bis}&$select=subject,start,end,isAllDay,showAs,isCancelled&$orderby=start/dateTime&$top=100`,
       { Prefer: `outlook.timezone="${OUTLOOK_ZONE}"` },
     )) {
       if (e.isCancelled) continue;
@@ -164,7 +167,7 @@ export async function protokoll(db: Db | undefined, tage = 7): Promise<Quelle<Lo
 
 export async function cockpitDaten(q: {
   db?: Db;
-  graph?: Pick<GraphClient, 'paginate'>;
+  graph?: Pick<GraphClient, 'paginate' | 'get' | 'post'>;
   namenZeigen: boolean;
   jetzt?: Date;
 }): Promise<CockpitDaten> {

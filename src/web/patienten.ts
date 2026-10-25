@@ -171,7 +171,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
     </li>`).join('');
   const termine = d.termine.map((t) => `<article class="tk ${t.verordnungId ? 'rezept' : ''}" data-hilfe="termine.kachel">
     <b>${datumZeit(t.beginn)}</b><span class="hint">bis ${zeit(t.ende)} · ${esc(t.art)}</span>
-    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span></span>
+    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}</span>
     ${t.status === 'bestaetigt' || t.status === 'vorgeschlagen' ? form('termin_status', `<input type="hidden" name="termin_id" value="${t.id}"><select name="status" data-hilfe="termin.status" data-auto-senden><option value="">ändern …</option><option value="abgesagt_patient">abgesagt (Patient)</option><option value="abgesagt_praxis">abgesagt (Praxis)</option><option value="nicht_erschienen">nicht erschienen</option></select><button class="knopf klein nur-ohne-js">ok</button>`, { id: p.id, zurueck, klasse: 'tk-fuss' }) : ''}
   </article>`).join('');
   const rechnungen = d.rechnungen.map((r) => {
@@ -303,7 +303,7 @@ export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
   <div class="zwei"><label>Dauer (Minuten)<input type="number" name="dauer_min" value="30" min="5" step="5"></label>
     <label>Art<select name="art"><option value="behandlung">Behandlung</option><option value="erstgespraech">Erstgespräch</option><option value="sonstige">Sonstiges</option></select></label></div>
   <label>Rezept<select name="verordnung_id"><option value="">kein Rezept (Individualtermin)</option>${rezepte}</select></label>
-  <p class="hint">Der Termin steht zunächst nur in der Kartei. Der Abgleich mit dem Kalender im Postfach kommt mit dem nächsten Schritt.</p>
+  <p class="hint">Der Termin steht in der Kartei und wird in den Kalender des Postfachs gespiegelt – dort mit Kategorie „Praxis-Termin“, Betreff nur Initialen und Patientennummer (Testumgebung: Kalender „Praxis-Test“).</p>
   <button class="knopf primaer" data-hilfe="termin.anlegen">Termin anlegen</button>
 </form>`,
   });

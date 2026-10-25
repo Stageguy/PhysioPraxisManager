@@ -26,6 +26,8 @@ test('Ohne Datenbank und Kalender: „nicht verbunden“ statt erfundener Zahlen
 test('Termine heute aus dem Kalender: Zeitraum Berliner Tag, Initialen, Absagen weg', async () => {
   let url = '';
   const graph = {
+    async get<T>(): Promise<T> { return { value: [] } as T; },
+    async post<T>(): Promise<T> { return { id: 'kal' } as T; },
     async *paginate<T>(u: string): AsyncGenerator<T> {
       url = u;
       yield { subject: 'Erika Muster', isAllDay: false, start: { dateTime: '2026-10-20T09:00:00.0000000' }, end: { dateTime: '2026-10-20T09:45:00.0000000' } } as T;

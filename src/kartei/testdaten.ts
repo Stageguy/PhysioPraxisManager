@@ -27,6 +27,63 @@ const tag = (versatz: number) => {
   return d.toISOString().slice(0, 10);
 };
 
+/** Nächster Werktag ab `versatz` Tagen, als JJJJ-MM-TT */
+function werktag(versatz: number): string {
+  const d = new Date();
+  d.setUTCHours(12, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + versatz);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Testtermine (W77): drei Patienten mit 12er-Rezept, je zwölf Termine über die nächsten zwei bis vier
+ * Wochen, mehrere pro Tag mit Lücken – für „Heute im Blick“ und den Kalender. Läuft nur einmal (T-1011).
+ */
+export async function testtermineAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; termine: number }> {
+  if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1011'")).rows.length) return { uebersprungen: true, patienten: 0, termine: 0 };
+  const [lokal, domain] = o.adresse.split('@');
+  const wer = o.wer;
+  // Je Patient: Wochentage (1 = Mo … 5 = Fr) und Uhrzeiten – zusammen ergeben sie mehrere Termine pro Tag mit Lücken
+  const PLAN: { vorname: string; nachname: string; geboren: string; ort: string; plz: string; strasse: string; massnahme: string; nummer: string; tage: number[]; zeit: string; dauer: number; start: number }[] = [
+    { vorname: 'Karin', nachname: 'Zwölfer', geboren: '1966-04-03', ort: 'Bad Wörishofen', plz: '86825', strasse: 'Kneippstraße 11', massnahme: 'Manuelle Therapie', nummer: '21201', tage: [1, 3, 5], zeit: '08:00', dauer: 30, start: 1 },
+    { vorname: 'Leon', nachname: 'Dauerlauf', geboren: '1995-10-19', ort: 'Türkheim', plz: '86842', strasse: 'Bahnhofstraße 4', massnahme: 'Krankengymnastik', nummer: '20501', tage: [1, 2, 4], zeit: '10:30', dauer: 30, start: 2 },
+    { vorname: 'Monika', nachname: 'Lymphe', geboren: '1958-12-01', ort: 'Mindelheim', plz: '87719', strasse: 'Krumbacher Straße 2', massnahme: 'Manuelle Lymphdrainage 45 Min.', nummer: '20201', tage: [2, 3, 5], zeit: '14:30', dauer: 45, start: 1 },
+  ];
+  let termine = 0;
+  for (const [i, p] of PLAN.entries()) {
+    const nr = String(11 + i).padStart(3, '0');
+    const id = await patientAnlegen(db, t, {
+      patientennummer: `T-${1011 + i}`, anrede: i === 1 ? 'Herr' : 'Frau', vorname: p.vorname, nachname: p.nachname, geburtsdatum: p.geboren, patientSeit: werktag(-7),
+      kontakte: [{ art: 'mobil', wert: `030 23125 ${nr}` }, { art: 'whatsapp', wert: `030 23125 ${nr}` }, { art: 'email', wert: `${lokal}+${p.vorname.toLowerCase()}@${domain}` }],
+      adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: p.strasse.replace(/\s\d+\w?$/, ''), hausnummer: /\s(\d+\w?)$/.exec(p.strasse)?.[1] ?? null, plz: p.plz, ort: p.ort },
+    }, wer);
+    await erklaerungErfassen(db, t, id, { art: 'datenschutzinformation', form: 'schriftlich', fassung: 'Datenschutzinformation 2026-01' }, wer);
+    const rezept = await verordnungAnlegen(db, t, id, {
+      ausgestelltAm: werktag(-3), arzt: 'Dr. med. Erika Beispielarzt, Orthopädie Bad Wörishofen', massnahme: p.massnahme, leistungNummer: p.nummer, anzahl: 12, frequenz: '3× pro Woche',
+      diagnose: ['M54.4 Lumboischialgie', 'S83.5 Kreuzbandriss (Reha)', 'I89.0 Lymphödem'][i], langzeit: i === 2,
+    }, wer);
+    // Fall anlegen, Einwilligung dazu, Phase Aufnahme/Anamnese – die Termine gehören zum Rezept
+    const fall = await fallAnlegen(db, t, id, { grundlage: 'verordnung', bezeichnung: ['Rücken', 'Knie rechts', 'Lymphödem Arm'][i], anlass: 'Verordnung über zwölf Einheiten (erfunden)', phase: 'aufnahme' }, wer);
+    await db.query('UPDATE verordnung SET fall_id = $2 WHERE id = $1', [rezept, fall]);
+    await erklaerungErfassen(db, t, id, { fallId: fall, art: 'behandlungseinwilligung', form: 'schriftlich', inhalt: `${p.massnahme} laut Verordnung (erfunden)` }, wer);
+    // Zwölf Termine: an den Wochentagen des Plans, ab dem Starttag, bis alle zwölf verteilt sind (ca. vier Wochen)
+    let gesetzt = 0;
+    for (let v = p.start; gesetzt < 12 && v < 45; v++) {
+      const d = new Date();
+      d.setUTCHours(12, 0, 0, 0);
+      d.setUTCDate(d.getUTCDate() + v);
+      if (!p.tage.includes(d.getUTCDay())) continue;
+      const tag = d.toISOString().slice(0, 10);
+      await terminAnlegen(db, id, { datum: tag, zeit: p.zeit, dauerMin: p.dauer, verordnungId: rezept, fallId: fall }, wer);
+      gesetzt++;
+      termine++;
+    }
+    await verlaufEintragen(db, t, id, { art: 'anruf_eingehend', grund: 'terminvereinbarung', notiz: 'Zwölf Termine vereinbart (erfunden)' }, wer);
+  }
+  return { uebersprungen: false, patienten: PLAN.length, termine };
+}
+
 export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; behandlungen: number; termine: number; rechnungen: number }> {
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1001'")).rows.length) return { uebersprungen: true, patienten: 0, behandlungen: 0, termine: 0, rechnungen: 0 };
   const [lokal, domain] = o.adresse.split('@');

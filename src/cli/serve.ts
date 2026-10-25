@@ -70,7 +70,7 @@ const dienst = praxisDienst({
   cockpit: ({ namenZeigen }) => cockpitDaten({ db, graph, namenZeigen }),
   rechnungen: db ? rechnungsDienst({ db, graph, laufwerk: (await ladeEinstellungen()).rechnungen.laufwerk }) : undefined,
   preislisten: db ? preislistenDienst({ db }) : undefined,
-  kartei: db && process.env.PRAXIS_TRESOR_SCHLUESSEL ? karteiDienst({ db, tresor: tresor() }) : undefined,
+  kartei: db && process.env.PRAXIS_TRESOR_SCHLUESSEL ? karteiDienst({ db, tresor: tresor(), graph }) : undefined,
   entwicklung,
 });
 if (db && !process.env.PRAXIS_TRESOR_SCHLUESSEL) console.warn('⚠ PRAXIS_TRESOR_SCHLUESSEL fehlt – die Patientenkartei bleibt aus');

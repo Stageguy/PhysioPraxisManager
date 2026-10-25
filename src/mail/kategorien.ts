@@ -62,6 +62,11 @@ export const KATEGORIEN = {
     wann: 'Du hast im Rechnungs-Dashboard „privat“ angehakt: die Rechnung gehört nicht zur Praxis. Die Datei liegt in „<Jahr>/Privat“.',
     tun: 'Nichts – sie zählt nicht in der Praxisbuchhaltung. Haken wieder weg nimmt das zurück.', ab: 'jetzt',
   },
+  termin: {
+    name: 'Praxis-Termin', farbe: 'preset8', farbname: 'Lila',
+    wann: 'Die Praxis-Assistenz hat den Termin aus der Kartei in den Kalender gespiegelt (Betreff nur Initialen und Patientennummer).',
+    tun: 'Nichts – ändern bitte in der Praxis-Assistenz, nicht im Kalender. Alle anderen Einträge im Kalender gelten als belegt (privat oder von Hand).', ab: 'jetzt',
+  },
   test: {
     name: 'TEST', farbe: 'preset9', farbname: 'Cranberry',
     wann: 'Ein Entwurf aus der Testumgebung – adressiert an eine Testadresse, nie an echte Patienten.',
