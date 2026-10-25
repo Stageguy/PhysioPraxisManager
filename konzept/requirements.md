@@ -24,7 +24,7 @@ Neue Ideen bekommen eine W-Nummer und werden sofort mit den Prompts abgeglichen.
 | W02 | Zugriff auf Exchange-Postfach mit Anhängen und OneDrive Business wie in mondre-infra/graphapi | 1, 2 | ✅ erledigt (delegiert, siehe N1/N2) |
 | W03 | Eingangsrechnungen: Mails mit Rechnungs-PDF ablegen → per API nach Lexware → Freigabe durch Lilli | 4, 5 | offen |
 | W04 | Terminanfragen per Mail und WhatsApp eintragen und beantworten | 6, 7 | offen |
-| W05 | Tägliche Übersicht über Termine und Patienten | 8 | offen |
+| W05 | Tägliche Übersicht über Termine und Patienten | 8 | ▶ „Heute im Blick“ im Cockpit; Tagesmail (Prompt 8) offen |
 | W06 | Grundsätzlich klären, welche Daten wo gespeichert werden dürfen | Anhang, 9, 11 | Arbeitsgrundlage im Anhang der Prompts |
 | W07 | Lösungen bei Strato und OneDrive für Physiopraxen (Sicherheit) | 9, 11 | Arbeitsgrundlage, Entscheidung E6 |
 | W08 | Prompts für Claude Code | – | ✅ Prompt-Sammlung |
@@ -32,12 +32,12 @@ Neue Ideen bekommen eine W-Nummer und werden sofort mit den Prompts abgeglichen.
 | W10 | Übersichtsseite: aktuelle Termine, offene Zahlungen, neue Posteingänge mit Rechnungen – für Desktop und Handy | 10 | offen |
 | W11 | Zentrale Poststelle: Eingangskanäle bündeln, zentral verarbeiten, sinnvoll in Datenbank und/oder OneDrive ablegen, ausgewählte Daten in ein medizinisch gesichertes Verzeichnis | 11 | offen |
 | W12 | Termine und Rechnungsausgänge verarbeiten und in Lexware als Ausgangsrechnung vorbereiten – Lilli soll so wenig wie möglich selbst tun | 11 | offen |
-| W13 | Patientenweg Neupatient: Erstaufnahme → Anamnese → Behandlung → Rechnung, mit Alternativen | 12 | offen |
-| W14 | Derselbe Weg für Bestandspatienten | 12 | offen |
-| W15 | Immer sehen, welcher Patient in welcher Phase ist | 12 (Pinnwand) | offen |
+| W13 | Patientenweg Neupatient: Erstaufnahme → Anamnese → Behandlung → Rechnung, mit Alternativen | 12 | ▶ Phasen und Regeln in der Pinnwand (W76); Alternativen (Online-Fragebogen, Tablet) offen |
+| W14 | Derselbe Weg für Bestandspatienten | 12 | ▶ neuer Fall je Anliegen, Folgerezepte (W73); Kurzcheck/Bestätigung per Link offen |
+| W15 | Immer sehen, welcher Patient in welcher Phase ist | 12 (Pinnwand) | ✅ Pinnwand (W76) |
 | W16 | Je ein PDF (kaufmännisch, Patientenweg) für Lilli ohne Technikkenntnisse | – | ✅ beide PDFs |
 | W17 | Schnellaktionen in der Pinnwand: Standard-Mails per Tipp als Entwurf ins Mailprogramm, nur noch senden | 13 | offen |
-| W18 | Rezepte mit Anzahl Behandlungen; Termine dem Rezept zuordnen bzw. mit dem Patienten besprechen; nach jeder Sitzung je Rezept einen Termin abhaken | 14 | offen, in PDF Patientenweg S. 5 |
+| W18 | Rezepte mit Anzahl Behandlungen; Termine dem Rezept zuordnen bzw. mit dem Patienten besprechen; nach jeder Sitzung je Rezept einen Termin abhaken | 14 | ▶ Rezepte, Zuordnung der Termine und Abhaken gebaut (W73, W77); Slot-Vorschläge für alle Einheiten offen (Prompt 6/14) |
 | W19 | Rechnung nach Rezeptende; Zwischenrechnungen, wenn ein Rezept länger als pro Kunde konfigurierbare Quartale läuft; Rezeptabbruch mit Abschlussrechnung | 14 | offen, in PDF S. 5 |
 | W20 | Termine bis 24 h vorher verschieben oder absagen; mit Rezept nur verschieben | 14 | offen, Regel unter 24 h: E7 |
 | W21 | Anwendungen laufen in einem **eigenen Tailscale-Verbund**, ohne Verbindung zu den mondre-Projekten | Backlog #3 | ✅ Container angelegt, Tailnet noch nicht (A09) |
