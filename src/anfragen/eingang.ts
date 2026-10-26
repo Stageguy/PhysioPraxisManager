@@ -14,6 +14,7 @@ import { heuteBerlin } from '../zeit.ts';
 import { anfrageAnlegen } from './anfragen.ts';
 import { erkenneAnliegen, erkenneZeitwunsch, htmlZuText } from './erkennung.ts';
 import { anfrageAusFormularMail } from './formular.ts';
+import { terminartFinden } from '../kartei/terminarten.ts';
 
 export type AnfragenGraph = Pick<GraphClient, 'get' | 'paginate' | 'post'>;
 
@@ -65,6 +66,7 @@ export async function anfragenEingang(graph: AnfragenGraph, db: Db, t: Tresor, o
         absenderTelefon: website ? formular!.telefon : null, betreff, text,
         erkannt: erkenneZeitwunsch(website ? `${formular!.wunsch ?? ''} ${formular!.anliegen ?? ''}` : `${betreff}\n${text}`, heute),
         eingegangenAm: m.receivedDateTime,
+        terminartId: website && formular!.terminart ? (await terminartFinden(db, formular!.terminart))?.id ?? null : null,
       });
     } catch (err) {
       b.fehler++;

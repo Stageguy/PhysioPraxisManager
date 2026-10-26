@@ -2,8 +2,9 @@
  * Gemeinsame HTML-Bausteine der Seiten: der Rahmen (wer, Fassung, Meldung), die Meldungszeilen oben,
  * die versteckten Aktionsformulare und Chips. Vorher in jeder Seite kopiert.
  */
+import { SEKTION_REIHE, type Sektion } from '../kartei/terminarten.ts';
 import { esc } from './layout.ts';
-import { symbol } from './symbole.ts';
+import { symbol, type Symbol } from './symbole.ts';
 
 /** Was jede Seite vom Server bekommt */
 export interface Rahmen {
@@ -35,6 +36,18 @@ export const karteiFormular = (aktion: string, inhalt: string, o: Formularziel =
 
 /** Formular an die Preislisten (/preislisten/aktion) */
 export const preislistenFormular = (aktion: string, inhalt: string, o: Formularziel = {}) => aktionsFormular('/preislisten/aktion', aktion, inhalt, { ...o, zurueck: o.zurueck ?? '/preislisten' });
+
+/** Sektion einer Terminart bzw. eines Termins (W95): Symbol, Farbe (CSS-Klasse sek-…) und Name – überall gleich */
+export const SEKTION_SYMBOL: Record<Sektion, Symbol> = { rezept: 'rezept', selbstzahler: 'euro', wellness: 'wellness' };
+export const SEKTION_KURZ: Record<Sektion, string> = { rezept: 'Rezept', selbstzahler: 'Selbstzahler', wellness: 'Wellness' };
+
+/** Kleines Symbol in der Farbe der Sektion; ohne Sektion nichts */
+export const sektionMarke = (s: Sektion | null | undefined, groesse = 14) =>
+  s ? `<span class="sek-sym sek-${s}" title="${esc(SEKTION_KURZ[s])}" aria-label="${esc(SEKTION_KURZ[s])}">${symbol(SEKTION_SYMBOL[s], { groesse })}</span>` : '';
+
+/** Farblegende der drei Sektionen */
+export const sektionLegende = () =>
+  `<p class="sek-legende" data-hilfe="sektion.legende" tabindex="0">${SEKTION_REIHE.map((s) => `<span class="sek-teil sek-${s}">${sektionMarke(s)} ${esc(SEKTION_KURZ[s])}</span>`).join('')}</p>`;
 
 /** Farbiger Status-Chip (Outlook-Farbpaletten „presetN“) */
 export const chip = (text: string, farbe: string) => `<span class="chip ${farbe}">${esc(text)}</span>`;

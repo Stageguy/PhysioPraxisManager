@@ -60,6 +60,7 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
 
 <h2>Termine und Terminanfragen</h2>
 <div class="tafel">
+  <p><a class="knopf primaer" href="/konfiguration/terminarten" data-hilfe="konfiguration.terminarten">${symbol('kalender', { groesse: 18 })} Terminarten für die Online-Anfrage (Kacheln)</a></p>
   ${form('einstellung', `<input type="hidden" name="schluessel" value="oeffnungszeiten">
     <label>Öffnungszeiten <span class="hint">(je Wochentag, mehrere Fenster mit Komma, Tage mit Semikolon)</span><input name="wert" value="${esc(d.einstellungen.oeffnungszeiten ?? 'Mo 08:00-18:00; Di 08:00-18:00; Mi 08:00-18:00; Do 08:00-18:00; Fr 08:00-14:00')}" data-hilfe="konfiguration.oeffnungszeiten"></label>
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}

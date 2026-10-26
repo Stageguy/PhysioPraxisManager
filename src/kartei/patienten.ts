@@ -9,6 +9,7 @@
 import { protokolliere, type Db } from '../db/index.ts';
 import { iso, istId, tag, text, zahl } from '../db/werte.ts';
 import { telefonNormieren } from '../telefon.ts';
+import { SEKTION_SQL, type Sektion } from './terminarten.ts';
 import type { Tresor } from '../tresor.ts';
 import { berlinZeitUtc } from '../zeit.ts';
 import { phaseVorruecken, type Phase } from './pinnwand.ts';
@@ -549,7 +550,7 @@ export async function termine(db: Db, patientId: string, o: { kommend?: boolean 
 }
 
 export async function terminAnlegen(
-  db: Db, patientId: string, d: { datum: string; zeit: string; dauerMin: number; art?: string; verordnungId?: string; fallId?: string }, wer: string,
+  db: Db, patientId: string, d: { datum: string; zeit: string; dauerMin: number; art?: string; verordnungId?: string; fallId?: string; terminartId?: string }, wer: string,
 ): Promise<string> {
   const tagText = datumPruefen(d.datum, 'Datum');
   if (!tagText || !/^\d{2}:\d{2}$/.test(d.zeit)) throw new KarteiFehler('Datum und Uhrzeit sind nötig');
@@ -557,8 +558,8 @@ export async function terminAnlegen(
   const beginn = new Date(berlinZeitUtc(tagText, d.zeit)).getTime();
   const ende = beginn + d.dauerMin * 60_000;
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO termin (patient_id, fall_id, verordnung_id, art, beginn, ende, erstellt_von) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id::text`,
-    [patientId, d.fallId || null, d.verordnungId || null, d.art ?? 'behandlung', new Date(beginn).toISOString(), new Date(ende).toISOString(), wer],
+    `INSERT INTO termin (patient_id, fall_id, verordnung_id, art, beginn, ende, erstellt_von, terminart_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id::text`,
+    [patientId, d.fallId || null, d.verordnungId || null, d.art ?? 'behandlung', new Date(beginn).toISOString(), new Date(ende).toISOString(), wer, d.terminartId && /^\d+$/.test(d.terminartId) ? d.terminartId : null],
   );
   await protokolliere(db, { actor: wer, action: 'termin_angelegt', objectType: 'patient', objectId: patientId, details: { rezept: !!d.verordnungId } });
   if (d.verordnungId) await terminZuordnen(db, d.verordnungId, rows[0]!.id, tagText);
@@ -898,23 +899,25 @@ export interface TerminKalender {
   exchangeEventId: string | null;
   /** Kurzbezeichnung der Behandlung (W86): Kürzel der aktiven Preisliste, sonst Maßnahme bzw. Wellness-Kürzel */
   leistung: string | null;
+  /** Sektion (W95): Rezept, Selbstzahler, Wellness – Farbe und Symbol im Kalender */
+  sektion: Sektion | null;
 }
 
 /** Kurzbezeichnung der Behandlung je Termin – die Alias t (Termin), v (Rezept), f (Fall), w (Wellness-Leistung) liefert TERMIN_VERKNUEPFUNG_SQL */
 export const LEISTUNG_SQL = `coalesce(
   (SELECT pp.kuerzel FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.aktiv AND pp.nummer = coalesce(t.leistung_nummer, v.leistung_nummer) LIMIT 1),
   v.massnahme, w.code, CASE f.grundlage WHEN 'direktzugang' THEN 'Direktzugang' WHEN 'praevention' THEN 'Wellness' END)`;
-const TERMIN_VERKNUEPFUNG_SQL = 'FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN verordnung v ON v.id = t.verordnung_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN wellness_leistung w ON w.id = f.wellness_leistung_id';
+const TERMIN_VERKNUEPFUNG_SQL = 'FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN verordnung v ON v.id = t.verordnung_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN wellness_leistung w ON w.id = f.wellness_leistung_id LEFT JOIN terminart ta ON ta.id = t.terminart_id';
 
 export async function termineZeitraum(db: Db, vonIso: string, bisIso: string): Promise<TerminKalender[]> {
   const { rows } = await db.query<Record<string, unknown>>(
     `SELECT t.id::text, t.patient_id::text, p.vorname, p.nachname, p.patientennummer, t.beginn, t.ende, t.art::text, t.status::text, (t.verordnung_id IS NOT NULL) AS rezept, t.exchange_event_id,
-       ${LEISTUNG_SQL} AS leistung
+       coalesce(ta.kurz, ${LEISTUNG_SQL}) AS leistung, ${SEKTION_SQL} AS sektion
      ${TERMIN_VERKNUEPFUNG_SQL}
      WHERE t.beginn < $2 AND t.ende > $1 AND t.status NOT IN ('abgesagt_patient', 'abgesagt_praxis', 'verschoben') ORDER BY t.beginn`, [vonIso, bisIso],
   );
   return rows.map((r) => ({
     id: String(r.id), patientId: String(r.patient_id), vorname: String(r.vorname), nachname: String(r.nachname), patientennummer: String(r.patientennummer),
-    beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), rezept: Boolean(r.rezept), imKalender: r.exchange_event_id !== null, exchangeEventId: text(r.exchange_event_id), leistung: text(r.leistung),
+    beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), rezept: Boolean(r.rezept), imKalender: r.exchange_event_id !== null, exchangeEventId: text(r.exchange_event_id), leistung: text(r.leistung), sektion: (text(r.sektion) as Sektion | null),
   }));
 }

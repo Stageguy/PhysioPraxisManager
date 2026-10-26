@@ -165,3 +165,11 @@ Alles steht unter Konfiguration und lässt sich ändern. Dazu legen wir in Outlo
 dem Kontaktformular der Website gehören auch dorthin (Frage an den Website-Anbieter: feste Feldnamen
 „Name:“, „Telefon:“, „E-Mail:“, „Wunschtermin:“, „Anliegen:“).
 
+**24. Terminarten für die Online-Anfrage:** Unter Konfiguration → Terminarten stehen 38 Kacheln in drei
+Sektionen (Rezept, Selbstzahler, Wellness), alle noch aus. Bitte (a) die Kacheln anhaken, die Patienten auf
+der Website wählen sollen, (b) **Dauern** prüfen – deine Website nennt keine, die Werte sind Vorschläge
+(z. B. Abhyanga 90, Shirodhara 60, Lomi Lomi 90, Beckenbodentherapie 60 Minuten), (c) die
+**Langbeschreibungen** in deinen Worten ergänzen (sie stehen öffentlich unter dem Dropdown), (d) sagen, ob
+die Einteilung passt: „Selbstzahler – Behandlungen nach Physioverordnung“ = privat bezahlt, mit oder ohne
+Rezept. Farben: Rezept Brombeer, Selbstzahler Holzbraun, Wellness Gold – so auch im Kalender.
+

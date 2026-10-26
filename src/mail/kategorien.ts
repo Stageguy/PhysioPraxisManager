@@ -67,6 +67,16 @@ export const KATEGORIEN = {
     wann: 'Die Praxis-Assistenz hat den Termin aus der Kartei in den Kalender gespiegelt (Betreff nur Initialen und Patientennummer).',
     tun: 'Nichts – ändern bitte in der Praxis-Assistenz, nicht im Kalender. Alle anderen Einträge im Kalender gelten als belegt (privat oder von Hand).', ab: 'jetzt',
   },
+  terminSelbstzahler: {
+    name: 'Praxis-Termin: Selbstzahler', farbe: 'preset17', farbname: 'Holzbraun (dunkles Braun – wie auf der Website)',
+    wann: 'Ein Termin der Sektion „Selbstzahler – Behandlungen nach Physioverordnung“ (W95); steht vor „Praxis-Termin“ und gibt dem Eintrag seine Farbe.',
+    tun: 'Nichts – die Sektion kommt aus der Terminart in der Praxis-Assistenz.', ab: 'jetzt',
+  },
+  terminWellness: {
+    name: 'Praxis-Termin: Wellness', farbe: 'preset18', farbname: 'Gold (dunkles Gelb – wie auf der Website)',
+    wann: 'Ein Termin der Sektion „Wellness & Ayurveda“ (W95); steht vor „Praxis-Termin“ und gibt dem Eintrag seine Farbe.',
+    tun: 'Nichts – die Sektion kommt aus der Terminart bzw. der Wellness-Serie.', ab: 'jetzt',
+  },
   test: {
     name: 'TEST', farbe: 'preset9', farbname: 'Cranberry',
     wann: 'Ein Entwurf aus der Testumgebung – adressiert an eine Testadresse, nie an echte Patienten.',

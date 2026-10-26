@@ -27,6 +27,7 @@ import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from './web/rechnung.ts';
 import { konfigurationSeite } from './web/konfiguration.ts';
+import { terminartenSeite } from './web/terminarten.ts';
 import { kalenderSeite } from './web/kalender.ts';
 import { steuerSeite } from './web/steuer.ts';
 import { steuerCsv, steuerPdf } from './kartei/steuer.ts';
@@ -281,7 +282,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (pfad === '/status') return senden(res, 200, 'text/html', statusseite(await opt.pruefen(), wer, opt.fassung));
       const freieMeldung = meldung ?? adresse.searchParams.get('meldung')?.slice(0, 300) ?? undefined;
       if (pfad.startsWith('/preislisten')) return await preislistenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
-      if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte') || pfad.startsWith('/pinnwand') || pfad === '/konfiguration' || pfad === '/kalender') return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
+      if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte') || pfad.startsWith('/pinnwand') || pfad.startsWith('/konfiguration') || pfad === '/kalender') return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad.startsWith('/anfragen')) return await anfragenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad === '/rueckmeldung.js') return senden(res, 200, 'text/javascript', RUECKMELDUNG_SKRIPT);
       if (pfad === '/html2canvas.js') return senden(res, 200, 'text/javascript', await html2canvas());
@@ -316,7 +317,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (pfad === '/anfragen') {
       const filter = (['offen', 'alle', 'neu', 'vorgeschlagen', 'bestaetigt', 'abgesagt', 'erledigt', 'verworfen'] as AnfragenFilter[]).find((x) => x === adresse.searchParams.get('filter')) ?? 'offen';
       const stand = await d.stand();
-      return senden(res, 200, 'text/html', anfragenSeite({ anfragen: await d.liste(filter), filter, stand }, r));
+      return senden(res, 200, 'text/html', anfragenSeite({ anfragen: await d.liste(filter), filter, stand, terminarten: await d.terminarten() }, r));
     }
     const m = /^\/anfragen\/(\d+)$/.exec(pfad);
     if (m) {
@@ -412,6 +413,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       }
     }
     if (pfad === '/konfiguration') return senden(res, 200, 'text/html', konfigurationSeite(await d.konfiguration(), r));
+    if (pfad === '/konfiguration/terminarten') return senden(res, 200, 'text/html', terminartenSeite({ terminarten: await d.terminarten() }, r));
     if (pfad === '/kalender') {
       const heuteTag = heuteBerlin();
       const tagParam = adresse.searchParams.get('tag') ?? '';

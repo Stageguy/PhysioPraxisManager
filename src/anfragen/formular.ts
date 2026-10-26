@@ -13,6 +13,8 @@ export interface Terminanfrage {
   email: string | null;
   wunsch: string | null;
   anliegen: string | null;
+  /** Wahl aus dem Dropdown „Terminart“ (W94), z. B. „P4 – Krankengymnastik (KG)“ */
+  terminart: string | null;
   quelle: 'website';
 }
 
@@ -22,6 +24,7 @@ const FELDER: Record<keyof Omit<Terminanfrage, 'quelle'>, RegExp> = {
   email: /^(?:e-?mail|mailadresse|e-mail-adresse)\s*:\s*(.+)$/i,
   wunsch: /^(?:wunschtermin|wunschzeit|zeitraum|termin|wann)\s*:\s*(.+)$/i,
   anliegen: /^(?:anliegen|nachricht|behandlung|betreff|grund|bemerkung)\s*:\s*(.+)$/i,
+  terminart: /^(?:terminart|art des termins|leistungswunsch)\s*:\s*(.+)$/i,
 };
 
 /** Formular-Mail → Anfrage; undefined, wenn weder Name noch ein Kontaktweg zu finden ist */
@@ -45,5 +48,5 @@ export function anfrageAusFormularMail(text: string): Terminanfrage | undefined 
   const email = werte.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(werte.email) ? werte.email.toLowerCase() : null;
   const telefon = werte.telefon && werte.telefon.replace(/\D/g, '').length >= 5 ? werte.telefon : null;
   if (!name && !email && !telefon) return undefined;
-  return { name, telefon, email, wunsch: werte.wunsch ?? null, anliegen: werte.anliegen ?? null, quelle: 'website' };
+  return { name, telefon, email, wunsch: werte.wunsch ?? null, anliegen: werte.anliegen ?? null, terminart: werte.terminart ?? null, quelle: 'website' };
 }

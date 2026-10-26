@@ -8,6 +8,7 @@
  */
 import type { AnfragenStand } from '../anfragen/dienst.ts';
 import type { Db } from '../db/index.ts';
+import type { Sektion } from '../kartei/terminarten.ts';
 import { zeitText } from '../format.ts';
 import type { GraphClient } from '../graph.ts';
 import { termineZeitraum, type TerminKalender } from '../kartei/patienten.ts';
@@ -45,6 +46,8 @@ export interface Termin {
   /** Kurzbezeichnung der Behandlung (Kürzel aus der Preisliste, Maßnahme, Wellness) – zur Vorbereitung */
   leistung?: string;
   rezept?: boolean;
+  /** Sektion (W95) – Symbol und Farbe wie in der Kalenderseite */
+  sektion?: Sektion;
 }
 
 export interface LogEintrag {
@@ -136,7 +139,7 @@ export async function termineHeute(
   const name = (k: { vorname: string; nachname: string }) => (namenZeigen ? `${k.vorname} ${k.nachname}` : `${k.vorname[0]!.toUpperCase()}. ${k.nachname[0]!.toUpperCase()}.`);
   if (!graph) {
     if (!kartei.length) return { stand: 'nicht-verbunden', hinweis: 'Keine Verbindung zum Kalender.' };
-    return { stand: 'ok', daten: kartei.map((k) => ({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept })) };
+    return { stand: 'ok', daten: kartei.map((k) => ({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept, sektion: k.sektion ?? undefined })) };
   }
   try {
     const termine: Termin[] = [];
@@ -161,12 +164,12 @@ export async function termineHeute(
         ganztags: e.isAllDay,
         titel: k ? name(k) : namenZeigen ? titel : initialen(titel),
         frei: e.showAs === 'free',
-        ...(k ? { link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept } : {}),
+        ...(k ? { link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept, sektion: k.sektion ?? undefined } : {}),
       });
     }
     // Kartei-Termine, die (noch) nicht im Kalender stehen, trotzdem zeigen
     for (const k of kartei.filter((x) => !gesehen.has(x.id))) {
-      termine.push({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept });
+      termine.push({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept, sektion: k.sektion ?? undefined });
     }
     termine.sort((a, b) => a.beginn.localeCompare(b.beginn));
     return { stand: 'ok', daten: termine };

@@ -79,8 +79,8 @@ test('Mail-Entwurf mit Anhängen: Nachricht, dann je Datei ein fileAttachment', 
 
 test('Website-Formular: Terminanfrage aus der Formular-Mail lesen', () => {
   const a = anfrageAusFormularMail('Neue Anfrage über die Website\n\nVorname: Anna\nNachname: Test\nTelefon: 0151 1234567\nE-Mail: Anna@Example.org\nWunschtermin: nächste Woche vormittags\nAnliegen: Rückenschmerzen nach dem Sport\n\n-- gesendet von praxis-website.de');
-  assert.deepEqual(a, { name: 'Anna Test', telefon: '0151 1234567', email: 'anna@example.org', wunsch: 'nächste Woche vormittags', anliegen: 'Rückenschmerzen nach dem Sport', quelle: 'website' });
-  assert.deepEqual(anfrageAusFormularMail('> Name: Bernd Beispiel\n> Handy: 0170 12 34 56\n> Nachricht: Termin bitte'), { name: 'Bernd Beispiel', telefon: '0170 12 34 56', email: null, wunsch: null, anliegen: 'Termin bitte', quelle: 'website' });
+  assert.deepEqual(a, { name: 'Anna Test', telefon: '0151 1234567', email: 'anna@example.org', wunsch: 'nächste Woche vormittags', anliegen: 'Rückenschmerzen nach dem Sport', terminart: null, quelle: 'website' });
+  assert.deepEqual(anfrageAusFormularMail('> Name: Bernd Beispiel\n> Handy: 0170 12 34 56\n> Nachricht: Termin bitte'), { name: 'Bernd Beispiel', telefon: '0170 12 34 56', email: null, wunsch: null, anliegen: 'Termin bitte', terminart: null, quelle: 'website' });
   assert.equal(anfrageAusFormularMail('Name: X\nTelefon: 12')!.telefon, null, 'zu kurz für eine Nummer');
   assert.equal(anfrageAusFormularMail('Hallo, viele Grüße'), undefined);
 });

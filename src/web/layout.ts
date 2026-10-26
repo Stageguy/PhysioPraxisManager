@@ -13,8 +13,8 @@ export const esc = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const CSS = `
-:root{--diagramm:#9a4a86;--bg:#faf7f9;--fg:#2b1f28;--grau:#6d5f68;--akzent:#722e61;--ok:#2e7d4f;--fehler:#b3261e;--karte:#fff;--rand:#e6dce3}
-@media (prefers-color-scheme:dark){:root{--diagramm:#c45fab;--bg:#1b1519;--fg:#f1e9ee;--grau:#b3a5ae;--akzent:#d9a6c9;--ok:#7fd1a0;--fehler:#ff8a80;--karte:#271e24;--rand:#3d3038}}
+:root{--sek-rezept:#722e61;--sek-selbstzahler:#8a6440;--sek-wellness:#a8862e;--diagramm:#9a4a86;--bg:#faf7f9;--fg:#2b1f28;--grau:#6d5f68;--akzent:#722e61;--ok:#2e7d4f;--fehler:#b3261e;--karte:#fff;--rand:#e6dce3}
+@media (prefers-color-scheme:dark){:root{--sek-rezept:#d9a6c9;--sek-selbstzahler:#d2ad85;--sek-wellness:#e6c977;--diagramm:#c45fab;--bg:#1b1519;--fg:#f1e9ee;--grau:#b3a5ae;--akzent:#d9a6c9;--ok:#7fd1a0;--fehler:#ff8a80;--karte:#271e24;--rand:#3d3038}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
 main{max-width:760px;margin:0 auto;padding:24px 16px 72px}
@@ -354,7 +354,23 @@ details.stammdaten.tafel[open]>summary{margin-bottom:8px}
 .kal-tag{background:color-mix(in srgb,var(--akzent) 5%,var(--bg));border:1px solid var(--rand);border-radius:12px;padding:8px;min-height:120px}.kal-tag.heute{border-color:var(--akzent)}
 .kal-tag h2{font-size:15px;margin:0 0 6px;display:flex;gap:6px;align-items:center}.kal-tag h2 a{text-decoration:none}
 .kal-termin{display:flex;flex-direction:column;gap:2px;background:var(--karte);border:1px solid var(--rand);border-left:5px solid var(--rand);border-radius:10px;padding:6px 10px;margin-bottom:6px;color:var(--fg);text-decoration:none;font-size:14px}
-.kal-termin.rezept{border-left-color:var(--ok)}.kal-termin.erledigt{opacity:.6}.kal.tag .kal-termin{flex-direction:row;gap:12px;align-items:center;flex-wrap:wrap}
+.kal-termin.rezept{border-left-color:var(--ok)}
+/* Sektionen (W95): Teilrahmen links und Symbol in der Farbe der Sektion */
+.kal-termin.sek-rezept{border-left-color:var(--sek-rezept)}.kal-termin.sek-selbstzahler{border-left-color:var(--sek-selbstzahler)}.kal-termin.sek-wellness{border-left-color:var(--sek-wellness)}
+.sek-sym{display:inline-flex;align-items:center;vertical-align:-2px;margin-right:4px}.sek-sym.sek-rezept{color:var(--sek-rezept)}.sek-sym.sek-selbstzahler{color:var(--sek-selbstzahler)}.sek-sym.sek-wellness{color:var(--sek-wellness)}
+.sek-legende{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--grau);margin:6px 0}.sek-teil{border-left:4px solid;padding-left:6px}.sek-teil.sek-rezept{border-color:var(--sek-rezept)}.sek-teil.sek-selbstzahler{border-color:var(--sek-selbstzahler)}.sek-teil.sek-wellness{border-color:var(--sek-wellness)}
+.chip.preset17{background:#c9a27a}.chip.preset18{background:#e3c46a}.chip.preset24{background:#c98bb6}
+/* Terminarten (W94) */
+.ta-sektion{border-left:6px solid var(--rand);padding-left:14px;margin:22px 0}.ta-sektion.sek-rezept{border-color:var(--sek-rezept)}.ta-sektion.sek-selbstzahler{border-color:var(--sek-selbstzahler)}.ta-sektion.sek-wellness{border-color:var(--sek-wellness)}
+.ta-sektion h2{display:flex;align-items:center;gap:8px}
+.ta-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.ta-kachel{background:var(--karte);border:1px solid var(--rand);border-top:4px solid var(--rand);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.ta-kachel.sek-rezept{border-top-color:var(--sek-rezept)}.ta-kachel.sek-selbstzahler{border-top-color:var(--sek-selbstzahler)}.ta-kachel.sek-wellness{border-top-color:var(--sek-wellness)}
+.ta-kachel.aus{opacity:.62}.ta-kachel header{display:flex;align-items:center;gap:6px}.ta-kachel header b{flex:1;min-width:0}
+.ta-kachel .ta-lang{font-size:14px;margin:0}.ta-kachel .ta-fuss{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ta-kachel form.ta-aktiv{margin-left:auto}.ta-code{font-weight:700;font-size:12px;padding:1px 7px;border-radius:6px;background:var(--bg);border:1px solid var(--rand)}
+.ta-vorschau{max-width:520px}.ta-vorschau select{width:100%;font:inherit;padding:8px;border-radius:8px;border:1px solid var(--rand);background:var(--karte);color:var(--fg)}
+.ta-baustein{width:100%;font:12px/1.4 ui-monospace,monospace;min-height:140px;padding:8px;border-radius:8px;border:1px solid var(--rand);background:var(--bg);color:var(--fg)}.kal-termin.erledigt{opacity:.6}.kal.tag .kal-termin{flex-direction:row;gap:12px;align-items:center;flex-wrap:wrap}
 @media (max-width:900px){.re-kopf{grid-template-columns:1fr}.rp{grid-template-columns:1fr 1fr;grid-auto-rows:auto}.rp-edit{grid-column:auto}.kal.woche{grid-template-columns:1fr}}
 /* Steuerfreie Umsätze */
 .steuer-pos{list-style:none;margin:0;padding:0;font-size:13px}.steuer-pos li{display:grid;grid-template-columns:80px 60px minmax(0,1fr) 110px 90px;gap:8px;padding:2px 0;border-top:1px dashed var(--rand)}.steuer-pos li:first-child{border-top:0}

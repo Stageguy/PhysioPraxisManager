@@ -16,9 +16,10 @@ import { SchrankeVerletzt } from '../umgebung.ts';
 import { berlinMitternachtUtc, heuteBerlin, tagPlus } from '../zeit.ts';
 import {
   abgelaufeneVorschlaege, anfrageAnlegen, anfrageBestaetigen, anfrageLesen, anfragenListe, anfrageStatus, notizSetzen, offeneAnfragen, patientZuordnen,
-  reservierungenVergessen, vorschlaegeSetzen, type Anfrage, type AnfrageQuelle, type AnfrageStatus, type Vorschlag,
+  reservierungenVergessen, terminartSetzen, vorschlaegeSetzen, type Anfrage, type AnfrageQuelle, type AnfrageStatus, type Vorschlag,
 } from './anfragen.ts';
 import type { Anliegen } from './erkennung.ts';
+import { terminarten, type Terminart } from '../kartei/terminarten.ts';
 import { belegteZeiten, reservieren, reservierungenLoeschen } from './kalender.ts';
 import { oeffnungszeitenLesen, vorschlaege as vorschlaegeBerechnen, type SlotRegeln } from './slots.ts';
 
@@ -28,6 +29,8 @@ export type AnfragenFilter = 'offen' | 'alle' | AnfrageStatus;
 
 export interface AnfrageSeiteDaten {
   anfrage: Anfrage;
+  /** alle Terminarten (W94) zur Auswahl */
+  terminarten: Terminart[];
   /** aktive Patienten zum Zuordnen */
   patienten: PatientKurz[];
   regeln: { dauerMin: number; pufferMin: number; oeffnungszeiten: string };
@@ -45,6 +48,7 @@ export interface AnfragenDienst {
   liste(filter: AnfragenFilter): Promise<Anfrage[]>;
   details(id: string): Promise<AnfrageSeiteDaten | undefined>;
   stand(): Promise<AnfragenStand>;
+  terminarten(): Promise<Terminart[]>;
   /** Reservierungen unbestätigter Vorschläge nach 48 h aus dem Kalender nehmen */
   aufraeumen(): Promise<number>;
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
@@ -102,8 +106,9 @@ export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGrap
       const anfrage = await anfrageLesen(db, t, id);
       if (!anfrage) return undefined;
       const r = await slotRegeln(db);
-      return { anfrage, patienten: await patientenListe(db, t, {}), regeln: { dauerMin: r.dauerMin, pufferMin: r.pufferMin, oeffnungszeiten: r.oeffnungszeitenText }, postfach: Boolean(q.graph) };
+      return { anfrage, terminarten: await terminarten(db), patienten: await patientenListe(db, t, {}), regeln: { dauerMin: r.dauerMin, pufferMin: r.pufferMin, oeffnungszeiten: r.oeffnungszeitenText }, postfach: Boolean(q.graph) };
     },
+    terminarten: () => terminarten(db),
     async stand() {
       const z = await offeneAnfragen(db);
       return { ...z, neueste: (await anfragenListe(db, t, { filter: 'offen' })).slice(0, 5) };
@@ -125,7 +130,7 @@ export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGrap
       if (aktion === 'neu') {
         const quelle = QUELLEN.find((x) => x === g('quelle')) ?? 'hand';
         const anliegen = ANLIEGEN.find((x) => x === g('anliegen')) ?? 'termin';
-        const neu = await anfrageAnlegen(db, t, { quelle, anliegen, absenderName: g('name') ?? null, absenderTelefon: g('telefon') ?? null, absenderAdresse: g('email') ?? null, text: g('text') ?? null, patientId: g('patient_id') ?? null }, wer);
+        const neu = await anfrageAnlegen(db, t, { quelle, anliegen, absenderName: g('name') ?? null, absenderTelefon: g('telefon') ?? null, absenderAdresse: g('email') ?? null, text: g('text') ?? null, patientId: g('patient_id') ?? null, terminartId: g('terminart_id') ?? null }, wer);
         return { ziel: `/anfragen/${neu.id}`, meldung: 'Anfrage angelegt.' };
       }
       const a = await anfrageLesen(db, t, id);
@@ -136,7 +141,7 @@ export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGrap
           return { ziel: seite, meldung: 'Patient zugeordnet.' };
         case 'vorschlagen': {
           const r = await slotRegeln(db);
-          const dauer = Number(g('dauer_min') ?? r.dauerMin);
+          const dauer = Number(g('dauer_min') ?? a.dauerMin ?? a.terminart?.dauerMin ?? r.dauerMin);
           if (!(dauer > 0 && dauer <= 240)) throw new KarteiFehler('Dauer in Minuten, höchstens 240');
           const ab = /^\d{4}-\d{2}-\d{2}$/.test(g('ab') ?? '') ? g('ab')! : heuteBerlin();
           const tage = Math.min(Math.max(Number(g('tage') ?? 14) || 14, 1), 60);
@@ -178,6 +183,9 @@ export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGrap
           await loeschen(reservierungen);
           return { ziel: status === 'neu' ? seite : '/anfragen', meldung: status === 'neu' ? 'Anfrage wieder offen.' : `Anfrage ${status === 'verworfen' ? 'verworfen' : status === 'abgesagt' ? 'als abgesagt vermerkt' : 'erledigt'}${reservierungen.some((v) => v.exchangeEventId) ? ', Reservierungen aus dem Kalender genommen' : ''}.` };
         }
+        case 'terminart':
+          await terminartSetzen(db, id, g('terminart_id'), wer);
+          return { ziel: seite, meldung: g('terminart_id') ? 'Terminart gesetzt – ihre Dauer gilt für die Vorschläge.' : 'Terminart entfernt.' };
         case 'notiz':
           await notizSetzen(db, t, id, g('notiz'), wer);
           return { ziel: seite, meldung: 'Notiz gespeichert.' };

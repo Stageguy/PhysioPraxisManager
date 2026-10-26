@@ -5,6 +5,7 @@
 import type { TerminKalender } from '../kartei/patienten.ts';
 import { zeitText } from '../format.ts';
 import { datumBerlin, tagPlus, wocheUm, ZONE } from '../zeit.ts';
+import { sektionLegende, sektionMarke } from './bausteine.ts';
 import { esc, seite } from './layout.ts';
 import { symbol } from './symbole.ts';
 
@@ -17,8 +18,8 @@ export function kalenderSeite(d: { tag: string; ansicht: 'tag' | 'woche'; termin
   const spalten = tage.map((tag) => {
     const des = d.termine.filter((t) => datumBerlin(t.beginn) === tag);
     return `<section class="kal-tag${tag === d.heute ? ' heute' : ''}" data-hilfe="kalender.tag"><h2><a href="${link(tag, 'tag')}">${esc(tagText(tag, d.ansicht === 'tag'))}</a> <span class="pw-zahl">${des.length}</span></h2>
-      ${des.length ? des.map((t) => `<a class="kal-termin${t.rezept ? ' rezept' : ''}${t.status === 'erledigt' ? ' erledigt' : ''}" href="/patienten/${t.patientId}#termine" data-hilfe="kalender.termin">
-        <b>${zeitText(t.beginn)}–${zeitText(t.ende)}</b><span>${esc(name(t))} <span class="hint">${esc(t.patientennummer)}</span></span>
+      ${des.length ? des.map((t) => `<a class="kal-termin${t.sektion ? ` sek-${t.sektion}` : t.rezept ? ' rezept' : ''}${t.status === 'erledigt' ? ' erledigt' : ''}" href="/patienten/${t.patientId}#termine" data-hilfe="kalender.termin">
+        <b>${sektionMarke(t.sektion)}${zeitText(t.beginn)}–${zeitText(t.ende)}</b><span>${esc(name(t))} <span class="hint">${esc(t.patientennummer)}</span></span>
         <span class="rz-marken">${t.leistung ? `<span class="marke jetzt" data-hilfe="termine.leistung">${esc(t.leistung)}</span>` : ''}<span class="marke">${t.rezept ? 'Rezept' : t.art === 'erstgespraech' ? 'Erstgespräch' : 'Individual'}</span>${t.imKalender ? '' : '<span class="marke warn-marke">nicht im Kalender</span>'}</span></a>`).join('') : '<p class="pw-leer">frei</p>'}
     </section>`;
   }).join('');
@@ -34,6 +35,7 @@ export function kalenderSeite(d: { tag: string; ansicht: 'tag' | 'woche'; termin
   <a class="knopf klein${d.ansicht === 'woche' ? ' primaer' : ''}" href="${link(d.tag, 'woche')}" data-hilfe="kalender.ansicht-woche">Woche</a>
   <a class="knopf klein" href="/kalender?tag=${d.tag}&ansicht=${d.ansicht}${d.namenZeigen ? '' : '&namen=1'}" data-hilfe="kalender.namen">${symbol(d.namenZeigen ? 'schloss' : 'auge', { groesse: 16 })} ${d.namenZeigen ? 'Nur Initialen' : 'Namen zeigen'}</a>
 </div></header>
+${sektionLegende()}
 <p class="hint">Termine aus der Kartei. Privates und von Hand im Postfach Eingetragenes steht hier nicht – es zählt aber als belegt, sobald die Kollisionsprüfung kommt (E27).</p>
 <div class="kal ${d.ansicht}">${spalten}</div>`,
   });

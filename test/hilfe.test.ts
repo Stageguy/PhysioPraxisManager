@@ -19,6 +19,7 @@ import { konfigurationSeite } from '../src/web/konfiguration.ts';
 import { kalenderSeite } from '../src/web/kalender.ts';
 import { steuerSeite } from '../src/web/steuer.ts';
 import { anfrageSeite, anfragenSeite } from '../src/web/anfragen.ts';
+import { terminartenSeite } from '../src/web/terminarten.ts';
 import type { Anfrage } from '../src/anfragen/anfragen.ts';
 import type { Karte } from '../src/kartei/pinnwand.ts';
 import type { Patient } from '../src/kartei/patienten.ts';
@@ -65,9 +66,9 @@ const PATIENT_DATEN = {
 const ANFRAGE: Anfrage = {
   id: '1', status: 'neu', quelle: 'website', anliegen: 'termin', eingegangenAm: '2026-10-26T08:00:00Z', absenderName: 'Anna Test', absenderAdresse: 'a@example.org', absenderTelefon: '+491511', betreff: 'Terminanfrage',
   patient: null, vorschlaege: [], terminId: null, graphMessageId: 'm1', conversationId: 'c1', text: 'Dienstag vormittags wäre gut', erkannt: { wochentage: [2], tageszeiten: ['vormittag'], daten: ['2026-11-03'], uhrzeiten: ['09:00'] },
-  dauerMin: null, leistungNummer: null, antwortWeblink: null, erledigtAm: null, notiz: null,
+  dauerMin: null, leistungNummer: null, antwortWeblink: null, erledigtAm: null, notiz: null, terminart: null,
 };
-const ANFRAGE_MIT: Anfrage = { ...ANFRAGE, id: '2', status: 'vorgeschlagen', patient: { id: '1', name: 'Anna Test', patientennummer: 'P-1001' }, vorschlaege: [{ beginn: '2026-11-03T08:00:00Z', ende: '2026-11-03T08:30:00Z', exchangeEventId: 'e1' }], antwortWeblink: 'https://outlook.office.com/owa/x', dauerMin: 30, notiz: 'Rückruf' };
+const ANFRAGE_MIT: Anfrage = { ...ANFRAGE, terminart: { id: '1', code: 'P1', kurz: 'Neupatient', sektion: 'rezept', dauerMin: 60 }, id: '2', status: 'vorgeschlagen', patient: { id: '1', name: 'Anna Test', patientennummer: 'P-1001' }, vorschlaege: [{ beginn: '2026-11-03T08:00:00Z', ende: '2026-11-03T08:30:00Z', exchangeEventId: 'e1' }], antwortWeblink: 'https://outlook.office.com/owa/x', dauerMin: 30, notiz: 'Rückruf' };
 const ANFRAGE_FERTIG: Anfrage = { ...ANFRAGE_MIT, id: '3', status: 'bestaetigt', terminId: '7' };
 const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abschlussrechnung', steuerklasse: 'heilbehandlung_steuerfrei' as const, status: 'entwurf' as const, empfaenger: { name: 'Anna Test', strasse: 'Kurpromenade 3', plz: '86825', ort: 'Bad Wörishofen' },
   preisliste: { id: '5', name: 'Privat 2026' }, zeitraumVon: null, zeitraumBis: null, datum: null, faelligAm: null, nummer: null, netto: 92.54, ust: 0, ustSatz: 0, betrag: 92.54, kleinunternehmer: false, versandArt: null, versendetAm: null, bezahltAm: null, storniertAm: null, stornoGrund: null,
@@ -76,10 +77,16 @@ const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abs
   bausteine: [{ id: '1', code: 'R1', kurzname: 'Steuerfrei – Heilbehandlung', text: '§ 4 Nr. 14', wirkung: 'steuerfrei_heilbehandlung' }] };
 const TB = { id: '1', code: 'R1', kurzname: 'Steuerfrei', text: 'x', wirkung: 'steuerfrei_heilbehandlung' as const, automatisch: 'heilbehandlung' as const, aktiv: true };
 const RECHNUNG_DATEN = { patient: PAT, rechnung: RGE, textbausteine: [TB, { ...TB, id: '3', code: 'R3', kurzname: 'Dank', wirkung: 'keine' as const, automatisch: 'nie' as const }], preislistePositionen: [{ id: '9', nummer: '21201', bezeichnung: 'MT', preis: 46.27 }], wellness: [WELLNESS] };
-const KT = { id: '7', patientId: '1', vorname: 'Anna', nachname: 'Test', patientennummer: 'P-1001', beginn: '2026-10-26T07:00:00Z', ende: '2026-10-26T07:30:00Z', art: 'behandlung', status: 'bestaetigt', rezept: true, imKalender: false, exchangeEventId: null, leistung: 'MT' };
+const KT = { id: '7', patientId: '1', vorname: 'Anna', nachname: 'Test', patientennummer: 'P-1001', beginn: '2026-10-26T07:00:00Z', ende: '2026-10-26T07:30:00Z', art: 'behandlung', status: 'bestaetigt', rezept: true, imKalender: false, exchangeEventId: null, leistung: 'MT', sektion: 'rezept' as const };
 const AKTE = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', steuerklasse: 'heilbehandlung_steuerfrei', bezeichnung: 'Schulter', anlass: 'Schmerz', diagnoseArzt: 'M75.1', begonnenAm: '2026-10-01', abgeschlossenAm: null,
   behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
-const NEU_AKTION = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', bezeichnung: 'Schulter' }], verordnungen: [VERORDNUNG], alleVerordnungen: [VERORDNUNG], termine: [TERMIN], wellness: [WELLNESS] };
+const TERMINARTEN = [
+  { id: '1', code: 'P1', sektion: 'rezept' as const, kurz: 'Neupatient – Erstanamnese und Befund', lang: 'Erster Termin', dauerMin: 60, leistungNummer: null, regelzeit: null, aktiv: true },
+  { id: '2', code: 'P4', sektion: 'rezept' as const, kurz: 'Krankengymnastik (KG)', lang: null, dauerMin: 30, leistungNummer: '20501', regelzeit: '15 bis 25 Minuten', aktiv: false },
+  { id: '3', code: 'S1', sektion: 'selbstzahler' as const, kurz: 'Erstbefund ohne Rezept', lang: 'ohne Rezept', dauerMin: 60, leistungNummer: null, regelzeit: null, aktiv: true },
+  { id: '4', code: 'W1', sektion: 'wellness' as const, kurz: 'Abhyanga – Ganzkörper-Ölmassage', lang: 'Öl', dauerMin: 90, leistungNummer: null, regelzeit: null, aktiv: true },
+];
+const NEU_AKTION = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', bezeichnung: 'Schulter' }], verordnungen: [VERORDNUNG], alleVerordnungen: [VERORDNUNG], termine: [TERMIN], wellness: [WELLNESS], terminarten: TERMINARTEN };
 const KARTE: Karte = { fallId: '1', patientId: '1', patientName: 'Anna Test', patientennummer: 'P-1001', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', bezeichnung: 'Schulter', seitPhase: '2026-10-20T08:00:00Z',
   rezept: { abgehakt: 2, anzahl: 6, status: 'aktiv' }, behandlungen: 2, letzteBehandlung: '2026-10-20', naechsterTermin: '2026-11-02T08:00:00Z', rechnungsstand: 'gelb', warnungen: ['Rechnung überfällig'] };
 const SPALTEN = ['anfrage', 'aufnahme', 'anamnese', 'befund_start', 'behandlung', 'abschluss', 'rechnung', 'nachsorge'].map((phase) => ({ phase: phase as Karte['phase'], name: phase, text: 'x', karten: phase === 'behandlung' ? [KARTE, { ...KARTE, fallId: '2', rezept: null, grundlage: 'praevention' as const, rechnungsstand: 'keine' as const, warnungen: [] }] : [] }));
@@ -108,7 +115,7 @@ const ZEILE = { id: '1', eingang: '2026-10-20T08:00:00Z', lieferant: 'Telekom', 
 const STAND = { stand: 'ok' as const, daten: { zaehler: { eingegangen: 1, unklar: 0, angestossen: 0, bezahlt: 0 }, offenerBetrag: 49.95, neueste: [ZEILE] } };
 const DATEN: CockpitDaten = {
   heute: '2026-10-20', namenZeigen: false, rechnungen: STAND,
-  termine: { stand: 'ok', daten: [{ beginn: '09:00', ende: '09:30', ganztags: false, titel: 'M. K.', frei: false, link: '/patienten/1#termine', leistung: 'MT', rezept: true }, { beginn: '11:00', ende: '12:00', ganztags: false, titel: 'Z. L.', frei: false }] },
+  termine: { stand: 'ok', daten: [{ beginn: '09:00', ende: '09:30', ganztags: false, titel: 'M. K.', frei: false, link: '/patienten/1#termine', leistung: 'MT', rezept: true, sektion: 'rezept' as const }, { beginn: '11:00', ende: '12:00', ganztags: false, titel: 'Z. L.', frei: false }] },
   anfragen: { stand: 'ok' as const, daten: { neu: 1, vorgeschlagen: 1, neueste: [ANFRAGE, ANFRAGE_MIT] } },
   protokoll: { stand: 'ok', daten: [{ zeit: '2026-10-20T08:00:00Z', aktion: 'rechnung_abgelegt', objekt: '1', details: { lieferant: 'Telekom' } }] },
 };
@@ -140,11 +147,13 @@ const seiten = () => [
   listeSeite({ patienten: [], suche: 'x', archiv: true }, R),
   patientNeuSeite(R),
   patientSeite(PATIENT_DATEN, R),
-  anfragenSeite({ anfragen: [ANFRAGE, ANFRAGE_MIT, ANFRAGE_FERTIG], filter: 'offen', stand: { neu: 1, vorgeschlagen: 1 } }, R),
-  anfragenSeite({ anfragen: [], filter: 'alle', stand: { neu: 0, vorgeschlagen: 0 } }, R),
-  anfrageSeite({ anfrage: ANFRAGE, patienten: [PAT], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
-  anfrageSeite({ anfrage: ANFRAGE_MIT, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: false }, R),
-  anfrageSeite({ anfrage: ANFRAGE_FERTIG, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
+  anfragenSeite({ anfragen: [ANFRAGE, ANFRAGE_MIT, ANFRAGE_FERTIG], filter: 'offen', stand: { neu: 1, vorgeschlagen: 1 }, terminarten: TERMINARTEN }, R),
+  terminartenSeite({ terminarten: TERMINARTEN }, R),
+  terminartenSeite({ terminarten: TERMINARTEN.map((x) => ({ ...x, aktiv: false })) }, R),
+  anfragenSeite({ anfragen: [], filter: 'alle', stand: { neu: 0, vorgeschlagen: 0 }, terminarten: [] }, R),
+  anfrageSeite({ anfrage: ANFRAGE, terminarten: TERMINARTEN, patienten: [PAT], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
+  anfrageSeite({ anfrage: ANFRAGE_MIT, terminarten: TERMINARTEN, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: false }, R),
+  anfrageSeite({ anfrage: ANFRAGE_FERTIG, terminarten: [], patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
   patientSeite({ ...PATIENT_DATEN, patient: { ...PAT, status: 'archiviert' } }, R),
   akteSeite(AKTE, R),
   terminNeuSeite(NEU_AKTION, R),
@@ -167,7 +176,7 @@ const seiten = () => [
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'gesendet', nummer: 'RE-2026-001' } }, R),
   konfigurationSeite({ textbausteine: [TB, { ...TB, id: '2', code: 'R2', aktiv: false, wirkung: 'kleinunternehmer' as const, automatisch: 'wellness' as const }], einstellungen: { kleinunternehmer: 'ja', ust_satz_wellness: '19' } }, R),
   kalenderSeite({ tag: '2026-10-26', ansicht: 'tag', termine: [KT], namenZeigen: false, heute: '2026-10-26' }, R),
-  kalenderSeite({ tag: '2026-10-26', ansicht: 'woche', termine: [KT, { ...KT, id: '8', rezept: false, imKalender: true, status: 'erledigt' }], namenZeigen: true, heute: '2026-10-25' }, R),
+  kalenderSeite({ tag: '2026-10-26', ansicht: 'woche', termine: [KT, { ...KT, id: '8', rezept: false, imKalender: true, status: 'erledigt', sektion: 'wellness' as const }, { ...KT, id: '9', rezept: false, sektion: null }, { ...KT, id: '10', rezept: false, sektion: 'selbstzahler' as const }], namenZeigen: true, heute: '2026-10-25' }, R),
   steuerSeite({ jahr: 2026, jahre: [2026, 2025], maskiert: true, rechnungen: [{ id: '1', nummer: 'RE-2026-0001', datum: '2026-10-01', status: 'bezahlt', befreiung: '§ 4 Nr. 14 UStG', patientennummer: 'P-1001', name: 'A*** Test', betrag: 92.54, bezahltAm: '2026-10-20', storniertAm: null,
     positionen: [{ datum: '2026-10-01', nummer: '21201', bezeichnung: 'MT', anzahl: 2, einzelpreis: 46.27, betrag: 92.54 }] }, { id: '2', nummer: 'RE-2026-0002', datum: '2026-10-02', status: 'storniert', befreiung: '§ 19 UStG', patientennummer: 'P-1002', name: 'B** Test', betrag: 59, bezahltAm: null, storniertAm: '2026-10-05', positionen: [] }],
     summen: { heilbehandlung: 92.54, kleinunternehmer: 0, storniert: 59, gesamt: 92.54 } }, R),

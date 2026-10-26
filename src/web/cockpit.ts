@@ -10,7 +10,7 @@ import type { CockpitDaten, Quelle, RechnungZeile, Rechnungsstand, Termin } from
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText } from '../format.ts';
 import { STATUS_TEXT as ANFRAGE_STATUS } from '../anfragen/anfragen.ts';
-import { chip } from './bausteine.ts';
+import { chip, sektionMarke } from './bausteine.ts';
 import { symbol, type Symbol } from './symbole.ts';
 
 const QUELLE_SYMBOL: Record<string, Symbol> = { mail: 'email', website: 'website', whatsapp: 'whatsapp', telefon: 'telefon', hand: 'protokoll' };
@@ -171,7 +171,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
   const termine = `<section class="tafel" data-hilfe="uebersicht.termine" aria-labelledby="t-te">
     <h2 id="t-te">${symbol('kalender')} Termine heute</h2>
     ${leer(d.termine, (t) => `${tagesleiste(t, o.jetzt)}
-      ${t.length ? `<ul class="zeilen">${t.map((x) => `<li><span class="zeit">${x.ganztags ? 'ganztags' : `${x.beginn}–${x.ende}`}</span><b>${x.link ? `<a href="${esc(x.link)}" data-hilfe="termine.patient">${esc(x.titel)}</a>` : esc(x.titel)}</b>${x.leistung ? `<span class="marke${x.rezept ? ' jetzt' : ''}" data-hilfe="termine.leistung">${esc(x.leistung)}</span>` : ''}${x.frei ? '<span class="rechts hint">frei</span>' : ''}</li>`).join('')}</ul>`
+      ${t.length ? `<ul class="zeilen">${t.map((x) => `<li><span class="zeit">${x.ganztags ? 'ganztags' : `${x.beginn}–${x.ende}`}</span><b>${sektionMarke(x.sektion)}${x.link ? `<a href="${esc(x.link)}" data-hilfe="termine.patient">${esc(x.titel)}</a>` : esc(x.titel)}</b>${x.leistung ? `<span class="marke${x.rezept ? ' jetzt' : ''}" data-hilfe="termine.leistung">${esc(x.leistung)}</span>` : ''}${x.frei ? '<span class="rechts hint">frei</span>' : ''}</li>`).join('')}</ul>`
         : '<p class="leer">Heute stehen keine Termine im Kalender.</p>'}`)}
     <a class="mehr" data-hilfe="termine.namen" href="${d.namenZeigen ? '/' : '/?namen=1'}">${symbol(d.namenZeigen ? 'schloss' : 'auge', { groesse: 16 })} ${d.namenZeigen ? 'Nur Initialen zeigen' : 'Namen zeigen'}</a>
   </section>`;

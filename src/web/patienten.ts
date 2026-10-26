@@ -7,6 +7,7 @@
 import type { AkteDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
 import { VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz } from '../kartei/patienten.ts';
 import { VORLAGEN } from '../nachrichten/vorlagen.ts';
+import { SEKTION_REIHE, SEKTIONEN, type Terminart } from '../kartei/terminarten.ts';
 import { rezeptKachel, serieKachel, serienKnoepfe } from './rezepte.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText, zeitText } from '../format.ts';
@@ -315,6 +316,12 @@ ${faelle || '<p class="leer">Die Akte ist noch leer – mit „Behandlung erfass
 const kopfzeile = (p: Patient, titel: string, sym: Symbol) =>
   `<p class="hint"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}">${esc(name(p))}</a> › ${esc(titel)}</p><h1>${symbol(sym, { groesse: 26 })} ${esc(titel)} <span class="hint">${esc(name(p))}</span></h1>`;
 
+/** Auswahl aller Terminarten, je Sektion eine Gruppe; inaktive sind gekennzeichnet (für Lilli intern wählbar) */
+export const terminartOptionen = (arten: Terminart[], gewaehlt?: string | null) => SEKTION_REIHE.map((s) => {
+  const liste = arten.filter((a) => a.sektion === s);
+  return liste.length ? `<optgroup label="${esc(SEKTIONEN[s].name)}">${liste.map((a) => `<option value="${a.id}"${a.id === gewaehlt ? ' selected' : ''}>${esc(a.code)} – ${esc(a.kurz)} (${a.dauerMin} Min.)${a.aktiv ? '' : ' · nicht online'}</option>`).join('')}</optgroup>` : '';
+}).join('');
+
 export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
   const p = d.patient;
   const rezepte = d.verordnungen.map((v) => `<option value="${v.id}">${esc(v.massnahme)} – ${v.abgehakt} von ${v.anzahlVerordnet} (vom ${datumText(v.ausgestelltAm)})</option>`).join('');
@@ -327,6 +334,7 @@ export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
   <div class="zwei"><label>Dauer (Minuten)<input type="number" name="dauer_min" value="30" min="5" step="5"></label>
     <label>Art<select name="art"><option value="behandlung">Behandlung</option><option value="erstgespraech">Erstgespräch</option><option value="sonstige">Sonstiges</option></select></label></div>
   <label>Rezept<select name="verordnung_id"><option value="">kein Rezept (Individualtermin)</option>${rezepte}</select></label>
+  <label>Terminart <span class="hint">(Farbe und Symbol im Kalender)</span><select name="terminart_id" data-hilfe="termin.terminart"><option value="">– aus Rezept bzw. Fall –</option>${terminartOptionen(d.terminarten)}</select></label>
   <p class="hint">Der Termin steht in der Kartei und wird in den Kalender des Postfachs gespiegelt – dort mit Kategorie „Praxis-Termin“, Betreff nur Initialen und Patientennummer (Testumgebung: Kalender „Praxis-Test“).</p>
   <button class="knopf primaer" data-hilfe="termin.anlegen">Termin anlegen</button>
 </form>`,

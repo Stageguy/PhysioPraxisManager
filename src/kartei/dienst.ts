@@ -26,6 +26,7 @@ import { listen as preislistenListen, type Preisliste } from '../preise/preislis
 import { steuerfreieUmsaetze, type SteuerListe } from './steuer.ts';
 import { dokumente, mailEntwurf, whatsappAngebote, whatsappEingang, whatsappSenden, whatsappVermerken, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
 import { akteExport } from './akte-export.ts';
+import { terminartAktiv, terminarten, terminartSpeichern, type Terminart } from './terminarten.ts';
 import type { EingehendeNachricht, WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
 
 export { KarteiFehler };
@@ -62,6 +63,8 @@ export interface NeuAktionDaten {
   alleVerordnungen: VerordnungKurz[];
   termine: TerminKurz[];
   wellness: WellnessLeistung[];
+  /** Terminarten (W94) – Farbe und Symbol des Termins im Kalender */
+  terminarten: Terminart[];
 }
 
 export interface RezepteDaten {
@@ -87,6 +90,8 @@ export interface KarteiDienst {
   steuer(jahr: number, maskiert: boolean): Promise<SteuerListe>;
   wellness(): Promise<WellnessLeistung[]>;
   gruende(): Promise<Gespraechsgrund[]>;
+  /** Terminarten der Online-Anfrage (W94) */
+  terminarten(): Promise<Terminart[]>;
   /** Eingehende WhatsApp-Nachricht vom Webhook (W90) */
   whatsappEingang(n: EingehendeNachricht): Promise<'zugeordnet' | 'medien' | 'unbekannt'>;
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
@@ -144,7 +149,7 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
       const alle = await verordnungen(db, { patientId: id });
       return {
         patient, faelle: await offeneFaelle(db, t, id), verordnungen: alle.filter((v) => v.status === 'aktiv'), alleVerordnungen: alle,
-        termine: await termine(db, id), wellness: await wellnessLeistungen(db),
+        termine: await termine(db, id), wellness: await wellnessLeistungen(db), terminarten: await terminarten(db),
       };
     },
     async rezepte(filter) {
@@ -166,6 +171,7 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
     kalender: (von, bis) => termineZeitraum(db, von, bis),
     steuer: (jahr, maskiert) => steuerfreieUmsaetze(db, { jahr, maskiert }),
     gruende: () => gespraechsgruende(db),
+    terminarten: () => terminarten(db),
     async aktion(f, wer) {
       const id = f.get('id') ?? '';
       const g = (name: string) => f.get(name) ?? undefined;
@@ -210,6 +216,16 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
         const schluessel = g('schluessel') ?? '';
         await einstellungSetzen(db, schluessel, schluessel === 'kleinunternehmer' ? (f.has('wert_ja') ? 'ja' : 'nein') : (g('wert') ?? '').trim(), wer);
         return nach('/konfiguration', 'Einstellung gespeichert.');
+      }
+      // Terminarten der Online-Anfrage (W94) – ohne Patient
+      if (aktion === 'terminart_speichern') {
+        const tid = await terminartSpeichern(db, { id: g('terminart_id'), sektion: g('sektion'), kurz: g('kurz') ?? '', lang: g('lang'), dauerMin: ganz(f.get('dauer_min')), leistungNummer: g('leistung_nummer') }, wer);
+        return nach(`/konfiguration/terminarten#ta-${tid}`, g('terminart_id') ? 'Terminart gespeichert.' : 'Terminart angelegt – noch inaktiv.');
+      }
+      if (aktion === 'terminart_aktiv') {
+        const tid = g('terminart_id') ?? '';
+        await terminartAktiv(db, tid, f.get('aktiv') === '1', wer);
+        return nach(`/konfiguration/terminarten#ta-${tid}`, f.get('aktiv') === '1' ? 'Aktiv – steht jetzt im Dropdown der Online-Anfrage.' : 'Inaktiv – nicht mehr im Dropdown.');
       }
       if (aktion === 'wellness_aktiv') {
         await wellnessAktiv(db, g('wellness_id') ?? '', f.get('aktiv') === '1');
@@ -279,7 +295,7 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
           await verlaufEintragen(db, t, id, { art: g('art') ?? 'notiz', grund: g('grund'), notiz: g('notiz'), kontaktId: g('kontakt_id') }, wer);
           return nach(`${seite}#verlauf`, 'Eintrag gespeichert.');
         case 'termin_anlegen': {
-          const terminId = await terminAnlegen(db, id, { datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), fallId: g('fall_id') }, wer);
+          const terminId = await terminAnlegen(db, id, { datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), fallId: g('fall_id'), terminartId: g('terminart_id') }, wer);
           return nach(`${seite}#termine`, `Termin angelegt.${await spiegeln(terminId, wer)}`);
         }
         case 'termin_status':

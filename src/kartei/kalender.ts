@@ -9,6 +9,7 @@ import type { GraphClient } from '../graph.ts';
 import { KATEGORIEN } from '../mail/kategorien.ts';
 import { entwurfKategorien, kalenderBasis } from '../umgebung.ts';
 import { OUTLOOK_ZONE, ZONE } from '../zeit.ts';
+import { SEKTION_SQL } from './terminarten.ts';
 
 type Graph = Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'>;
 
@@ -24,6 +25,8 @@ interface TerminZeile {
   status: string;
   exchange_event_id: string | null;
   verordnung_id: string | null;
+  /** Sektion (W95) – bestimmt die Farbe in Outlook */
+  sektion?: string | null;
 }
 
 export const initialen = (vorname: string, nachname: string) => `${vorname.trim()[0]?.toUpperCase() ?? ''}. ${nachname.trim()[0]?.toUpperCase() ?? ''}.`;
@@ -43,7 +46,8 @@ export function ereignisKoerper(t: TerminZeile) {
     subject: `${initialen(t.vorname, t.nachname)} ${t.patientennummer}`,
     start: { dateTime: ortszeit(t.beginn), timeZone: OUTLOOK_ZONE },
     end: { dateTime: ortszeit(t.ende), timeZone: OUTLOOK_ZONE },
-    categories: [KATEGORIEN.termin.name, ...entwurfKategorien()],
+    // Die erste Kategorie gibt die Farbe: Selbstzahler holzbraun, Wellness gold, sonst Brombeer (W95)
+    categories: [...(t.sektion === 'selbstzahler' ? [KATEGORIEN.terminSelbstzahler.name] : t.sektion === 'wellness' ? [KATEGORIEN.terminWellness.name] : []), KATEGORIEN.termin.name, ...entwurfKategorien()],
     showAs: t.status === 'vorgeschlagen' ? 'tentative' : 'busy',
     location: { displayName: 'Praxis' },
     // Nur Initialen im Betreff; im Text ein Link, der die Patientenseite in der Praxis-Assistenz öffnet (nur im Tailnet erreichbar)
@@ -60,8 +64,9 @@ export function ereignisKoerper(t: TerminZeile) {
 
 const lesen = async (db: Db, terminId: string): Promise<TerminZeile | undefined> =>
   (await db.query<TerminZeile>(
-    `SELECT t.id::text, t.patient_id::text, p.vorname, p.nachname, p.patientennummer, t.beginn, t.ende, t.art::text, t.status::text, t.exchange_event_id, t.verordnung_id::text
-     FROM termin t JOIN patient p ON p.id = t.patient_id WHERE t.id = $1`, [terminId],
+    `SELECT t.id::text, t.patient_id::text, p.vorname, p.nachname, p.patientennummer, t.beginn, t.ende, t.art::text, t.status::text, t.exchange_event_id, t.verordnung_id::text,
+       ${SEKTION_SQL} AS sektion
+     FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN terminart ta ON ta.id = t.terminart_id WHERE t.id = $1`, [terminId],
   )).rows[0];
 
 /** Einen Termin anlegen, aktualisieren oder (bei Absage) aus dem Kalender nehmen */

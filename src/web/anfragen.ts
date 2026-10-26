@@ -7,7 +7,9 @@ import type { AnfrageSeiteDaten, AnfragenFilter } from '../anfragen/dienst.ts';
 import { ANLIEGEN_TEXT, QUELLE_TEXT, STATUS_TEXT, type Anfrage } from '../anfragen/anfragen.ts';
 import { datumText, datumZeitText } from '../format.ts';
 import { heuteBerlin } from '../zeit.ts';
-import { aktionsFormular, chip, meldungen, type Rahmen } from './bausteine.ts';
+import { aktionsFormular, chip, meldungen, sektionMarke, type Rahmen } from './bausteine.ts';
+import type { Terminart } from '../kartei/terminarten.ts';
+import { terminartOptionen } from './patienten.ts';
 import { esc, seite } from './layout.ts';
 import { symbol, type Symbol } from './symbole.ts';
 
@@ -21,12 +23,13 @@ function kachel(a: Anfrage): string {
   return `<a class="an-kachel ${a.status}" href="/anfragen/${a.id}" data-hilfe="anfragen.kachel">
     <header>${symbol(QUELLE_SYMBOL[a.quelle] ?? 'anfrage', { groesse: 18 })}<b>${esc(a.absenderName ?? a.absenderAdresse ?? a.absenderTelefon ?? 'ohne Absender')}</b>${statusChip(a)}</header>
     <span class="hint">${esc(QUELLE_TEXT[a.quelle])} · ${esc(ANLIEGEN_TEXT[a.anliegen])} · ${datumZeitText(a.eingegangenAm, { jahr: true })}</span>
+    ${a.terminart ? `<span>${sektionMarke(a.terminart.sektion)}<b>${esc(a.terminart.code)}</b> ${esc(a.terminart.kurz)}</span>` : ''}
     ${a.betreff ? `<span class="an-betreff">${esc(a.betreff)}</span>` : ''}
     <span class="pat-fuss">${a.patient ? `<span class="marke jetzt">${esc(a.patient.patientennummer)} ${esc(a.patient.name)}</span>` : '<span class="marke warn-marke">Patient unbekannt</span>'}${a.vorschlaege.length ? `<span class="marke">${a.vorschlaege.length} Vorschläge</span>` : ''}${a.terminId ? '<span class="marke jetzt">Termin</span>' : ''}</span>
   </a>`;
 }
 
-export function anfragenSeite(d: { anfragen: Anfrage[]; filter: AnfragenFilter; stand: { neu: number; vorgeschlagen: number } }, o: Rahmen): string {
+export function anfragenSeite(d: { anfragen: Anfrage[]; filter: AnfragenFilter; stand: { neu: number; vorgeschlagen: number }; terminarten: Terminart[] }, o: Rahmen): string {
   const filter = (f: AnfragenFilter, text: string) => `<a class="knopf klein${d.filter === f ? ' primaer' : ''}" href="/anfragen?filter=${f}" data-hilfe="anfragen.filter">${text}</a>`;
   return seite({
     titel: 'Terminanfragen', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
@@ -39,6 +42,7 @@ ${d.anfragen.length ? `<div class="an-raster">${d.anfragen.map(kachel).join('')}
     <label>Anliegen<select name="anliegen">${Object.entries(ANLIEGEN_TEXT).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label></div>
     <div class="zwei"><label>Name<input name="name" maxlength="120" required></label><label>Telefon<input name="telefon" inputmode="tel"></label></div>
     <label>E-Mail<input name="email" type="email"></label>
+    <label>Terminart<select name="terminart_id" data-hilfe="anfragen.neu.terminart"><option value="">– noch offen –</option>${terminartOptionen(d.terminarten)}</select></label>
     <label>Wunsch und Anliegen <span class="hint">(z. B. „dienstags vormittags, Rezept liegt vor“)</span><textarea name="text" rows="3" maxlength="2000"></textarea></label>
     <div class="knopfreihe"><button class="knopf primaer">Anfrage anlegen</button></div>`, { zurueck: '/anfragen', klasse: 'formular' })}
 </details>`,
@@ -65,7 +69,7 @@ export function anfrageSeite(d: AnfrageSeiteDaten, o: Rahmen): string {
         ${offen && a.patient ? form('bestaetigen', `<input type="hidden" name="wahl" value="${i}"><button class="knopf klein primaer" data-hilfe="anfrage.bestaetigen">Diesen Termin bestätigen</button>`, { id: a.id, zurueck }) : ''}</li>`).join('')}</ol>
       ${a.antwortWeblink ? `<p><a class="knopf klein" href="${esc(a.antwortWeblink)}" target="_blank" rel="noopener" data-hilfe="anfrage.antwort">${symbol('email', { groesse: 16 })} Antwort-Entwurf in Outlook öffnen</a></p>` : ''}`
     : '<p class="hint">Noch keine Vorschläge.</p>';
-  const vorschlagen = offen ? form('vorschlagen', `<div class="zwei"><label>Dauer in Minuten<input name="dauer_min" inputmode="numeric" class="kurz" value="${a.dauerMin ?? d.regeln.dauerMin}" data-hilfe="anfrage.dauer"></label>
+  const vorschlagen = offen ? form('vorschlagen', `<div class="zwei"><label>Dauer in Minuten<input name="dauer_min" inputmode="numeric" class="kurz" value="${a.dauerMin ?? a.terminart?.dauerMin ?? d.regeln.dauerMin}" data-hilfe="anfrage.dauer"></label>
       <label>Ab<input type="date" name="ab" value="${heuteBerlin()}" data-hilfe="anfrage.ab"></label></div>
       <div class="zwei"><label>Zeitraum in Tagen<input name="tage" inputmode="numeric" class="kurz" value="14"></label>
       <label class="haken"><input type="checkbox" name="ohne_wunsch" value="1"> Zeitwünsche nicht beachten</label></div>
@@ -84,7 +88,10 @@ export function anfrageSeite(d: AnfrageSeiteDaten, o: Rahmen): string {
   ${a.text ? `<pre class="an-text">${esc(a.text)}</pre>` : '<p class="hint">Kein Text.</p>'}
   <p data-hilfe="anfrage.erkannt" tabindex="0">Erkannte Wünsche: ${erkannt.length ? erkannt.map((x) => `<span class="marke jetzt">${esc(x)}</span>`).join(' ') : '<span class="hint">keine</span>'}</p>
 </section>
-<section class="tafel"><h2>${symbol('patient')} Patient</h2>${patient}</section>
+<section class="tafel"><h2>${symbol('patient')} Patient</h2>${patient}
+  <h3>${a.terminart ? sektionMarke(a.terminart.sektion) : ''}Terminart</h3>
+  ${offen ? form('terminart', `<select name="terminart_id" data-hilfe="anfrage.terminart" data-auto-senden><option value="">– noch offen –</option>${terminartOptionen(d.terminarten, a.terminart?.id)}</select><button class="knopf klein nur-ohne-js">setzen</button>`, { id: a.id, zurueck, klasse: 'formular zeile' }) : `<p>${a.terminart ? `${esc(a.terminart.code)} – ${esc(a.terminart.kurz)}` : '<span class="hint">keine</span>'}</p>`}
+</section>
 </div>
 <section class="tafel" id="vorschlaege"><h2>${symbol('kalender')} Terminvorschläge</h2>${vorschlaege}${vorschlagen}</section>
 <section class="tafel"><h2>${symbol('haken')} Abschluss</h2>${status}

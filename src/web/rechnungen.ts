@@ -264,6 +264,10 @@ export const PRAXIS_SKRIPT = String.raw`
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el && el.hasAttribute && el.hasAttribute('data-auto-senden') && el.form) el.form.submit();
+    // Terminarten (W94): unter dem Dropdown die Langbeschreibung der Wahl zeigen
+    if (el && el.hasAttribute && el.hasAttribute('data-terminart-vorschau')) {
+      document.querySelectorAll('[data-terminart-lang]').forEach(function (p) { p.hidden = p.getAttribute('data-terminart-lang') !== el.value; });
+    }
     // Behandlung erfassen: Felder für einen neuen Fall nur zeigen, wenn „neuer Fall“ gewählt ist
     if (el && el.hasAttribute && el.hasAttribute('data-fall-wahl')) {
       var nf = document.querySelector('[data-neuer-fall]');
