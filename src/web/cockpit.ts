@@ -13,7 +13,7 @@ import { STATUS_TEXT as ANFRAGE_STATUS } from '../anfragen/anfragen.ts';
 import { chip, sektionMarke } from './bausteine.ts';
 import { symbol, type Symbol } from './symbole.ts';
 
-const QUELLE_SYMBOL: Record<string, Symbol> = { mail: 'email', website: 'website', whatsapp: 'whatsapp', telefon: 'telefon', hand: 'protokoll' };
+const QUELLE_SYMBOL: Record<string, Symbol> = { mail: 'email', website: 'website', buchung: 'buchung', whatsapp: 'whatsapp', telefon: 'telefon', hand: 'protokoll' };
 
 // ── Kacheln ─────────────────────────────────────────────────────────────────
 export interface Kachel {
@@ -45,7 +45,7 @@ export const KANAELE: { key: string; symbol: Symbol; name: string; stand: string
   { key: 'kanal.website', symbol: 'website', name: 'Website-Formular', stand: 'Formular-Mail mit festen Feldern im selben Ordner (W92)' },
   { key: 'kanal.whatsapp', symbol: 'whatsapp', name: 'WhatsApp', stand: 'von Hand eintragen; mit Cloud API kommen Antworten in den Kontaktverlauf (E8)' },
   { key: 'kanal.telefon', symbol: 'telefon', name: 'Telefon', stand: 'von Hand eintragen – unter Terminanfragen' },
-  { key: 'kanal.buchung', symbol: 'buchung', name: 'Online-Buchung', stand: 'später: Microsoft Bookings in der Website (E29)' },
+  { key: 'kanal.buchung', symbol: 'buchung', name: 'Online-Buchung', stand: 'eigene Buchungsseite (W96): Patient wählt Terminart, Tag und Uhrzeit – kommt als Anfrage mit reserviertem Wunschtermin' },
 ];
 
 // ── Status und Protokoll in Worten ──────────────────────────────────────────

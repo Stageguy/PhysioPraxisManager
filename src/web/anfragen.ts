@@ -13,7 +13,7 @@ import { terminartOptionen } from './patienten.ts';
 import { esc, seite } from './layout.ts';
 import { symbol, type Symbol } from './symbole.ts';
 
-const QUELLE_SYMBOL: Record<string, Symbol> = { mail: 'email', website: 'website', whatsapp: 'whatsapp', telefon: 'telefon', hand: 'protokoll' };
+const QUELLE_SYMBOL: Record<string, Symbol> = { mail: 'email', website: 'website', buchung: 'buchung', whatsapp: 'whatsapp', telefon: 'telefon', hand: 'protokoll' };
 const TAGE = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const form = (aktion: string, inhalt: string, o: { id?: string; zurueck: string; klasse?: string }) => aktionsFormular('/anfragen/aktion', aktion, inhalt, o);
 
@@ -65,7 +65,7 @@ export function anfrageSeite(d: AnfrageSeiteDaten, o: Rahmen): string {
       ${offen ? form('zuordnen', `<label>Bestehenden Patienten wählen<select name="patient_id" data-hilfe="anfrage.zuordnen" required><option value="">…</option>${d.patienten.map((p) => `<option value="${p.id}">${esc(`${p.nachname}, ${p.vorname}`)} (${esc(p.patientennummer)})</option>`).join('')}</select></label><button class="knopf klein">Zuordnen</button>`, { id: a.id, zurueck, klasse: 'formular zeile' }) : ''}
       ${offen ? `<p><a class="knopf klein" href="${neuerPatient}" data-hilfe="anfrage.neuer-patient">${symbol('patient', { groesse: 16 })} Neuen Patienten anlegen</a></p>` : ''}`;
   const vorschlaege = a.vorschlaege.length
-    ? `<ol class="an-vorschlaege" data-hilfe="anfrage.vorschlag">${a.vorschlaege.map((v, i) => `<li><b>${datumZeitText(v.beginn, { jahr: true })}</b> <span class="hint">bis ${datumZeitText(v.ende).slice(-5)} Uhr${v.exchangeEventId ? ' · reserviert' : ''}</span>
+    ? `${a.quelle === 'buchung' ? '<p class="hint" data-hilfe="anfrage.buchung" tabindex="0">Vom Patienten auf der Buchungsseite gewählt – im Praxiskalender reserviert, bis Sie bestätigen oder abschließen.</p>' : ''}<ol class="an-vorschlaege" data-hilfe="anfrage.vorschlag">${a.vorschlaege.map((v, i) => `<li><b>${datumZeitText(v.beginn, { jahr: true })}</b> <span class="hint">bis ${datumZeitText(v.ende).slice(-5)} Uhr${v.exchangeEventId ? ' · reserviert' : ''}</span>
         ${offen && a.patient ? form('bestaetigen', `<input type="hidden" name="wahl" value="${i}"><button class="knopf klein primaer" data-hilfe="anfrage.bestaetigen">Diesen Termin bestätigen</button>`, { id: a.id, zurueck }) : ''}</li>`).join('')}</ol>
       ${a.antwortWeblink ? `<p><a class="knopf klein" href="${esc(a.antwortWeblink)}" target="_blank" rel="noopener" data-hilfe="anfrage.antwort">${symbol('email', { groesse: 16 })} Antwort-Entwurf in Outlook öffnen</a></p>` : ''}`
     : '<p class="hint">Noch keine Vorschläge.</p>';

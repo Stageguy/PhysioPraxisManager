@@ -20,8 +20,8 @@ set -euo pipefail
 
 ZIEL_UMGEBUNG="${1:-}"
 case "$ZIEL_UMGEBUNG" in
-  prod) NS=praxis;      PORT=3300; SERVE_PORT=10000; UMGEBUNG="" ;;
-  test) NS=praxis-test; PORT=3301; SERVE_PORT=10001; UMGEBUNG=test ;;
+  prod) NS=praxis;      PORT=3300; SERVE_PORT=10000; BUCHUNG_PORT=3310; BUCHUNG_SERVE=10002; UMGEBUNG="" ;;
+  test) NS=praxis-test; PORT=3301; SERVE_PORT=10001; BUCHUNG_PORT=3311; BUCHUNG_SERVE=10003; UMGEBUNG=test ;;
   *) echo "Aufruf: deploy/strato-dev.sh prod|test"; exit 1 ;;
 esac
 HOST="${PRAXIS_HOST:-dev-server}"
@@ -38,7 +38,7 @@ ERLAUBT="${ERLAUBTE_NUTZER:-$(grep -E '^ERLAUBTE_NUTZER=' .env | cut -d= -f2-)}"
 TESTADR="$(grep -E '^TEST_ADRESSEN=' .env | cut -d= -f2- || true)"
 [ "$ZIEL_UMGEBUNG" != test ] || [ -n "$TESTADR" ] || { echo "✗ TEST_ADRESSEN leer – die Testumgebung braucht sie"; exit 1; }
 # Manifeste für diese Umgebung
-manifest() { sed -e "s|__NS__|$NS|g" -e "s|__PORT__|$PORT|g" "deploy/k8s/$1"; }
+manifest() { sed -e "s|__NS__|$NS|g" -e "s|__PORT__|$PORT|g" -e "s|__BUCHUNG_PORT__|$BUCHUNG_PORT|g" "deploy/k8s/$1"; }
 
 echo "→ Dateien nach $HOST:$ZIEL"
 ssh "$HOST" "mkdir -p '$ZIEL'"
@@ -52,6 +52,8 @@ ssh "$HOST" "cd '$ZIEL' && docker build -q -t '$BILD' . >/dev/null"
 
 echo "→ $ZIEL_UMGEBUNG: Namespace $NS und Secrets"
 manifest namespace.yaml | ssh "$HOST" kubectl apply -f - >/dev/null
+# Gemeinsamer Schlüssel Manager ↔ Buchungsdienst (W96): einmalig je Namespace, kommt in praxis-env und in den Buchungs-Pod
+ssh "$HOST" "kubectl -n $NS get secret praxis-buchung >/dev/null 2>&1 || kubectl -n $NS create secret generic praxis-buchung --from-literal=BUCHUNG_SCHLUESSEL=\$(openssl rand -hex 24) >/dev/null"
 # Werte für den Dienst – nur was er braucht, nicht die ganze .env
 # Adresse im Tailnet – für Links aus Kalendereinträgen in die Praxis-Assistenz
 NAME="$(ssh "$HOST" "tailscale status --json" | python3 -c 'import sys,json; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
@@ -61,6 +63,10 @@ ENV_INHALT="$({
   echo "ERLAUBTE_NUTZER=$ERLAUBT"
   echo "PRAXIS_UMGEBUNG=$UMGEBUNG"
   echo "TEST_ADRESSEN=$TESTADR"
+  # Buchungsseite (W96): eigener Dienst im selben Namespace; öffentliche Adresse vorerst die Tailnet-Adresse (A27: Funnel)
+  echo "BUCHUNG_URL=http://127.0.0.1:$BUCHUNG_PORT"
+  echo "BUCHUNG_OEFFENTLICHE_URL=${BUCHUNG_OEFFENTLICHE_URL:-http://$NAME:$BUCHUNG_SERVE}"
+  echo "BUCHUNG_SCHLUESSEL=$(ssh "$HOST" "kubectl -n $NS get secret praxis-buchung -o jsonpath='{.data.BUCHUNG_SCHLUESSEL}' 2>/dev/null | base64 -d")"
   # Praxisname/Telefon (W89), WhatsApp (W90) und Testnummern (Schranke 8) – nur, wenn in .env gesetzt
   grep -E '^(PRAXIS_NAME|PRAXIS_TELEFON|TEST_TELEFONE|WHATSAPP_TOKEN|WHATSAPP_TELEFON_ID|WHATSAPP_APP_SECRET|WHATSAPP_VERIFY_TOKEN|ANFRAGEN_TAKT_MIN)=.+' .env || true
   # Lexware nur in der Produktion – die Testumgebung schreibt keine Rechnungen
@@ -86,8 +92,11 @@ manifest postgres.yaml | ssh "$HOST" kubectl apply -f - >/dev/null
 manifest praxis.yaml | sed "s|image: BILD|image: $BILD|" | ssh "$HOST" kubectl apply -f - >/dev/null
 ssh "$HOST" "kubectl -n $NS patch deployment praxis-dienst -p '{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"praxis/env-pruefsumme\":\"$ENV_PRUEFSUMME\"}}}}}' >/dev/null"
 manifest preisquellen.yaml | sed "s|image: BILD|image: $BILD|" | ssh "$HOST" kubectl apply -f - >/dev/null
-ssh "$HOST" "kubectl -n $NS rollout status statefulset/praxis-db --timeout=180s && kubectl -n $NS rollout status deployment/praxis-dienst --timeout=180s"
+manifest buchung.yaml | sed "s|image: BILD|image: $BILD|" | ssh "$HOST" kubectl apply -f - >/dev/null
+ssh "$HOST" "kubectl -n $NS rollout status statefulset/praxis-db --timeout=180s && kubectl -n $NS rollout status deployment/praxis-dienst --timeout=180s && kubectl -n $NS rollout status deployment/buchung-dienst --timeout=120s"
 
 echo "→ tailscale serve :$SERVE_PORT → 127.0.0.1:$PORT"
 ssh "$HOST" "tailscale serve --bg --http=$SERVE_PORT http://127.0.0.1:$PORT >/dev/null"
-echo "✓ $ZIEL_UMGEBUNG – Praxisdienst $FASSUNG: http://$NAME:$SERVE_PORT/  (nur für: $ERLAUBT)"
+# Buchungsseite im Tailnet (öffentlich erst mit `tailscale funnel`, A27 – nur nach Freigabe)
+ssh "$HOST" "tailscale serve --bg --http=$BUCHUNG_SERVE http://127.0.0.1:$BUCHUNG_PORT >/dev/null"
+echo "✓ $ZIEL_UMGEBUNG – Praxisdienst $FASSUNG: http://$NAME:$SERVE_PORT/  (nur für: $ERLAUBT) · Buchungsseite: http://$NAME:$BUCHUNG_SERVE/"

@@ -23,13 +23,23 @@ interface Ereignis {
   isCancelled?: boolean;
 }
 
-/** Belegte Zeiten im Zeitraum: Kartei-Termine, Hauptkalender und (falls getrennt) Praxiskalender */
-export async function belegteZeiten(graph: LeseGraph | undefined, db: Db, von: string, bis: string): Promise<Belegt[]> {
+/**
+ * Belegte Zeiten im Zeitraum: Kartei-Termine, Reservierungen offener Anfragen (aus der Datenbank – auch
+ * wenn der Kalender gerade nicht antwortet), Hauptkalender und (falls getrennt) Praxiskalender.
+ * `ohneAnfrage`: die eigenen alten Reservierungen zählen nicht, wenn eine Anfrage neu vorschlägt.
+ */
+export async function belegteZeiten(graph: LeseGraph | undefined, db: Db, von: string, bis: string, o: { ohneAnfrage?: string } = {}): Promise<Belegt[]> {
   const liste: Belegt[] = [];
   const { rows } = await db.query<{ beginn: Date | string; ende: Date | string }>(
     "SELECT beginn, ende FROM termin WHERE beginn < $2 AND ende > $1 AND status IN ('vorgeschlagen', 'bestaetigt')", [von, bis],
   );
   for (const r of rows) liste.push({ beginn: new Date(r.beginn).toISOString(), ende: new Date(r.ende).toISOString() });
+  const reserviert = await db.query<{ id: string; vorschlaege: unknown }>("SELECT id::text, vorschlaege FROM terminanfrage WHERE status IN ('neu', 'vorgeschlagen') AND vorschlaege::text <> '[]'");
+  for (const r of reserviert.rows) {
+    if (o.ohneAnfrage && r.id === o.ohneAnfrage) continue;
+    const v = (typeof r.vorschlaege === 'string' ? JSON.parse(r.vorschlaege) : r.vorschlaege) as Vorschlag[];
+    for (const s of v) if (s.beginn < bis && s.ende > von) liste.push({ beginn: s.beginn, ende: s.ende });
+  }
   if (!graph) return liste;
   const basis = await kalenderBasis(graph);
   const kalender = ['/me/calendar', ...(basis === '/me/calendar' ? [] : [basis])];

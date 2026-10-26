@@ -92,6 +92,8 @@ export interface KarteiDienst {
   gruende(): Promise<Gespraechsgrund[]>;
   /** Terminarten der Online-Anfrage (W94) */
   terminarten(): Promise<Terminart[]>;
+  /** Adresse der Buchungsseite (W96), falls eingerichtet */
+  buchung(): { url: string; oeffentlich: boolean } | undefined;
   /** Eingehende WhatsApp-Nachricht vom Webhook (W90) */
   whatsappEingang(n: EingehendeNachricht): Promise<'zugeordnet' | 'medien' | 'unbekannt'>;
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
@@ -101,7 +103,7 @@ const ARTEN: Kontaktart[] = ['mobil', 'telefon', 'whatsapp', 'email', 'sonstige'
 const kontaktart = (s: string | null): Kontaktart => (ARTEN.includes(s as Kontaktart) ? (s as Kontaktart) : 'sonstige');
 const ganz = (s: string | null, standard = 0) => (s && /^\d+$/.test(s.trim()) ? Number(s) : standard);
 
-export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'>; whatsapp?: WhatsAppCloud }): KarteiDienst {
+export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'>; whatsapp?: WhatsAppCloud; buchung?: { url: string; oeffentlich: boolean } }): KarteiDienst {
   const { db, tresor: t } = q;
   /** Termin in den Kalender spiegeln; scheitert der Kalender, bleibt der Termin in der Kartei und die Meldung sagt es */
   const spiegeln = async (terminId: string, wer: string): Promise<string> => {
@@ -172,6 +174,7 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
     steuer: (jahr, maskiert) => steuerfreieUmsaetze(db, { jahr, maskiert }),
     gruende: () => gespraechsgruende(db),
     terminarten: () => terminarten(db),
+    buchung: () => q.buchung,
     async aktion(f, wer) {
       const id = f.get('id') ?? '';
       const g = (name: string) => f.get(name) ?? undefined;

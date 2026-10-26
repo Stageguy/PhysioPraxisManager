@@ -69,7 +69,7 @@ export async function einstellungen(db: Db): Promise<Record<string, string>> {
 export const kleinunternehmer = async (db: Db): Promise<boolean> => (await einstellungen(db)).kleinunternehmer === 'ja';
 
 export async function einstellungSetzen(db: Db, schluessel: string, wert: string, wer: string): Promise<void> {
-  if (!['kleinunternehmer', 'ust_satz_wellness', 'oeffnungszeiten', 'termin_dauer_min', 'termin_puffer_min', 'anfragen_mailordner'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
+  if (!['kleinunternehmer', 'ust_satz_wellness', 'oeffnungszeiten', 'termin_dauer_min', 'termin_puffer_min', 'anfragen_mailordner', 'buchung_vorlauf_stunden', 'buchung_tage', 'buchung_hinweis', 'buchung_letzte_nr'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
   if (schluessel === 'kleinunternehmer' && !['ja', 'nein'].includes(wert)) throw new KarteiFehler('Kleinunternehmer: ja oder nein');
   if (schluessel === 'ust_satz_wellness' && !/^\d{1,2}$/.test(wert)) throw new KarteiFehler('Steuersatz als ganze Zahl, z. B. 19');
   if (schluessel === 'oeffnungszeiten') {
@@ -81,6 +81,9 @@ export async function einstellungSetzen(db: Db, schluessel: string, wert: string
   }
   if ((schluessel === 'termin_dauer_min' || schluessel === 'termin_puffer_min') && !/^\d{1,3}$/.test(wert)) throw new KarteiFehler('Minuten als ganze Zahl');
   if (schluessel === 'termin_dauer_min' && !(Number(wert) > 0)) throw new KarteiFehler('Die Dauer muss größer 0 sein');
+  if ((schluessel === 'buchung_vorlauf_stunden' || schluessel === 'buchung_tage' || schluessel === 'buchung_letzte_nr') && !/^\d{1,6}$/.test(wert)) throw new KarteiFehler('Bitte eine ganze Zahl');
+  if (schluessel === 'buchung_tage' && !(Number(wert) >= 1 && Number(wert) <= 90)) throw new KarteiFehler('Zeitraum 1 bis 90 Tage');
+  if (schluessel === 'buchung_hinweis' && wert.length > 300) throw new KarteiFehler('Hinweis höchstens 300 Zeichen');
   if (schluessel === 'anfragen_mailordner' && !/^Posteingang(\/[^/]+)+$/.test(wert)) throw new KarteiFehler('Der Ordner liegt unter dem Posteingang, z. B. Posteingang/Terminanfragen');
   await db.query('INSERT INTO praxis_einstellung (schluessel, wert, geaendert_von) VALUES ($1, $2, $3) ON CONFLICT (schluessel) DO UPDATE SET wert = EXCLUDED.wert, geaendert_am = now(), geaendert_von = EXCLUDED.geaendert_von', [schluessel, wert, wer]);
   await protokolliere(db, { actor: wer, action: 'einstellung_geaendert', objectType: 'praxis_einstellung', objectId: schluessel, details: { wert } });

@@ -413,7 +413,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       }
     }
     if (pfad === '/konfiguration') return senden(res, 200, 'text/html', konfigurationSeite(await d.konfiguration(), r));
-    if (pfad === '/konfiguration/terminarten') return senden(res, 200, 'text/html', terminartenSeite({ terminarten: await d.terminarten() }, r));
+    if (pfad === '/konfiguration/terminarten') return senden(res, 200, 'text/html', terminartenSeite({ terminarten: await d.terminarten(), buchung: d.buchung() }, r));
     if (pfad === '/kalender') {
       const heuteTag = heuteBerlin();
       const tagParam = adresse.searchParams.get('tag') ?? '';

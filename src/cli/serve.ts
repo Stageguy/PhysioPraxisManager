@@ -24,6 +24,8 @@ import { whatsappAusUmgebung, WhatsAppCloud } from '../whatsapp/schnittstelle.ts
 import { anfragenDienst } from '../anfragen/dienst.ts';
 import { anfragenEingang } from '../anfragen/eingang.ts';
 import { einstellungen } from '../kartei/konfiguration.ts';
+import { buchungAbgleich } from '../buchung/abgleich.ts';
+import { buchungsClientAusUmgebung } from '../buchung/client.ts';
 
 const env = loadEnv();
 const port = Number(process.env.PORT ?? 3300);
@@ -71,6 +73,9 @@ const whatsapp = whatsappEinstellungen ? new WhatsAppCloud(whatsappEinstellungen
 if (whatsapp) console.log(`WhatsApp Cloud API eingerichtet${whatsappEinstellungen?.appSecret ? ', Webhook /whatsapp/webhook aktiv' : ' – ohne WHATSAPP_APP_SECRET kein Webhook'}`);
 
 const schluessel = db && process.env.PRAXIS_TRESOR_SCHLUESSEL ? tresor() : undefined;
+// Buchungsseite (W96): eigener Dienst, der Manager schiebt das Angebot und holt Buchungen
+const buchung = buchungsClientAusUmgebung();
+const buchungAnzeige = buchung && process.env.BUCHUNG_OEFFENTLICHE_URL ? { url: process.env.BUCHUNG_OEFFENTLICHE_URL.replace(/\/$/, ''), oeffentlich: /^https:\/\//.test(process.env.BUCHUNG_OEFFENTLICHE_URL) && !/\.ts\.net/.test(process.env.BUCHUNG_OEFFENTLICHE_URL) } : undefined;
 const anfragen = db && schluessel ? anfragenDienst({ db, tresor: schluessel, graph }) : undefined;
 
 const dienst = praxisDienst({
@@ -82,7 +87,7 @@ const dienst = praxisDienst({
   cockpit: ({ namenZeigen }) => cockpitDaten({ db, graph, namenZeigen, anfragen: anfragen?.stand }),
   rechnungen: db ? rechnungsDienst({ db, graph, laufwerk: (await ladeEinstellungen()).rechnungen.laufwerk }) : undefined,
   preislisten: db ? preislistenDienst({ db }) : undefined,
-  kartei: db && schluessel ? karteiDienst({ db, tresor: schluessel, graph, whatsapp }) : undefined,
+  kartei: db && schluessel ? karteiDienst({ db, tresor: schluessel, graph, whatsapp, buchung: buchungAnzeige }) : undefined,
   anfragen,
   entwicklung,
   whatsapp: whatsappEinstellungen ? { verifyToken: whatsappEinstellungen.verifyToken, appSecret: whatsappEinstellungen.appSecret } : undefined,
@@ -100,13 +105,17 @@ if (db && schluessel && anfragen && takt > 0) {
       if (b.neu || b.fehler) console.log(`Terminanfragen: ${b.neu} neu, ${b.bekannt} bekannt, ${b.uebersprungen} übersprungen, ${b.fehler} Fehler`);
       const weg = await anfragen.aufraeumen();
       if (weg) console.log(`Terminanfragen: ${weg} Reservierungen nach 48 h aus dem Kalender genommen`);
+      if (buchung) {
+        const bb = await buchungAbgleich(db, schluessel, graph, buchung);
+        if (bb.neu || bb.fehler) console.log(`Buchungsseite: ${bb.neu} neue Buchungen, ${bb.fehler} Fehler; Angebot ${bb.angebot.terminarten} Terminarten, ${bb.angebot.tage} Tage`);
+      }
     } catch (err) {
       console.warn(`Terminanfragen: ${(err as Error).message.slice(0, 200)}`);
     }
   };
   setTimeout(() => void lauf(), 20_000).unref();
   setInterval(() => void lauf(), takt * 60_000).unref();
-  console.log(`Terminanfragen: Postfach alle ${takt} Minuten`);
+  console.log(`Terminanfragen: Postfach alle ${takt} Minuten${buchung ? ', Buchungsseite im selben Takt' : ''}`);
 }
 
 // Nur 127.0.0.1: von außen ist der Dienst ausschließlich über tailscale serve erreichbar

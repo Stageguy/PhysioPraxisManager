@@ -31,7 +31,7 @@ function kachel(a: Terminart): string {
   </article>`;
 }
 
-export function terminartenSeite(d: { terminarten: Terminart[] }, o: Rahmen): string {
+export function terminartenSeite(d: { terminarten: Terminart[]; buchung?: { url: string; oeffentlich: boolean } }, o: Rahmen): string {
   const aktive = d.terminarten.filter((a) => a.aktiv);
   const sektionen = SEKTION_REIHE.map((s) => {
     const liste = d.terminarten.filter((a) => a.sektion === s);
@@ -65,6 +65,13 @@ ${sektionLegende()}
   ${aktive.map((a) => `<p class="hint" data-terminart-lang="${a.id}" hidden>${esc(a.lang ?? '')} <b>${a.dauerMin} Minuten.</b></p>`).join('')}` : '<p class="leer">Noch keine Terminart aktiv – unten den Haken „aktiv“ setzen.</p>'}
 </section>
 ${sektionen}
+${d.buchung ? `<section class="tafel" id="buchungsseite" data-hilfe="terminart.einbetten"><h2>${symbol('buchung')} Buchungsseite einbetten</h2>
+  <p class="hint">Die Buchungsseite zeigt genau diese aktiven Terminarten im Dropdown, dazu Tag und freie Uhrzeit. <a href="${esc(d.buchung.url)}" target="_blank" rel="noopener">Buchungsseite ansehen</a>${d.buchung.oeffentlich ? '' : ' (zurzeit nur im Tailnet erreichbar – öffentlich erst nach Freigabe, A27)'}.</p>
+  <p>Schnipsel für lilli-nebel.de (passt die Höhe von selbst an):</p>
+  <textarea class="ta-baustein" readonly rows="2">&lt;script src="${esc(d.buchung.url)}/einbetten.js" async&gt;&lt;/script&gt;</textarea>
+  <p class="hint">Oder als iframe, z. B. mit vorgewählter Terminart:</p>
+  <textarea class="ta-baustein" readonly rows="2">&lt;iframe src="${esc(d.buchung.url)}/?terminart=P1" title="Termin anfragen" style="width:100%;border:0;min-height:720px"&gt;&lt;/iframe&gt;</textarea>
+</section>` : ''}
 <section class="tafel" id="baustein" data-hilfe="terminart.baustein"><h2>${symbol('protokoll')} Baustein für das Formular der Website</h2>
   <p class="hint">Diesen HTML-Code in das Anfrageformular auf lilli-nebel.de einsetzen. Die Formular-Mail trägt dann die Zeile „Terminart: P4 – Krankengymnastik (KG)“ – die Praxis-Assistenz erkennt die Kennung, ordnet die Anfrage zu und schlägt Zeiten mit der passenden Dauer vor. Nach jeder Änderung an den Kacheln neu kopieren.</p>
   <textarea class="ta-baustein" readonly rows="12">${esc(websiteBaustein(d.terminarten))}</textarea>

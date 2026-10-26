@@ -73,6 +73,15 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
   ${form('einstellung', `<input type="hidden" name="schluessel" value="anfragen_mailordner">
     <label>Outlook-Ordner mit Terminanfragen<input name="wert" value="${esc(d.einstellungen.anfragen_mailordner ?? 'Posteingang/Terminanfragen')}" data-hilfe="konfiguration.anfragen-ordner"></label>
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="buchung_vorlauf_stunden">
+    <label>Buchungsseite: frühester Termin in Stunden ab jetzt<input name="wert" value="${esc(d.einstellungen.buchung_vorlauf_stunden ?? '24')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.buchung-vorlauf"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="buchung_tage">
+    <label>Buchungsseite: wie viele Tage im Voraus<input name="wert" value="${esc(d.einstellungen.buchung_tage ?? '21')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.buchung-tage"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="buchung_hinweis">
+    <label>Buchungsseite: Hinweis über dem Formular<input name="wert" value="${esc(d.einstellungen.buchung_hinweis ?? '')}" maxlength="300" data-hilfe="konfiguration.buchung-hinweis"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
   <p class="hint">Vorschläge liegen in den Öffnungszeiten, nie an bayerischen Feiertagen und nie dort, wo Kartei, Hauptkalender oder Praxiskalender belegt sind. Eine Outlook-Regel legt Mails mit „Termin“ im Betreff und die Formular-Mails der Website in den Ordner; die Praxis-Assistenz liest ihn alle paar Minuten.</p>
 </div>`,
   });

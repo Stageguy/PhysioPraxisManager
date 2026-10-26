@@ -1,0 +1,10 @@
+{
+  "basis": "http://127.0.0.1:3311",
+  "breiten": [390, 1024],
+  "hoehe": 1100,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "buchung-start", "pfad": "/" },
+    { "name": "buchung-terminart", "pfad": "/?terminart=P4" }
+  ]
+}

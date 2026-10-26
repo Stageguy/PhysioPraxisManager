@@ -14,13 +14,13 @@ import type { Slot } from './slots.ts';
 import type { Sektion } from '../kartei/terminarten.ts';
 
 export type AnfrageStatus = 'neu' | 'vorgeschlagen' | 'bestaetigt' | 'abgesagt' | 'erledigt' | 'verworfen';
-export type AnfrageQuelle = 'mail' | 'website' | 'whatsapp' | 'telefon' | 'hand';
+export type AnfrageQuelle = 'mail' | 'website' | 'buchung' | 'whatsapp' | 'telefon' | 'hand';
 
 export const STATUS_TEXT: Record<AnfrageStatus, [string, string]> = {
   neu: ['neu', 'preset3'], vorgeschlagen: ['Vorschlag im Entwurf', 'preset7'], bestaetigt: ['Termin steht', 'preset19'],
   abgesagt: ['abgesagt', 'preset12'], erledigt: ['erledigt', 'preset4'], verworfen: ['verworfen', 'preset12'],
 };
-export const QUELLE_TEXT: Record<AnfrageQuelle, string> = { mail: 'E-Mail', website: 'Website', whatsapp: 'WhatsApp', telefon: 'Telefon', hand: 'von Hand' };
+export const QUELLE_TEXT: Record<AnfrageQuelle, string> = { mail: 'E-Mail', website: 'Website-Formular', buchung: 'Buchungsseite', whatsapp: 'WhatsApp', telefon: 'Telefon', hand: 'von Hand' };
 export const ANLIEGEN_TEXT: Record<Anliegen, string> = { termin: 'neuer Termin', verschieben: 'verschieben', absagen: 'Absage', unklar: 'unklar' };
 export const OFFEN: AnfrageStatus[] = ['neu', 'vorgeschlagen'];
 
@@ -74,6 +74,8 @@ export interface NeueAnfrage {
   patientId?: string | null;
   eingegangenAm?: string;
   terminartId?: string | null;
+  /** Kennung der Buchung vom Buchungsdienst (W96) – Dublettenschutz */
+  buchungId?: string | null;
 }
 
 /** Patient über Mailadresse oder Telefonnummer finden (aktive vor archivierten) */
@@ -92,11 +94,11 @@ export async function anfrageAnlegen(db: Db, t: Tresor, d: NeueAnfrage, wer = AC
   if (!d.absenderName?.trim() && !d.absenderAdresse?.trim() && !d.absenderTelefon?.trim() && !d.patientId) throw new KarteiFehler('Eine Anfrage braucht wenigstens einen Namen, eine Mailadresse oder eine Telefonnummer');
   const patientId = d.patientId ?? (await patientFinden(db, { email: d.absenderAdresse, telefon: d.absenderTelefon }));
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO terminanfrage (quelle, anliegen, graph_message_id, conversation_id, absender_adresse, absender_name, absender_telefon, betreff, text, erkannt, patient_id, eingegangen_am, erstellt_von, terminart_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, coalesce($12::timestamptz, now()), $13, $14)
+    `INSERT INTO terminanfrage (quelle, anliegen, graph_message_id, conversation_id, absender_adresse, absender_name, absender_telefon, betreff, text, erkannt, patient_id, eingegangen_am, erstellt_von, terminart_id, buchung_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, coalesce($12::timestamptz, now()), $13, $14, $15)
      ON CONFLICT (graph_message_id) DO NOTHING RETURNING id::text`,
     [d.quelle, d.anliegen ?? 'unklar', d.graphMessageId ?? null, d.conversationId ?? null, textWert(d.absenderAdresse)?.toLowerCase() ?? null, textWert(d.absenderName), d.absenderTelefon?.trim() ? telefonNormieren(d.absenderTelefon) : null,
-      textWert(d.betreff), d.text?.trim() ? t.verschluesseln(d.text.trim(), 'terminanfrage.text') : null, JSON.stringify(d.erkannt ?? {}), patientId ?? null, d.eingegangenAm ?? null, wer, d.terminartId && istId(d.terminartId) ? d.terminartId : null],
+      textWert(d.betreff), d.text?.trim() ? t.verschluesseln(d.text.trim(), 'terminanfrage.text') : null, JSON.stringify(d.erkannt ?? {}), patientId ?? null, d.eingegangenAm ?? null, wer, d.terminartId && istId(d.terminartId) ? d.terminartId : null, d.buchungId ?? null],
   );
   if (!rows[0]) {
     const alt = (await db.query<{ id: string }>('SELECT id::text FROM terminanfrage WHERE graph_message_id = $1', [d.graphMessageId])).rows[0]!;

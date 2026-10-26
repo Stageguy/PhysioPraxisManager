@@ -154,6 +154,15 @@ Praxiskalender reserviert („Reserviert – Anfrage #id“, 48 h), die Antwort 
 Nach der Zusage bestätigt sie den Termin: Kartei, Kalender, Bestätigungs-Entwurf. Von Hand:
 `npm run anfragen` (Probelauf), `-- --ausfuehren`, `-- --aufraeumen`.
 
+## Buchungsseite (W96)
+
+Ein eigener kleiner Dienst (`npm run buchung`, Pod `buchung-dienst`) ohne Zugang zu Datenbank, Tresor
+oder Postfach. Der Manager schiebt ihm im Anfragen-Takt das Angebot (aktive Terminarten, freie Fenster)
+und holt Buchungswünsche ab (`BUCHUNG_URL`, `BUCHUNG_SCHLUESSEL`); daraus werden Anfragen mit reserviertem
+Wunschtermin. Einbetten in lilli-nebel.de mit `<script src="<Adresse>/einbetten.js" async></script>`
+(Schnipsel unter Konfiguration › Terminarten). Im Tailnet unter `:10002` (Produktion) bzw. `:10003` (Test);
+öffentlich erst nach Freigabe per `tailscale funnel` (A27). Von Hand: `npm run anfragen -- --buchung`.
+
 ## Nachrichten an Patienten (W90, W91)
 
 Auf der Patientenseite steht der Abschnitt „Nachricht an …“:

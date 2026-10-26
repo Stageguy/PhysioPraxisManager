@@ -55,6 +55,7 @@ Kommentare, Oberfläche, Commits.
   `src/db/werte.ts` (Werte aus Zeilen), `src/web/bausteine.ts` (Rahmen, Meldungen, Formulare, Chips),
   `src/zeit.ts` (ZONE, heuteBerlin, tagPlus, wocheUm), `src/praxis.ts` (Praxisname, Konto),
   `src/telefon.ts` (E.164).
+- **Zwei Prozesse:** der Praxisdienst (`src/cli/serve.ts`, Tailnet) und der öffentliche Buchungsdienst (`src/cli/buchung-serve.ts`, `src/buchung/`) – Letzterer darf nie Datenbank, Tresor, Postfach oder Kartei importieren; er kennt nur Angebot und Buchungswünsche.
 - Schichten: `src/kartei/*` (Fachlogik gegen `Db`), `src/kartei/dienst.ts` (Aktionen aus Formularen),
   `src/server.ts` (Routen, Zugang, Kopfzeilen), `src/web/*` (HTML). Keine SQL in `src/web`.
 - Fehler für die Oberfläche sind `KarteiFehler`/`PreislisteFehler`/`AktionAbgelehnt` – sie landen als

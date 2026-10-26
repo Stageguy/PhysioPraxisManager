@@ -70,6 +70,7 @@ const ANFRAGE: Anfrage = {
 };
 const ANFRAGE_MIT: Anfrage = { ...ANFRAGE, terminart: { id: '1', code: 'P1', kurz: 'Neupatient', sektion: 'rezept', dauerMin: 60 }, id: '2', status: 'vorgeschlagen', patient: { id: '1', name: 'Anna Test', patientennummer: 'P-1001' }, vorschlaege: [{ beginn: '2026-11-03T08:00:00Z', ende: '2026-11-03T08:30:00Z', exchangeEventId: 'e1' }], antwortWeblink: 'https://outlook.office.com/owa/x', dauerMin: 30, notiz: 'Rückruf' };
 const ANFRAGE_FERTIG: Anfrage = { ...ANFRAGE_MIT, id: '3', status: 'bestaetigt', terminId: '7' };
+const ANFRAGE_BUCHUNG: Anfrage = { ...ANFRAGE_MIT, id: '4', status: 'neu', quelle: 'buchung' };
 const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abschlussrechnung', steuerklasse: 'heilbehandlung_steuerfrei' as const, status: 'entwurf' as const, empfaenger: { name: 'Anna Test', strasse: 'Kurpromenade 3', plz: '86825', ort: 'Bad Wörishofen' },
   preisliste: { id: '5', name: 'Privat 2026' }, zeitraumVon: null, zeitraumBis: null, datum: null, faelligAm: null, nummer: null, netto: 92.54, ust: 0, ustSatz: 0, betrag: 92.54, kleinunternehmer: false, versandArt: null, versendetAm: null, bezahltAm: null, storniertAm: null, stornoGrund: null,
   lexware: { invoiceId: null, status: null, betrag: null, geprueftAm: null, abweichung: null, pdfAm: null }, notiz: null, erstelltAm: '2026-10-25T10:00:00Z',
@@ -148,11 +149,12 @@ const seiten = () => [
   patientNeuSeite(R),
   patientSeite(PATIENT_DATEN, R),
   anfragenSeite({ anfragen: [ANFRAGE, ANFRAGE_MIT, ANFRAGE_FERTIG], filter: 'offen', stand: { neu: 1, vorgeschlagen: 1 }, terminarten: TERMINARTEN }, R),
-  terminartenSeite({ terminarten: TERMINARTEN }, R),
+  terminartenSeite({ terminarten: TERMINARTEN, buchung: { url: 'http://praxis.example:10003', oeffentlich: false } }, R),
   terminartenSeite({ terminarten: TERMINARTEN.map((x) => ({ ...x, aktiv: false })) }, R),
   anfragenSeite({ anfragen: [], filter: 'alle', stand: { neu: 0, vorgeschlagen: 0 }, terminarten: [] }, R),
   anfrageSeite({ anfrage: ANFRAGE, terminarten: TERMINARTEN, patienten: [PAT], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
   anfrageSeite({ anfrage: ANFRAGE_MIT, terminarten: TERMINARTEN, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: false }, R),
+  anfrageSeite({ anfrage: ANFRAGE_BUCHUNG, terminarten: TERMINARTEN, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
   anfrageSeite({ anfrage: ANFRAGE_FERTIG, terminarten: [], patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
   patientSeite({ ...PATIENT_DATEN, patient: { ...PAT, status: 'archiviert' } }, R),
   akteSeite(AKTE, R),

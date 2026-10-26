@@ -173,3 +173,10 @@ der Website wählen sollen, (b) **Dauern** prüfen – deine Website nennt keine
 die Einteilung passt: „Selbstzahler – Behandlungen nach Physioverordnung“ = privat bezahlt, mit oder ohne
 Rezept. Farben: Rezept Brombeer, Selbstzahler Holzbraun, Wellness Gold – so auch im Kalender.
 
+**25. Buchungsseite:** Patienten können Terminart, Tag und Uhrzeit selbst wählen; das kommt als Wunsch zu
+dir, du bestätigst. Bitte entscheiden: (a) welche Terminarten online stehen (wenige – das Dropdown soll
+übersichtlich bleiben, Vorschlag: Neupatient, KG, MT, Lymphdrainage, zwei bis drei Wellness-Angebote),
+(b) **Vorlauf**: frühestens 24 Stunden im Voraus? (c) **Zeitraum**: drei Wochen im Voraus? (d) der
+**Hinweistext** über dem Formular, (e) ob die Seite im Kontaktbereich von lilli-nebel.de oder auf einer
+eigenen Unterseite „Termin“ stehen soll. Öffentlich wird sie erst, wenn Christian sie freigibt.
+
