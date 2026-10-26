@@ -7,6 +7,7 @@
 import type { Db } from '../db/index.ts';
 import { rund, tag } from '../db/werte.ts';
 import { datumText, preisText } from '../format.ts';
+import { winAnsi } from '../pdf/text.ts';
 
 export type Befreiung = '§ 4 Nr. 14 UStG' | '§ 19 UStG';
 
@@ -90,14 +91,7 @@ export function steuerCsv(l: SteuerListe): string {
   return `﻿${zeilen.join('\r\n')}\r\n`;
 }
 
-// ── PDF ohne Bibliothek: Text in Helvetica (WinAnsi, damit Umlaute und € stimmen) ──
-function winAnsi(s: string): string {
-  return s.replace(/[\\()]/g, (c) => `\\${c}`).replace(/[^\x20-\x7e]/g, (c) => {
-    const code = c === '€' ? 0x80 : c === '„' ? 0x84 : c === '“' ? 0x93 : c === '–' ? 0x96 : c.charCodeAt(0);
-    return code <= 0xff ? `\\${code.toString(8).padStart(3, '0')}` : '?';
-  });
-}
-
+// ── PDF ohne Bibliothek (Zeichen aus pdf/text.ts), Querformat mit eigenen Spalten ──
 export function steuerPdf(l: SteuerListe, o: { praxis: string; erstellt: string }): Uint8Array {
   const breite = 842; const hoehe = 595; // Querformat A4
   const seiten: string[][] = [];

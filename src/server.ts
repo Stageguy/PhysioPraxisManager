@@ -454,6 +454,13 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const fd = await d.fall(fm[1]!, fm[2]!, wer);
       return fd ? senden(res, 200, 'text/html', fallSeite(fd, r)) : senden(res, 404, 'text/plain', 'Diesen Fall gibt es nicht');
     }
+    const ap = /^\/patienten\/(\d+)\/akte\.pdf$/.exec(pfad);
+    if (ap) {
+      const pdf = await d.aktePdf(ap[1]!, wer);
+      if (!pdf) return senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
+      dateiKopf(res, 'application/pdf', pdf.name);
+      return void res.end(Buffer.from(pdf.daten));
+    }
     const m = /^\/patienten\/(\d+)(?:\/(akte)|\/neu\/(termin|behandlung|rezept|direktzugang|wellness))?$/.exec(pfad);
     if (!m) return senden(res, 404, 'text/plain', 'Nicht gefunden');
     const [, id, akte, neu] = m as unknown as [string, string, string | undefined, string | undefined];

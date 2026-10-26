@@ -305,7 +305,8 @@ export function akteSeite(d: AkteDaten, o: Rahmen): string {
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}">${esc(name(p))}</a> › Akte</p>
 <h1>${symbol('protokoll', { groesse: 26 })} Akte ${esc(name(p))} <span class="hint">${esc(p.patientennummer)}</span></h1>${meldungen(o)}
 <p class="hint">Behandlungsdokumentation nach § 630f BGB. Einträge werden nicht geändert oder gelöscht – jedes Öffnen dieser Seite steht im Protokoll.</p>
-<div class="knopfreihe"><a class="knopf primaer" href="/patienten/${p.id}/neu/behandlung" data-hilfe="akte.neu">${symbol('haken', { groesse: 18 })} Behandlung erfassen</a></div>
+<div class="knopfreihe"><a class="knopf primaer" href="/patienten/${p.id}/neu/behandlung" data-hilfe="akte.neu">${symbol('haken', { groesse: 18 })} Behandlung erfassen</a>
+  <a class="knopf" href="/patienten/${p.id}/akte.pdf" target="_blank" rel="noopener" data-hilfe="akte.pdf">${symbol('rechnung', { groesse: 18 })} Akte als PDF (§ 630g)</a></div>
 ${faelle || '<p class="leer">Die Akte ist noch leer – mit „Behandlung erfassen“ beginnt der erste Fall.</p>'}`,
   });
 }

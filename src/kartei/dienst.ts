@@ -25,6 +25,7 @@ import { termineZeitraum, type TerminKalender } from './patienten.ts';
 import { listen as preislistenListen, type Preisliste } from '../preise/preislisten.ts';
 import { steuerfreieUmsaetze, type SteuerListe } from './steuer.ts';
 import { dokumente, mailEntwurf, whatsappAngebote, whatsappEingang, whatsappSenden, whatsappVermerken, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
+import { akteExport } from './akte-export.ts';
 import type { EingehendeNachricht, WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
 
 export { KarteiFehler };
@@ -75,6 +76,8 @@ export interface KarteiDienst {
   fall(patientId: string, fallId: string, wer: string): Promise<{ patient: Patient; details: FallDetails; verordnungen: VerordnungKurz[]; termine: TerminKurz[]; rechnungen: RechnungKurz[] } | undefined>;
   patient(id: string): Promise<PatientSeiteDaten | undefined>;
   akte(id: string, wer: string): Promise<AkteDaten | undefined>;
+  /** Die ganze Akte als PDF – Einsicht nach § 630g (A19d), jeder Export im Protokoll */
+  aktePdf(id: string, wer: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
   neuAktion(id: string): Promise<NeuAktionDaten | undefined>;
   rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
   rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[] } | undefined>;
@@ -130,6 +133,10 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
     async akte(id, wer) {
       const patient = await patientLesen(db, t, id);
       return patient ? { patient, faelle: await akte(db, t, id, wer) } : undefined;
+    },
+    async aktePdf(id, wer) {
+      if (!istId(id) || !(await patientLesen(db, t, id))) return undefined;
+      return akteExport(db, t, id, wer);
     },
     async neuAktion(id) {
       const patient = await patientLesen(db, t, id);
