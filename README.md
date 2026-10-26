@@ -143,6 +143,17 @@ Lillis Gerät ──Tailscale──▶ Knoten „praxis“ (tailscale serve, HTT
 5. Starten: `docker compose up -d --build`, dann `https://praxis.<tailnet>.ts.net` öffnen.
 6. **Lilli einladen** (Users → Invite), Tailscale auf ihrem Gerät installieren und anmelden.
 
+## Terminanfragen (A15)
+
+Der Dienst liest alle 10 Minuten den Outlook-Ordner „Posteingang/Terminanfragen“ (Einstellung
+`anfragen_mailordner`; `ANFRAGEN_TAKT_MIN=0` schaltet es aus) – freie Mails und Formular-Mails der
+Website – und legt Anfragen an (`/anfragen`, Cockpit-Fach „Terminanfragen“). Lilli ordnet den Patienten
+zu, lässt drei freie Zeiten vorschlagen (Öffnungszeiten, Dauer, Puffer unter Konfiguration; keine
+bayerischen Feiertage; nichts, was Kartei, Haupt- oder Praxiskalender belegt), die Zeiten werden im
+Praxiskalender reserviert („Reserviert – Anfrage #id“, 48 h), die Antwort liegt als Entwurf im Mail-Faden.
+Nach der Zusage bestätigt sie den Termin: Kartei, Kalender, Bestätigungs-Entwurf. Von Hand:
+`npm run anfragen` (Probelauf), `-- --ausfuehren`, `-- --aufraeumen`.
+
 ## Nachrichten an Patienten (W90, W91)
 
 Auf der Patientenseite steht der Abschnitt „Nachricht an …“:

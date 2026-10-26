@@ -6,6 +6,7 @@
  *
  * Patientennamen: Kalendertitel werden standardmäßig nur als Initialen gezeigt (Diskret-Modus).
  */
+import type { AnfragenStand } from '../anfragen/dienst.ts';
 import type { Db } from '../db/index.ts';
 import { zeitText } from '../format.ts';
 import type { GraphClient } from '../graph.ts';
@@ -57,6 +58,8 @@ export interface CockpitDaten {
   heute: string;
   rechnungen: Quelle<Rechnungsstand>;
   termine: Quelle<Termin[]>;
+  /** Terminanfragen (A15): offene Zahlen und die neuesten */
+  anfragen: Quelle<AnfragenStand>;
   protokoll: Quelle<LogEintrag[]>;
   namenZeigen: boolean;
 }
@@ -193,17 +196,29 @@ export async function protokoll(db: Db | undefined, tage = 7): Promise<Quelle<Lo
   }
 }
 
+async function anfragenStand(stand?: () => Promise<AnfragenStand>): Promise<Quelle<AnfragenStand>> {
+  if (!stand) return { stand: 'nicht-verbunden', hinweis: 'Terminanfragen brauchen die Praxis-Datenbank und den Tresor-Schlüssel.' };
+  try {
+    return { stand: 'ok', daten: await stand() };
+  } catch (err) {
+    return { stand: 'fehler', hinweis: `Anfragen: ${(err as Error).message.slice(0, 200)}` };
+  }
+}
+
 export async function cockpitDaten(q: {
   db?: Db;
   graph?: Pick<GraphClient, 'paginate' | 'get' | 'post'>;
   namenZeigen: boolean;
   jetzt?: Date;
+  /** Stand der Terminanfragen (AnfragenDienst.stand) */
+  anfragen?: () => Promise<AnfragenStand>;
 }): Promise<CockpitDaten> {
   const heute = datumBerlin((q.jetzt ?? new Date()).toISOString());
-  const [rechnungen, termine, log] = await Promise.all([
+  const [rechnungen, termine, anfragen, log] = await Promise.all([
     rechnungsstand(q.db),
     termineHeute(q.graph, heute, q.namenZeigen, q.db),
+    anfragenStand(q.anfragen),
     protokoll(q.db),
   ]);
-  return { heute, rechnungen, termine, protokoll: log, namenZeigen: q.namenZeigen };
+  return { heute, rechnungen, termine, anfragen, protokoll: log, namenZeigen: q.namenZeigen };
 }

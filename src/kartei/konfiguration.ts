@@ -3,6 +3,7 @@
  * verlinkt außerdem auf Preislisten und Wellness-Katalog – alles, was Lilli selbst pflegt.
  */
 import { protokolliere, type Db } from '../db/index.ts';
+import { oeffnungszeitenLesen, oeffnungszeitenText } from '../anfragen/slots.ts';
 import { KarteiFehler } from './patienten.ts';
 
 export interface Textbaustein {
@@ -68,9 +69,19 @@ export async function einstellungen(db: Db): Promise<Record<string, string>> {
 export const kleinunternehmer = async (db: Db): Promise<boolean> => (await einstellungen(db)).kleinunternehmer === 'ja';
 
 export async function einstellungSetzen(db: Db, schluessel: string, wert: string, wer: string): Promise<void> {
-  if (!['kleinunternehmer', 'ust_satz_wellness'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
+  if (!['kleinunternehmer', 'ust_satz_wellness', 'oeffnungszeiten', 'termin_dauer_min', 'termin_puffer_min', 'anfragen_mailordner'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
   if (schluessel === 'kleinunternehmer' && !['ja', 'nein'].includes(wert)) throw new KarteiFehler('Kleinunternehmer: ja oder nein');
   if (schluessel === 'ust_satz_wellness' && !/^\d{1,2}$/.test(wert)) throw new KarteiFehler('Steuersatz als ganze Zahl, z. B. 19');
+  if (schluessel === 'oeffnungszeiten') {
+    try {
+      wert = oeffnungszeitenText(oeffnungszeitenLesen(wert));
+    } catch (err) {
+      throw new KarteiFehler((err as Error).message);
+    }
+  }
+  if ((schluessel === 'termin_dauer_min' || schluessel === 'termin_puffer_min') && !/^\d{1,3}$/.test(wert)) throw new KarteiFehler('Minuten als ganze Zahl');
+  if (schluessel === 'termin_dauer_min' && !(Number(wert) > 0)) throw new KarteiFehler('Die Dauer muss größer 0 sein');
+  if (schluessel === 'anfragen_mailordner' && !/^Posteingang(\/[^/]+)+$/.test(wert)) throw new KarteiFehler('Der Ordner liegt unter dem Posteingang, z. B. Posteingang/Terminanfragen');
   await db.query('INSERT INTO praxis_einstellung (schluessel, wert, geaendert_von) VALUES ($1, $2, $3) ON CONFLICT (schluessel) DO UPDATE SET wert = EXCLUDED.wert, geaendert_am = now(), geaendert_von = EXCLUDED.geaendert_von', [schluessel, wert, wer]);
   await protokolliere(db, { actor: wer, action: 'einstellung_geaendert', objectType: 'praxis_einstellung', objectId: schluessel, details: { wert } });
 }

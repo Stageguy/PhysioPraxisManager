@@ -153,3 +153,15 @@ das, oder möchtest du ein eigenes Konto? (E5)
 OneDrive (praxis@) umziehen, damit sie dir gehört? (E20, N23)
 
 > Antwort:
+
+## Terminanfragen (26.10.2026)
+
+**23. Öffnungszeiten, Dauer, Ordner:** Die Praxis-Assistenz schlägt Patienten drei freie Zeiten vor. Dafür
+braucht sie (a) deine **Öffnungszeiten je Wochentag** (Vorgabe: Mo–Do 8–18, Fr 8–14 Uhr), (b) die
+**Dauer je Behandlung** (Vorgabe 30 Min.; KG 30, MT 30, MLD 45/60, Massage 20/30?), (c) ob **Mariä
+Himmelfahrt** (15.8.) bei dir frei ist (in Bad Wörishofen Feiertag), (d) einen **Puffer** zwischen Terminen.
+Alles steht unter Konfiguration und lässt sich ändern. Dazu legen wir in Outlook einen Ordner
+„Posteingang/Terminanfragen“ an und eine Regel: Betreff enthält „Termin“ → in diesen Ordner. Mails aus
+dem Kontaktformular der Website gehören auch dorthin (Frage an den Website-Anbieter: feste Feldnamen
+„Name:“, „Telefon:“, „E-Mail:“, „Wunschtermin:“, „Anliegen:“).
+

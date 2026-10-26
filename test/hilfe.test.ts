@@ -18,6 +18,8 @@ import { rechnungSeite as ausgangsrechnungSeite } from '../src/web/rechnung.ts';
 import { konfigurationSeite } from '../src/web/konfiguration.ts';
 import { kalenderSeite } from '../src/web/kalender.ts';
 import { steuerSeite } from '../src/web/steuer.ts';
+import { anfrageSeite, anfragenSeite } from '../src/web/anfragen.ts';
+import type { Anfrage } from '../src/anfragen/anfragen.ts';
 import type { Karte } from '../src/kartei/pinnwand.ts';
 import type { Patient } from '../src/kartei/patienten.ts';
 
@@ -60,6 +62,13 @@ const PATIENT_DATEN = {
   rechnungen: [RK, { ...RK, id: '2', status: 'entwurf', statusText: 'Entwurf', statusFarbe: 'preset10', nummer: null, datum: null, faelligAm: null, lexwareAbweichung: 'in Lexware storniert', pdf: true, steuerklasse: 'wellness_19' }],
   preislisten: [PL({ status: 'freigegeben', aktiv: true })],
 };
+const ANFRAGE: Anfrage = {
+  id: '1', status: 'neu', quelle: 'website', anliegen: 'termin', eingegangenAm: '2026-10-26T08:00:00Z', absenderName: 'Anna Test', absenderAdresse: 'a@example.org', absenderTelefon: '+491511', betreff: 'Terminanfrage',
+  patient: null, vorschlaege: [], terminId: null, graphMessageId: 'm1', conversationId: 'c1', text: 'Dienstag vormittags wäre gut', erkannt: { wochentage: [2], tageszeiten: ['vormittag'], daten: ['2026-11-03'], uhrzeiten: ['09:00'] },
+  dauerMin: null, leistungNummer: null, antwortWeblink: null, erledigtAm: null, notiz: null,
+};
+const ANFRAGE_MIT: Anfrage = { ...ANFRAGE, id: '2', status: 'vorgeschlagen', patient: { id: '1', name: 'Anna Test', patientennummer: 'P-1001' }, vorschlaege: [{ beginn: '2026-11-03T08:00:00Z', ende: '2026-11-03T08:30:00Z', exchangeEventId: 'e1' }], antwortWeblink: 'https://outlook.office.com/owa/x', dauerMin: 30, notiz: 'Rückruf' };
+const ANFRAGE_FERTIG: Anfrage = { ...ANFRAGE_MIT, id: '3', status: 'bestaetigt', terminId: '7' };
 const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abschlussrechnung', steuerklasse: 'heilbehandlung_steuerfrei' as const, status: 'entwurf' as const, empfaenger: { name: 'Anna Test', strasse: 'Kurpromenade 3', plz: '86825', ort: 'Bad Wörishofen' },
   preisliste: { id: '5', name: 'Privat 2026' }, zeitraumVon: null, zeitraumBis: null, datum: null, faelligAm: null, nummer: null, netto: 92.54, ust: 0, ustSatz: 0, betrag: 92.54, kleinunternehmer: false, versandArt: null, versendetAm: null, bezahltAm: null, storniertAm: null, stornoGrund: null,
   lexware: { invoiceId: null, status: null, betrag: null, geprueftAm: null, abweichung: null, pdfAm: null }, notiz: null, erstelltAm: '2026-10-25T10:00:00Z',
@@ -100,6 +109,7 @@ const STAND = { stand: 'ok' as const, daten: { zaehler: { eingegangen: 1, unklar
 const DATEN: CockpitDaten = {
   heute: '2026-10-20', namenZeigen: false, rechnungen: STAND,
   termine: { stand: 'ok', daten: [{ beginn: '09:00', ende: '09:30', ganztags: false, titel: 'M. K.', frei: false, link: '/patienten/1#termine', leistung: 'MT', rezept: true }, { beginn: '11:00', ende: '12:00', ganztags: false, titel: 'Z. L.', frei: false }] },
+  anfragen: { stand: 'ok' as const, daten: { neu: 1, vorgeschlagen: 1, neueste: [ANFRAGE, ANFRAGE_MIT] } },
   protokoll: { stand: 'ok', daten: [{ zeit: '2026-10-20T08:00:00Z', aktion: 'rechnung_abgelegt', objekt: '1', details: { lieferant: 'Telekom' } }] },
 };
 
@@ -130,6 +140,11 @@ const seiten = () => [
   listeSeite({ patienten: [], suche: 'x', archiv: true }, R),
   patientNeuSeite(R),
   patientSeite(PATIENT_DATEN, R),
+  anfragenSeite({ anfragen: [ANFRAGE, ANFRAGE_MIT, ANFRAGE_FERTIG], filter: 'offen', stand: { neu: 1, vorgeschlagen: 1 } }, R),
+  anfragenSeite({ anfragen: [], filter: 'alle', stand: { neu: 0, vorgeschlagen: 0 } }, R),
+  anfrageSeite({ anfrage: ANFRAGE, patienten: [PAT], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
+  anfrageSeite({ anfrage: ANFRAGE_MIT, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: false }, R),
+  anfrageSeite({ anfrage: ANFRAGE_FERTIG, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
   patientSeite({ ...PATIENT_DATEN, patient: { ...PAT, status: 'archiviert' } }, R),
   akteSeite(AKTE, R),
   terminNeuSeite(NEU_AKTION, R),

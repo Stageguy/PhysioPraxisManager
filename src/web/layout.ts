@@ -43,6 +43,16 @@ th{color:var(--grau);font-weight:600;font-size:13px}
 .marke{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--rand);color:var(--grau);white-space:nowrap}
 .marke.jetzt{border-color:var(--ok);color:var(--ok)}
 a.marke.wa{text-decoration:none;color:#1f8a4c;border-color:#1f8a4c}
+/* Terminanfragen (A15) */
+.an-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:12px 0}
+.an-kachel{display:flex;flex-direction:column;gap:6px;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:12px 14px;text-decoration:none;color:var(--fg)}
+.an-kachel.neu{border-color:var(--akzent)}
+.an-kachel header{display:flex;align-items:center;gap:8px} .an-kachel header b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-betreff{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-spalten{display:grid;grid-template-columns:1fr 1fr;gap:12px} @media (max-width:700px){.an-spalten{grid-template-columns:1fr}}
+.an-text{white-space:pre-wrap;font:inherit;font-size:14px;max-height:280px;overflow:auto;margin:0;padding:8px 10px;background:var(--bg);border-radius:8px}
+.an-vorschlaege{padding-left:22px} .an-vorschlaege li{margin:8px 0} .an-vorschlaege form{display:inline-block;margin-left:8px}
+.kanaele-mehr summary{cursor:pointer;margin-top:8px}
 .wa-knoepfe .knopf{gap:6px}
 fieldset.anhaenge{border:1px solid var(--rand);border-radius:8px;padding:6px 12px 8px;margin:8px 0}
 fieldset.anhaenge legend{color:var(--grau);font-size:13px;padding:0 4px}

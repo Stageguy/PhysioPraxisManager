@@ -57,6 +57,20 @@ export function entwurfKoerper(mail: NeueMail) {
   };
 }
 
+const htmlZeilen = (text: string) => text.split('\n').map((z) => z.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)).join('<br>');
+
+/**
+ * Antwort auf eine vorhandene Mail als Entwurf im selben Faden (createReply): unser Text steht über dem
+ * Zitat, Empfänger ist der ursprüngliche Absender. Schranke 2 gilt auch hier.
+ */
+export async function antwortEntwurf(graph: Pick<GraphClient, 'post' | 'patch'>, nachrichtId: string, text: string, empfaenger: string): Promise<{ id: string; webLink?: string }> {
+  pruefeEmpfaenger([empfaenger]);
+  const m = await graph.post<{ id: string; webLink?: string }>(`/me/messages/${nachrichtId}/createReply`, { comment: htmlZeilen(text) });
+  const kategorien = entwurfKategorien();
+  if (kategorien.length) await graph.patch(`/me/messages/${m.id}`, { categories: kategorien });
+  return m;
+}
+
 export async function entwurfAnlegen(
   graph: Pick<GraphClient, 'post'>,
   mail: NeueMail,

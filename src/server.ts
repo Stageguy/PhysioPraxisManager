@@ -19,6 +19,8 @@ import { AktionAbgelehnt, filterAus, type Aktion } from './rechnungen/dashboard.
 import type { RechnungsDienst } from './rechnungen/dienst.ts';
 import { PreislisteFehler, type PreislistenDienst } from './preise/dienst.ts';
 import { KarteiFehler, type KarteiDienst } from './kartei/dienst.ts';
+import type { AnfragenDienst, AnfragenFilter } from './anfragen/dienst.ts';
+import { anfrageSeite, anfragenSeite } from './web/anfragen.ts';
 import { cockpitSeite } from './web/cockpit.ts';
 import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from './web/patienten.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
@@ -47,6 +49,8 @@ export interface DienstOptionen {
   rechnungen?: RechnungsDienst;
   preislisten?: PreislistenDienst;
   kartei?: KarteiDienst;
+  /** Terminanfragen (A15) */
+  anfragen?: AnfragenDienst;
   /** Entwicklungs-Datenbank für Rückmeldungen (W72) – getrennt von den Patientendaten */
   entwicklung?: Db;
   /** WhatsApp Cloud API (W90): Webhook nur mit App-Secret (Signatur) und Verify-Token */
@@ -190,7 +194,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     try {
       const adresse = new URL(req.url ?? '/', 'http://localhost');
       const pfad = adresse.pathname;
-      const istAktion = req.method === 'POST' && (/^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad) || ['/preislisten/aktion', '/patienten/aktion', '/rueckmeldung', '/rueckmeldungen/aktion', '/whatsapp/webhook'].includes(pfad));
+      const istAktion = req.method === 'POST' && (/^\/finanzen\/rechnungen\/\d+\/aktion$/.test(pfad) || ['/preislisten/aktion', '/patienten/aktion', '/anfragen/aktion', '/rueckmeldung', '/rueckmeldungen/aktion', '/whatsapp/webhook'].includes(pfad));
       if (req.method !== 'GET' && !istAktion) return senden(res, 405, 'text/plain', 'Nur GET');
 
       if (pfad === '/api/health') {
@@ -208,7 +212,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
         const namenZeigen = adresse.searchParams.get('namen') === '1';
         const daten: CockpitDaten = opt.cockpit
           ? await opt.cockpit({ namenZeigen })
-          : { heute: new Date().toISOString().slice(0, 10), rechnungen: NICHT_VERBUNDEN, termine: NICHT_VERBUNDEN, protokoll: NICHT_VERBUNDEN, namenZeigen };
+          : { heute: new Date().toISOString().slice(0, 10), rechnungen: NICHT_VERBUNDEN, termine: NICHT_VERBUNDEN, anfragen: NICHT_VERBUNDEN, protokoll: NICHT_VERBUNDEN, namenZeigen };
         const jetzt = zeitText(new Date().toISOString());
         return senden(res, 200, 'text/html', cockpitSeite(daten, { wer, fassung: opt.fassung, jetzt }));
       }
@@ -278,6 +282,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const freieMeldung = meldung ?? adresse.searchParams.get('meldung')?.slice(0, 300) ?? undefined;
       if (pfad.startsWith('/preislisten')) return await preislistenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte') || pfad.startsWith('/pinnwand') || pfad === '/konfiguration' || pfad === '/kalender') return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
+      if (pfad.startsWith('/anfragen')) return await anfragenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad === '/rueckmeldung.js') return senden(res, 200, 'text/javascript', RUECKMELDUNG_SKRIPT);
       if (pfad === '/html2canvas.js') return senden(res, 200, 'text/javascript', await html2canvas());
       if (pfad.startsWith('/rueckmeldung')) return await rueckmeldungSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
@@ -289,6 +294,36 @@ export function praxisDienst(opt: DienstOptionen): Server {
       console.error('Fehler bei', req.method, req.url, (err as Error).message);
       if (!res.headersSent) senden(res, 500, 'text/plain', 'Interner Fehler');
     }
+  }
+
+  async function anfragenSeiten(req: IncomingMessage, res: ServerResponse, pfad: string, adresse: URL, wer: string, meldung?: string, fehler?: string): Promise<void> {
+    const d = opt.anfragen;
+    const r = { wer, fassung: opt.fassung, meldung, fehler };
+    if (!d) return senden(res, 503, 'text/plain', 'Terminanfragen brauchen die Praxis-Datenbank und den Tresor-Schlüssel – noch nicht verbunden');
+    if (pfad === '/anfragen/aktion') {
+      if (fremdeHerkunft(req, res)) return;
+      const f = await formular(req);
+      const zurueck = /^\/anfragen(\/\d+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/anfragen';
+      try {
+        const e = await d.aktion(f, wer);
+        const [pfadTeil, anker] = e.ziel.split('#');
+        return umleiten(res, `${mitParameter(pfadTeil!, 'meldung', e.meldung)}${anker ? `#${anker}` : ''}`);
+      } catch (err) {
+        if (err instanceof KarteiFehler) return umleiten(res, mitParameter(zurueck, 'fehler', err.message));
+        throw err;
+      }
+    }
+    if (pfad === '/anfragen') {
+      const filter = (['offen', 'alle', 'neu', 'vorgeschlagen', 'bestaetigt', 'abgesagt', 'erledigt', 'verworfen'] as AnfragenFilter[]).find((x) => x === adresse.searchParams.get('filter')) ?? 'offen';
+      const stand = await d.stand();
+      return senden(res, 200, 'text/html', anfragenSeite({ anfragen: await d.liste(filter), filter, stand }, r));
+    }
+    const m = /^\/anfragen\/(\d+)$/.exec(pfad);
+    if (m) {
+      const a = await d.details(m[1]!);
+      return a ? senden(res, 200, 'text/html', anfrageSeite(a, r)) : senden(res, 404, 'text/plain', 'Diese Anfrage gibt es nicht');
+    }
+    return senden(res, 404, 'text/plain', 'Nicht gefunden');
   }
 
   /** GET: Einrichtung bei Meta bestätigen (Verify-Token). POST: signierte Nachrichten in den Kontaktverlauf */
@@ -408,7 +443,12 @@ export function praxisDienst(opt: DienstOptionen): Server {
     const suche = adresse.searchParams.get('suche')?.slice(0, 80) ?? '';
     if (pfad === '/patienten') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche }), suche }, r));
     if (pfad === '/patienten/archiv') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche, archiv: true }), suche, archiv: true }, r));
-    if (pfad === '/patienten/neu') return senden(res, 200, 'text/html', patientNeuSeite(r));
+    if (pfad === '/patienten/neu') {
+      // Vorbelegung aus einer Terminanfrage (A15): Name, Mail, Mobil – der Patient wird danach der Anfrage zugeordnet
+      const q = (k: string) => adresse.searchParams.get(k)?.slice(0, 120) ?? '';
+      const anfrage = /^\d+$/.test(q('anfrage')) ? q('anfrage') : '';
+      return senden(res, 200, 'text/html', patientNeuSeite({ ...r, vorbelegung: anfrage || q('vorname') || q('nachname') ? { anfrageId: anfrage, vorname: q('vorname'), nachname: q('nachname'), email: q('email'), mobil: q('mobil') } : undefined }));
+    }
     const fm = /^\/patienten\/(\d+)\/faelle\/(\d+)$/.exec(pfad);
     if (fm) {
       const fd = await d.fall(fm[1]!, fm[2]!, wer);

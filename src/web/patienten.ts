@@ -94,20 +94,31 @@ ${d.patienten.length ? `<div class="pat-raster">${d.patienten.map((p) => kachel(
 }
 
 // ── Neu ─────────────────────────────────────────────────────────────────────
-export function neuSeite(o: Rahmen): string {
+export interface Vorbelegung {
+  /** Terminanfrage, der der neue Patient zugeordnet wird (A15) */
+  anfrageId?: string;
+  vorname?: string;
+  nachname?: string;
+  email?: string;
+  mobil?: string;
+}
+
+export function neuSeite(o: Rahmen & { vorbelegung?: Vorbelegung }): string {
+  const v = o.vorbelegung ?? {};
   return seite({
     titel: 'Neuer Patient', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › Neu</p><h1>${symbol('patient', { groesse: 26 })} Neuer Patient</h1>${meldungen(o)}
+${v.anfrageId ? `<p class="meldung ok">${symbol('anfrage', { groesse: 18 })} Aus <a href="/anfragen/${esc(v.anfrageId)}">Terminanfrage ${esc(v.anfrageId)}</a> – nach dem Anlegen ist der Patient der Anfrage zugeordnet.</p>` : ''}
 <form method="post" action="/patienten/aktion" class="tafel formular" data-hilfe="patient.neu.formular">
-  <input type="hidden" name="aktion" value="anlegen"><input type="hidden" name="zurueck" value="/patienten/neu">
+  <input type="hidden" name="aktion" value="anlegen"><input type="hidden" name="zurueck" value="/patienten/neu">${v.anfrageId ? `<input type="hidden" name="anfrage_id" value="${esc(v.anfrageId)}">` : ''}
   <div class="zwei"><label>Anrede<input name="anrede" maxlength="40" placeholder="Frau / Herr / –"></label><label>Titel<input name="titel" maxlength="40"></label></div>
-  <div class="zwei"><label>Vorname<input name="vorname" required maxlength="80" autocomplete="off"></label><label>Nachname<input name="nachname" required maxlength="80" autocomplete="off"></label></div>
+  <div class="zwei"><label>Vorname<input name="vorname" required maxlength="80" autocomplete="off" value="${esc(v.vorname ?? '')}"></label><label>Nachname<input name="nachname" required maxlength="80" autocomplete="off" value="${esc(v.nachname ?? '')}"></label></div>
   <div class="zwei"><label>Geburtsdatum<input type="date" name="geburtsdatum"></label><label>Patient seit<input type="date" name="patient_seit" value="${heuteBerlin()}"></label></div>
   <fieldset><legend>Kontaktwege</legend>
-    <label>Mobil<input name="mobil" inputmode="tel" placeholder="0151 …"></label>
+    <label>Mobil<input name="mobil" inputmode="tel" placeholder="0151 …" value="${esc(v.mobil ?? '')}"></label>
     <label class="haken"><input type="checkbox" name="whatsapp_wie_mobil" value="1" checked> WhatsApp unter der Mobilnummer</label>
     <label>Telefon (Festnetz)<input name="telefon" inputmode="tel"></label>
-    <label>E-Mail<input name="email" type="email"></label>
+    <label>E-Mail<input name="email" type="email" value="${esc(v.email ?? '')}"></label>
   </fieldset>
   <fieldset><legend>Adresse (wird Rechnungsadresse)</legend>
     <div class="zwei"><label>Straße<input name="strasse"></label><label>Nr.<input name="hausnummer" class="kurz"></label></div>

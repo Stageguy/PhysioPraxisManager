@@ -52,6 +52,11 @@ export function datumBerlin(iso: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: ZONE }).format(new Date(iso));
 }
 
+/** Zeitpunkt (ISO, UTC) → Uhrzeit in Deutschland, "09:00" (rechnet, formatiert nicht – für Vergleiche) */
+export function zeitBerlin(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: ZONE, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+}
+
 /** Der heutige Kalendertag in Deutschland, "2026-10-26" */
 export const heuteBerlin = (): string => datumBerlin(new Date().toISOString());
 

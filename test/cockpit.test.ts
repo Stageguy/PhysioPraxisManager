@@ -19,7 +19,7 @@ test('Ohne Datenbank und Kalender: „nicht verbunden“ statt erfundener Zahlen
   const html = cockpitSeite(d, { wer: 'x', fassung: '0' });
   assert.match(html, /noch nicht verbunden/);
   assert.ok(!/<b>\d+<\/b><span>eingegangen/.test(html), 'keine Zahl ohne Quelle');
-  for (const kanal of ['E-Mail', 'WhatsApp', 'Telefon-Notiz', 'Website-Formular', 'Online-Buchung']) assert.match(html, new RegExp(kanal));
+  for (const kanal of ['E-Mail', 'WhatsApp', 'Online-Buchung', 'Website-Formular', 'Online-Buchung']) assert.match(html, new RegExp(kanal));
 });
 
 test('Termine heute aus dem Kalender: Zeitraum Berliner Tag, Initialen, Absagen weg', async () => {

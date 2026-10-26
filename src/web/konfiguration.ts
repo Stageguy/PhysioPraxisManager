@@ -56,6 +56,23 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
     <label>Umsatzsteuersatz Wellness in % (gilt, sobald die Kleinunternehmerregelung endet)<input name="wert" value="${esc(d.einstellungen.ust_satz_wellness ?? '19')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.ust-satz"></label>
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}
   <p class="hint">Heilbehandlungen sind unabhängig davon steuerfrei (§ 4 Nr. 14 Buchst. a UStG). Kleinunternehmer: bis 25.000 € Umsatz im Vorjahr und 100.000 € im laufenden Jahr (Stand 2025); die Rechnung braucht den Hinweis auf § 19 UStG (§ 34a UStDV).</p>
+</div>
+
+<h2>Termine und Terminanfragen</h2>
+<div class="tafel">
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="oeffnungszeiten">
+    <label>Öffnungszeiten <span class="hint">(je Wochentag, mehrere Fenster mit Komma, Tage mit Semikolon)</span><input name="wert" value="${esc(d.einstellungen.oeffnungszeiten ?? 'Mo 08:00-18:00; Di 08:00-18:00; Mi 08:00-18:00; Do 08:00-18:00; Fr 08:00-14:00')}" data-hilfe="konfiguration.oeffnungszeiten"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="termin_dauer_min">
+    <label>Dauer eines Termins in Minuten (Vorgabe für Vorschläge)<input name="wert" value="${esc(d.einstellungen.termin_dauer_min ?? '30')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.termin-dauer"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="termin_puffer_min">
+    <label>Puffer zwischen Terminen in Minuten<input name="wert" value="${esc(d.einstellungen.termin_puffer_min ?? '0')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.puffer"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="anfragen_mailordner">
+    <label>Outlook-Ordner mit Terminanfragen<input name="wert" value="${esc(d.einstellungen.anfragen_mailordner ?? 'Posteingang/Terminanfragen')}" data-hilfe="konfiguration.anfragen-ordner"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  <p class="hint">Vorschläge liegen in den Öffnungszeiten, nie an bayerischen Feiertagen und nie dort, wo Kartei, Hauptkalender oder Praxiskalender belegt sind. Eine Outlook-Regel legt Mails mit „Termin“ im Betreff und die Formular-Mails der Website in den Ordner; die Praxis-Assistenz liest ihn alle paar Minuten.</p>
 </div>`,
   });
 }

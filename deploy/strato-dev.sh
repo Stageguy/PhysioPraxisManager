@@ -62,7 +62,7 @@ ENV_INHALT="$({
   echo "PRAXIS_UMGEBUNG=$UMGEBUNG"
   echo "TEST_ADRESSEN=$TESTADR"
   # Praxisname/Telefon (W89), WhatsApp (W90) und Testnummern (Schranke 8) – nur, wenn in .env gesetzt
-  grep -E '^(PRAXIS_NAME|PRAXIS_TELEFON|TEST_TELEFONE|WHATSAPP_TOKEN|WHATSAPP_TELEFON_ID|WHATSAPP_APP_SECRET|WHATSAPP_VERIFY_TOKEN)=.+' .env || true
+  grep -E '^(PRAXIS_NAME|PRAXIS_TELEFON|TEST_TELEFONE|WHATSAPP_TOKEN|WHATSAPP_TELEFON_ID|WHATSAPP_APP_SECRET|WHATSAPP_VERIFY_TOKEN|ANFRAGEN_TAKT_MIN)=.+' .env || true
   # Lexware nur in der Produktion – die Testumgebung schreibt keine Rechnungen
   [ "$ZIEL_UMGEBUNG" = prod ] && grep -E '^LEXWARE_API_KEY=.+' .env || true
 })"

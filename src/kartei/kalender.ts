@@ -29,7 +29,7 @@ interface TerminZeile {
 export const initialen = (vorname: string, nachname: string) => `${vorname.trim()[0]?.toUpperCase() ?? ''}. ${nachname.trim()[0]?.toUpperCase() ?? ''}.`;
 
 /** Ortszeit "2026-11-03T09:30:00" für den Kalender */
-function ortszeit(d: Date | string): string {
+export function ortszeit(d: Date | string): string {
   const teile = Object.fromEntries(
     new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
       .formatToParts(new Date(d)).map((p) => [p.type, p.value]),

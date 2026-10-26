@@ -9,7 +9,11 @@
 import type { CockpitDaten, Quelle, RechnungZeile, Rechnungsstand, Termin } from '../cockpit/daten.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText } from '../format.ts';
+import { STATUS_TEXT as ANFRAGE_STATUS } from '../anfragen/anfragen.ts';
+import { chip } from './bausteine.ts';
 import { symbol, type Symbol } from './symbole.ts';
+
+const QUELLE_SYMBOL: Record<string, Symbol> = { mail: 'email', website: 'website', whatsapp: 'whatsapp', telefon: 'telefon', hand: 'protokoll' };
 
 // ── Kacheln ─────────────────────────────────────────────────────────────────
 export interface Kachel {
@@ -29,7 +33,7 @@ export const FINANZEN: Kachel[] = [
 
 export const PATIENTEN: Kachel[] = [
   { key: 'patienten.kartei', symbol: 'patient', titel: 'Patienten', text: 'Kartei mit Kacheln: anrufen, WhatsApp, Mail, letzte Behandlung, nächster Termin, Akte.', href: '/patienten' },
-  { key: 'patienten.anfragen', symbol: 'anfrage', titel: 'Terminanfragen', text: 'Anfragen aus Mail, WhatsApp und Telefon, mit Terminvorschlägen als Entwurf.', spaeter: 'kommt mit Prompt 6' },
+  { key: 'patienten.anfragen', symbol: 'anfrage', titel: 'Terminanfragen', text: 'Anfragen aus Mail, Website, WhatsApp und Telefon – Patient zuordnen, drei Zeiten vorschlagen, Antwort als Entwurf, Termin bestätigen.', href: '/anfragen' },
   { key: 'patienten.pinnwand', symbol: 'pinnwand', titel: 'Patienten-Pinnwand', text: 'Wer steht in welcher Phase – von der Anfrage bis zur Nachsorge. Karten ziehen, Details, „+“.', href: '/pinnwand' },
   { key: 'patienten.rezepte', symbol: 'rezept', titel: 'Rezepte', text: 'Alle Rezepte und Behandlungsserien als Kacheln, Stempelkarte je Rezept, Wellness-Katalog.', href: '/rezepte' },
   { key: 'patienten.schnellaktionen', symbol: 'blitz', titel: 'Schnellaktionen', text: 'Mit einem Tipp eine fertige Mail als Entwurf.', spaeter: 'kommt mit Prompt 13' },
@@ -37,11 +41,11 @@ export const PATIENTEN: Kachel[] = [
 
 // ── Kanäle der Terminanfragen ───────────────────────────────────────────────
 export const KANAELE: { key: string; symbol: Symbol; name: string; stand: string }[] = [
-  { key: 'kanal.email', symbol: 'email', name: 'E-Mail', stand: 'noch nicht angebunden – kommt mit der Terminerkennung (Prompt 6)' },
-  { key: 'kanal.whatsapp', symbol: 'whatsapp', name: 'WhatsApp', stand: 'noch nicht angebunden – Datenschutz-Entscheidung offen (Frage 11)' },
-  { key: 'kanal.telefon', symbol: 'telefon', name: 'Telefon-Notiz', stand: 'noch nicht angebunden – kommt mit dem Eingabefeld im Cockpit' },
-  { key: 'kanal.website', symbol: 'website', name: 'Website-Formular', stand: 'noch nicht angebunden' },
-  { key: 'kanal.buchung', symbol: 'buchung', name: 'Online-Buchung', stand: 'noch nicht angebunden' },
+  { key: 'kanal.email', symbol: 'email', name: 'E-Mail', stand: 'Ordner „Terminanfragen“ im Postfach – alle paar Minuten gelesen' },
+  { key: 'kanal.website', symbol: 'website', name: 'Website-Formular', stand: 'Formular-Mail mit festen Feldern im selben Ordner (W92)' },
+  { key: 'kanal.whatsapp', symbol: 'whatsapp', name: 'WhatsApp', stand: 'von Hand eintragen; mit Cloud API kommen Antworten in den Kontaktverlauf (E8)' },
+  { key: 'kanal.telefon', symbol: 'telefon', name: 'Telefon', stand: 'von Hand eintragen – unter Terminanfragen' },
+  { key: 'kanal.buchung', symbol: 'buchung', name: 'Online-Buchung', stand: 'später: Microsoft Bookings in der Website (E29)' },
 ];
 
 // ── Status und Protokoll in Worten ──────────────────────────────────────────
@@ -155,9 +159,13 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
 
   const anfragen = `<section class="tafel" data-hilfe="uebersicht.anfragen" aria-labelledby="t-an">
     <h2 id="t-an">${symbol('anfrage')} Terminanfragen</h2>
+    ${leer(d.anfragen, (s) => `<div class="zaehler"><div class="zahl"><b>${s.neu}</b><span>neu</span></div><div class="zahl"><b>${s.vorgeschlagen}</b><span>Vorschlag im Entwurf</span></div></div>
+      ${s.neueste.length ? `<ul class="zeilen">${s.neueste.map((a) => `<li><span>${datumText(a.eingegangenAm)}</span><b><a href="/anfragen/${a.id}" data-hilfe="uebersicht.anfrage">${esc(a.absenderName ?? a.absenderAdresse ?? a.absenderTelefon ?? 'Anfrage')}</a></b>
+        <span class="rechts">${symbol(QUELLE_SYMBOL[a.quelle] ?? 'anfrage', { groesse: 16, titel: a.quelle })} ${chip(ANFRAGE_STATUS[a.status][0], ANFRAGE_STATUS[a.status][1])}</span></li>`).join('')}</ul>` : '<p class="leer">Keine offenen Anfragen.</p>'}`)}
+    <details class="kanaele-mehr"><summary class="hint" data-hilfe="uebersicht.kanaele">Wege, auf denen Anfragen hereinkommen</summary>
     <ul class="kanaele">${KANAELE.map((k) => `<li data-hilfe="${k.key}" tabindex="0"><span class="kanal-sym">${symbol(k.symbol, { titel: k.name })}</span>
-      <span><b>${esc(k.name)}</b><span class="hint">${esc(k.stand)}</span></span><span class="rechts zahl-klein">–</span></li>`).join('')}</ul>
-    <p class="hint">Hier erscheinen Anfragen, sobald die Kanäle angebunden sind – jede mit dem Symbol ihres Wegs.</p>
+      <span><b>${esc(k.name)}</b><span class="hint">${esc(k.stand)}</span></span></li>`).join('')}</ul></details>
+    <a class="mehr" href="/anfragen">Alle Anfragen →</a>
   </section>`;
 
   const termine = `<section class="tafel" data-hilfe="uebersicht.termine" aria-labelledby="t-te">

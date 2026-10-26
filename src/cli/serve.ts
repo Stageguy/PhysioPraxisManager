@@ -21,6 +21,9 @@ import { rechnungsDienst } from '../rechnungen/dienst.ts';
 import { migriere, verbinde } from '../db/index.ts';
 import { praxisDienst } from '../server.ts';
 import { whatsappAusUmgebung, WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
+import { anfragenDienst } from '../anfragen/dienst.ts';
+import { anfragenEingang } from '../anfragen/eingang.ts';
+import { einstellungen } from '../kartei/konfiguration.ts';
 
 const env = loadEnv();
 const port = Number(process.env.PORT ?? 3300);
@@ -67,20 +70,44 @@ const whatsappEinstellungen = whatsappAusUmgebung();
 const whatsapp = whatsappEinstellungen ? new WhatsAppCloud(whatsappEinstellungen) : undefined;
 if (whatsapp) console.log(`WhatsApp Cloud API eingerichtet${whatsappEinstellungen?.appSecret ? ', Webhook /whatsapp/webhook aktiv' : ' – ohne WHATSAPP_APP_SECRET kein Webhook'}`);
 
+const schluessel = db && process.env.PRAXIS_TRESOR_SCHLUESSEL ? tresor() : undefined;
+const anfragen = db && schluessel ? anfragenDienst({ db, tresor: schluessel, graph }) : undefined;
+
 const dienst = praxisDienst({
   erlaubt,
   fassung: version,
   lokalerZugang,
   pruefen: () => verbindungPruefen(graph, token),
   angemeldet: () => token().then(() => true, () => false),
-  cockpit: ({ namenZeigen }) => cockpitDaten({ db, graph, namenZeigen }),
+  cockpit: ({ namenZeigen }) => cockpitDaten({ db, graph, namenZeigen, anfragen: anfragen?.stand }),
   rechnungen: db ? rechnungsDienst({ db, graph, laufwerk: (await ladeEinstellungen()).rechnungen.laufwerk }) : undefined,
   preislisten: db ? preislistenDienst({ db }) : undefined,
-  kartei: db && process.env.PRAXIS_TRESOR_SCHLUESSEL ? karteiDienst({ db, tresor: tresor(), graph, whatsapp }) : undefined,
+  kartei: db && schluessel ? karteiDienst({ db, tresor: schluessel, graph, whatsapp }) : undefined,
+  anfragen,
   entwicklung,
   whatsapp: whatsappEinstellungen ? { verifyToken: whatsappEinstellungen.verifyToken, appSecret: whatsappEinstellungen.appSecret } : undefined,
 });
 if (db && !process.env.PRAXIS_TRESOR_SCHLUESSEL) console.warn('⚠ PRAXIS_TRESOR_SCHLUESSEL fehlt – die Patientenkartei bleibt aus');
+
+// Terminanfragen aus dem Postfach (A15): alle ANFRAGEN_TAKT_MIN Minuten (Standard 10, 0 = aus); dazu Reservierungen unbestätigter Vorschläge nach 48 h aufräumen
+const takt = Number(process.env.ANFRAGEN_TAKT_MIN ?? 10);
+if (db && schluessel && anfragen && takt > 0) {
+  const lauf = async () => {
+    try {
+      const ordner = (await einstellungen(db)).anfragen_mailordner ?? 'Posteingang/Terminanfragen';
+      const b = await anfragenEingang(graph, db, schluessel, { ordner, ausfuehren: true });
+      if (b.quelle === 'fehlt') console.warn(`Terminanfragen: Ordner „${ordner}“ gibt es im Postfach nicht – bitte anlegen (Outlook-Regel)`);
+      if (b.neu || b.fehler) console.log(`Terminanfragen: ${b.neu} neu, ${b.bekannt} bekannt, ${b.uebersprungen} übersprungen, ${b.fehler} Fehler`);
+      const weg = await anfragen.aufraeumen();
+      if (weg) console.log(`Terminanfragen: ${weg} Reservierungen nach 48 h aus dem Kalender genommen`);
+    } catch (err) {
+      console.warn(`Terminanfragen: ${(err as Error).message.slice(0, 200)}`);
+    }
+  };
+  setTimeout(() => void lauf(), 20_000).unref();
+  setInterval(() => void lauf(), takt * 60_000).unref();
+  console.log(`Terminanfragen: Postfach alle ${takt} Minuten`);
+}
 
 // Nur 127.0.0.1: von außen ist der Dienst ausschließlich über tailscale serve erreichbar
 dienst.listen(port, '127.0.0.1', () => console.log(`Praxisdienst ${version} auf 127.0.0.1:${port}`));

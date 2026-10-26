@@ -177,6 +177,12 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
           ansprache: g('ansprache'), besonderheiten: g('besonderheiten'), sprache: g('sprache'), kontakte,
           adresse: { bezeichnung: g('adresse_bezeichnung') ?? 'Zuhause', zusatz: null, strasse: g('strasse') ?? null, hausnummer: g('hausnummer') ?? null, plz: g('plz') ?? null, ort: g('ort') ?? null, land: g('land') },
         }, wer);
+        // Aus einer Terminanfrage angelegt (A15): zuordnen und zurück zur Anfrage
+        const anfrageId = g('anfrage_id');
+        if (anfrageId && istId(anfrageId)) {
+          await db.query('UPDATE terminanfrage SET patient_id = $2, geaendert_am = now() WHERE id = $1 AND patient_id IS NULL', [anfrageId, neu]);
+          return nach(`/anfragen/${anfrageId}`, 'Patient angelegt und der Anfrage zugeordnet.');
+        }
         return nach(`/patienten/${neu}`, 'Patient angelegt.');
       }
       // Wellness-Katalog (W74) – ohne Patient

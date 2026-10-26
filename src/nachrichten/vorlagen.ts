@@ -89,7 +89,7 @@ export function anredeFuer(p: Person): string {
   const name = `${p.titel ? `${p.titel} ` : ''}${p.nachname}`;
   if (p.anrede === 'Frau') return `Sehr geehrte Frau ${name}`;
   if (p.anrede === 'Herr') return `Sehr geehrter Herr ${name}`;
-  return `Guten Tag ${p.vorname} ${p.nachname}`;
+  return `Guten Tag ${[p.vorname, p.nachname].filter(Boolean).join(' ')}`;
 }
 
 export interface Werte {
