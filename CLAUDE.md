@@ -30,6 +30,14 @@ Kommentare, Oberfläche, Commits.
    `test/postfach-attrappe.ts`). Kein Test spricht mit Microsoft, Meta oder Lexware.
 5. **Fassungen:** `package.json` ist die Fassungsnummer; eine Minor-Fassung je abgeschlossenem Block.
 
+## Grundprinzip (requirements §4d)
+
+Der Manager hält **alle** Daten und ist die Übersichtsplattform; Lexware ist nur für Kaufmännisches
+(Rechnung erzeugen, verbuchen), Exchange nur für Kommunikation (Termine, Mails, ggf. Kontakte). Nach
+Lexware gehen nur die Felder, die die Rechnung braucht; aus Lexware wird gelesen und im Manager
+angereichert. Ein Abgleich berührt nur Felder, die es in Lexware gibt – Daten, die nur der Manager
+kennt, werden nie gelöscht oder überschrieben. Jobs (z. B. Rechnung zusammenstellen) startet der Manager.
+
 ## Harte Regeln (Leitplanken, requirements §3 und N28)
 
 - **Nichts geht automatisch an Patienten.** Mails nur als Entwurf im Postfach (Leitplanke 3); WhatsApp nur
