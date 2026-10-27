@@ -51,7 +51,8 @@ const VERORDNUNG = { id: '1', patientId: '1', patientName: 'Anna Test', art: 'er
 const SERIE = { id: '2', patientId: '1', patientName: 'Anna Test', nummer: 2, grundlage: 'praevention' as const, bezeichnung: 'Entspannung', wellness: { id: '1', bezeichnung: 'Wellnessmassage 60', preis: 65 }, begonnenAm: '2026-10-01', abgeschlossenAm: null, behandlungen: 2, letzteAm: '2026-10-20' };
 const WELLNESS = { id: '1', code: 'WM60', bezeichnung: 'Wellnessmassage 60', dauerMin: 60, preis: 65, aktiv: true };
 const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true };
-const RK = { id: '1', art: 'einzel', steuerklasse: 'heilbehandlung_steuerfrei', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', statusText: 'Versendet', statusFarbe: 'preset4', gemahnt: false, positionen: 2, versandArt: 'email', lexwareAbweichung: null, pdf: false };
+const RK = { id: '1', art: 'einzel', steuerklasse: 'heilbehandlung_steuerfrei', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', statusText: 'Versendet', statusFarbe: 'preset4', gemahnt: false, positionen: 2, versandArt: 'email', lexwareAbweichung: null,
+  quelle: 'ppm' as const, bezahltAm: null, storniertAm: null, dateiName: null, lexwareStatus: null, pdf: false };
 const PATIENT_DATEN = {
   patient: PAT, gruende: [{ code: 'absage_patient', bezeichnung: 'Absage Patient' }],
   verlauf: [
@@ -64,9 +65,10 @@ const PATIENT_DATEN = {
     { code: 'terminbestaetigung', name: 'Terminbestätigung', link: 'https://wa.me/491511?text=x', terminId: '7' },
     { code: 'rueckruf_bitte', name: 'Bitte um Rückruf', link: 'https://wa.me/491511?text=y' },
   ],
-  whatsappCloud: true,
+  whatsappCloud: true, lexwareRechnungen: true,
   termine: [TERMIN], verordnungen: [VERORDNUNG, { ...VERORDNUNG, id: '3', art: 'korrektur' as const, status: 'ersetzt', vorgaengerId: '1' }], serien: [SERIE, { ...SERIE, id: '4', grundlage: 'direktzugang' as const, wellness: null, abgeschlossenAm: '2026-10-22' }],
-  rechnungen: [RK, { ...RK, id: '2', status: 'entwurf', statusText: 'Entwurf', statusFarbe: 'preset10', nummer: null, datum: null, faelligAm: null, lexwareAbweichung: 'in Lexware storniert', pdf: true, steuerklasse: 'wellness_19' }],
+  rechnungen: [RK, { ...RK, id: '2', status: 'entwurf', statusText: 'Entwurf', statusFarbe: 'preset10', nummer: null, datum: null, faelligAm: null, lexwareAbweichung: 'in Lexware storniert', pdf: true, steuerklasse: 'wellness_19' },
+    { ...RK, id: '3', quelle: 'lexware' as const, pdf: true, dateiName: 'RE-2025-0007.pdf', status: 'bezahlt', statusText: 'Bezahlt', statusFarbe: 'preset19', datum: '2025-03-01', faelligAm: '2025-03-15', bezahltAm: '2025-03-20', lexwareStatus: 'paid', positionen: 0, steuerklasse: '' }],
   preislisten: [PL({ status: 'freigegeben', aktiv: true, standard: true }), PL({ id: '6', name: 'Tagesgast', status: 'freigegeben', aktiv: true })],
 };
 const ANFRAGE: Anfrage = {
@@ -77,9 +79,9 @@ const ANFRAGE: Anfrage = {
 const ANFRAGE_MIT: Anfrage = { ...ANFRAGE, terminart: { id: '1', code: 'P1', kurz: 'Neupatient', sektion: 'rezept', dauerMin: 60 }, id: '2', status: 'vorgeschlagen', patient: { id: '1', name: 'Anna Test', patientennummer: 'P-1001' }, vorschlaege: [{ beginn: '2026-11-03T08:00:00Z', ende: '2026-11-03T08:30:00Z', exchangeEventId: 'e1' }], antwortWeblink: 'https://outlook.office.com/owa/x', dauerMin: 30, notiz: 'Rückruf' };
 const ANFRAGE_FERTIG: Anfrage = { ...ANFRAGE_MIT, id: '3', status: 'bestaetigt', terminId: '7' };
 const ANFRAGE_BUCHUNG: Anfrage = { ...ANFRAGE_MIT, id: '4', status: 'neu', quelle: 'buchung' };
-const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abschlussrechnung', steuerklasse: 'heilbehandlung_steuerfrei' as const, status: 'entwurf' as const, empfaenger: { name: 'Anna Test', strasse: 'Kurpromenade 3', plz: '86825', ort: 'Bad Wörishofen' },
+const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abschlussrechnung', steuerklasse: 'heilbehandlung_steuerfrei' as const, quelle: 'ppm' as const, status: 'entwurf' as const, empfaenger: { name: 'Anna Test', strasse: 'Kurpromenade 3', plz: '86825', ort: 'Bad Wörishofen' },
   preisliste: { id: '5', name: 'Privat 2026' }, zeitraumVon: null, zeitraumBis: null, datum: null, faelligAm: null, nummer: null, netto: 92.54, ust: 0, ustSatz: 0, betrag: 92.54, kleinunternehmer: false, versandArt: null, versendetAm: null, bezahltAm: null, storniertAm: null, stornoGrund: null,
-  lexware: { invoiceId: null, status: null, betrag: null, geprueftAm: null, abweichung: null, pdfAm: null }, notiz: null, erstelltAm: '2026-10-25T10:00:00Z',
+  lexware: { invoiceId: null, status: null, betrag: null, geprueftAm: null, abweichung: null, pdfAm: null, pdfName: null, erstelltAm: null, geaendertAm: null }, notiz: null, erstelltAm: '2026-10-25T10:00:00Z',
   positionen: [{ id: '1', reihenfolge: 1, datum: '2026-10-26', nummer: '21201', bezeichnung: 'Manuelle Therapie', anzahl: 1, einzelpreis: 46.27, betrag: 46.27, verordnungId: '1', terminId: '7', behandlungLeistungId: '3' }, { id: '2', reihenfolge: 2, datum: null, nummer: '21201', bezeichnung: 'Manuelle Therapie', anzahl: 1, einzelpreis: 46.27, betrag: 46.27, verordnungId: '1', terminId: null, behandlungLeistungId: null }],
   bausteine: [{ id: '1', code: 'R1', kurzname: 'Steuerfrei – Heilbehandlung', text: '§ 4 Nr. 14', wirkung: 'steuerfrei_heilbehandlung' }] };
 const TB = { id: '1', code: 'R1', kurzname: 'Steuerfrei', text: 'x', wirkung: 'steuerfrei_heilbehandlung' as const, automatisch: 'heilbehandlung' as const, aktiv: true };

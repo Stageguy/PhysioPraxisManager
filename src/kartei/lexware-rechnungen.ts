@@ -1,0 +1,102 @@
+/**
+ * Rechnungen aus Lexware in die Kartei übernehmen (W103) – für Patienten, die über die Lexware-Kontakt-ID verknüpft
+ * sind (W99). Neu: Kachel mit quelle = 'lexware' (Nummer, Datum, Fälligkeit, Betrag, Status, Datei im Tresor).
+ * Bekannt (gleiche Lexware-ID, oder eine PPM-Rechnung mit derselben Nummer): Stand übernehmen – Status, Betrag,
+ * Zahldatum, Datei nachholen. Es wird nichts gelöscht; was nur der PPM kennt (Positionen, Rezept, Fall), bleibt (§4d).
+ */
+import { protokolliere, type Db } from '../db/index.ts';
+import type { Tresor } from '../tresor.ts';
+import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
+import type { LexwareKunden } from '../lexware/kunden.ts';
+import { lexwareStandUebernehmen, type RechnungStatus } from './rechnungen.ts';
+import { KarteiFehler } from './patienten.ts';
+
+export interface Uebernahme {
+  /** In Lexware gefunden (im gewählten Ausschnitt) */
+  gefunden: number;
+  neu: number;
+  aktualisiert: number;
+  unveraendert: number;
+  /** Rechnungen, deren Lexware-Kontakt keinem Patienten zugeordnet ist (oder ohne Kontakt) */
+  ohnePatient: number;
+  /** Dieselbe Nummer bzw. Lexware-ID steht schon bei einem anderen Patienten */
+  konflikt: number;
+  /** Festgeschrieben, aber Lexware liefert keine Datei */
+  ohneDatei: number;
+  /** Dateien, die in dieser Runde geholt wurden */
+  dateien: number;
+}
+
+/** Lexware-Status → Kachelstatus: offen heißt hier „versendet“ (vor dem PPM verschickt), bezahlt, storniert, Entwurf */
+export const statusAusLexware = (s: string): RechnungStatus =>
+  s === 'paid' || s === 'paidoff' ? 'bezahlt' : s === 'voided' ? 'storniert' : s === 'draft' ? 'entwurf' : 'gesendet';
+
+const iso = (s: string | undefined | null): string | null => (s && !Number.isNaN(Date.parse(s)) ? new Date(s).toISOString() : null);
+const tagVon = (s: string | undefined | null): string | null => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null);
+
+/** Patient hat eine Kundennummer, aber noch keine Kontakt-ID (von Hand eingetragen): aus der Kundenliste nachtragen */
+export async function kontaktIdNachtragen(db: Db, kunden: LexwareKunden | undefined, patientId: string): Promise<string | null> {
+  const p = (await db.query<{ kontakt: string | null; nummer: string | null }>('SELECT lexware_kontakt_id AS kontakt, lexware_kundennummer AS nummer FROM patient WHERE id = $1', [patientId])).rows[0];
+  if (!p) throw new KarteiFehler('Unbekannter Patient');
+  if (p.kontakt) return p.kontakt;
+  if (!p.nummer || !kunden) return null;
+  const kunde = (await kunden.alle()).kunden.find((k) => k.nummer === p.nummer);
+  if (!kunde) return null;
+  await db.query('UPDATE patient SET lexware_kontakt_id = $2, geaendert_am = now() WHERE id = $1', [patientId, kunde.id]);
+  return kunde.id;
+}
+
+export async function rechnungenUebernehmen(
+  db: Db, t: Tresor, lex: LexwareRechnungen, o: { patientId?: string; wer: string; probelauf?: boolean },
+): Promise<Uebernahme> {
+  const zeilen = (await db.query<{ id: string; kontakt: string }>(
+    `SELECT id::text, lexware_kontakt_id AS kontakt FROM patient WHERE lexware_kontakt_id IS NOT NULL${o.patientId ? ' AND id = $1' : ''}`, o.patientId ? [o.patientId] : [],
+  )).rows;
+  if (o.patientId && !zeilen.length) throw new KarteiFehler('Dieser Patient ist mit keinem Lexware-Kunden verknüpft – zuerst unter „Aus Lexware“ zuordnen');
+  const patientZu = new Map(zeilen.map((z) => [z.kontakt, z.id]));
+  const e: Uebernahme = { gefunden: 0, neu: 0, aktualisiert: 0, unveraendert: 0, ohnePatient: 0, konflikt: 0, ohneDatei: 0, dateien: 0 };
+  for await (const b of lex.belege({ kontaktId: o.patientId ? zeilen[0]!.kontakt : undefined })) {
+    e.gefunden++;
+    const patientId = b.contactId ? patientZu.get(b.contactId) : undefined;
+    if (!patientId) { e.ohnePatient++; continue; }
+    const bekannt = (await db.query<{ id: string; patient_id: string; pdf: boolean; geaendert: string | null }>(
+      `SELECT id::text, patient_id::text, (lexware_pdf IS NOT NULL) AS pdf, lexware_geaendert_am AS geaendert FROM rechnung
+       WHERE lexware_invoice_id = $1 OR ($2::text IS NOT NULL AND nummer = $2) ORDER BY (lexware_invoice_id = $1) DESC LIMIT 1`, [b.id, b.voucherNumber ?? null],
+    )).rows[0];
+    if (bekannt && bekannt.patient_id !== patientId) { e.konflikt++; continue; }
+    const geaendert = iso(b.updatedDate);
+    if (bekannt?.pdf && bekannt.geaendert && geaendert && iso(bekannt.geaendert) === geaendert) { e.unveraendert++; continue; }
+    if (o.probelauf) { if (bekannt) e.aktualisiert++; else e.neu++; continue; }
+    // Zahldatum nur bei bezahlten Rechnungen – kostet eine Anfrage mehr
+    let bezahltAm: string | undefined;
+    if (b.voucherStatus === 'paid' || b.voucherStatus === 'paidoff') {
+      try { bezahltAm = tagVon((await lex.zahlung(b.id)).paidDate) ?? undefined; } catch (err) { console.warn(`Lexware-Zahlung ${b.id}: ${(err as Error).message.slice(0, 120)}`); }
+    }
+    const datei = bekannt?.pdf || b.voucherStatus === 'draft' ? undefined : await lex.datei(b.id);
+    if (datei) e.dateien++;
+    else if (!bekannt?.pdf && b.voucherStatus !== 'draft') e.ohneDatei++;
+    if (bekannt) {
+      await lexwareStandUebernehmen(db, t, bekannt.id, {
+        invoiceId: b.id, nummer: b.voucherNumber, status: b.voucherStatus, betrag: b.totalAmount, bezahltAm, pdf: datei?.daten, pdfName: datei?.name,
+        erstelltAm: iso(b.createdDate) ?? undefined, geaendertAm: geaendert ?? undefined,
+      }, o.wer);
+      e.aktualisiert++;
+      continue;
+    }
+    const storniert = b.voucherStatus === 'voided';
+    await db.query(
+      `INSERT INTO rechnung (patient_id, art, steuerklasse, quelle, empfaenger, datum, faellig_am, nummer, betrag, netto, ust, ust_satz, kleinunternehmer, status, bezahlt_am, storniert_am, storno_grund,
+         lexware_invoice_id, lexware_status, lexware_betrag, lexware_geprueft_am, lexware_pdf, lexware_pdf_am, lexware_pdf_name, lexware_erstellt_am, lexware_geaendert_am, erstellt_von)
+       VALUES ($1, 'einzel', NULL, 'lexware', $2, $3, $4, $5, $6, $6, 0, 0, true, $7, $8, $9, $10, $11, $12, $6, now(), $13, CASE WHEN $13::bytea IS NULL THEN NULL ELSE now() END, $14, $15, $16, $17)`,
+      [patientId, JSON.stringify({ name: b.contactName ?? '' }), tagVon(b.voucherDate), tagVon(b.dueDate), b.voucherNumber ?? null, b.totalAmount ?? 0, statusAusLexware(b.voucherStatus),
+        bezahltAm ?? null, storniert ? (geaendert?.slice(0, 10) ?? tagVon(b.voucherDate)) : null, storniert ? 'in Lexware storniert' : null,
+        b.id, b.voucherStatus, datei ? t.verschluesseln(datei.daten, 'rechnung.lexware_pdf') : null, datei?.name ?? null, iso(b.createdDate), geaendert, o.wer],
+    );
+    e.neu++;
+  }
+  if (!o.probelauf) await protokolliere(db, { actor: o.wer, action: 'rechnung_lexware_import', objectType: 'patient', objectId: o.patientId ?? '0', details: { ...e } });
+  return e;
+}
+
+export const uebernahmeText = (e: Uebernahme): string =>
+  `${e.gefunden} Rechnung${e.gefunden === 1 ? '' : 'en'} in Lexware – ${e.neu} neu, ${e.aktualisiert} aktualisiert, ${e.unveraendert} unverändert${e.ohnePatient ? `, ${e.ohnePatient} ohne verknüpften Patienten` : ''}${e.konflikt ? `, ${e.konflikt} mit Nummernkonflikt` : ''}${e.ohneDatei ? `, ${e.ohneDatei} ohne Datei` : ''}${e.dateien ? ` · ${e.dateien} Datei${e.dateien === 1 ? '' : 'en'} in den Tresor gelegt` : ''}.`;

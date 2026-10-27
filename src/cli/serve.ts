@@ -28,6 +28,7 @@ import { buchungAbgleich } from '../buchung/abgleich.ts';
 import { buchungsClientAusUmgebung } from '../buchung/client.ts';
 import { LexwareClient } from '../lexware/client.ts';
 import { attrappeKunden, lexwareKunden } from '../lexware/kunden.ts';
+import { attrappeRechnungen, lexwareRechnungen } from '../lexware/rechnungen.ts';
 import { umgebung } from '../umgebung.ts';
 
 const env = loadEnv();
@@ -82,8 +83,10 @@ const buchungAnzeige = buchung && process.env.BUCHUNG_OEFFENTLICHE_URL ? { url: 
 const anfragen = db && schluessel ? anfragenDienst({ db, tresor: schluessel, graph }) : undefined;
 // Lexware-Kunden (W99), nur lesend: den echten Schlüssel nutzt nur die Produktion (N28 – die Testumgebung
 // zeigt keine echten Patientendaten); die Testumgebung bekommt mit LEXWARE_ATTRAPPE=1 erfundene Kunden
-const lexware = process.env.LEXWARE_API_KEY && umgebung() === 'prod' ? lexwareKunden(new LexwareClient(process.env.LEXWARE_API_KEY))
-  : umgebung() === 'test' && process.env.LEXWARE_ATTRAPPE === '1' ? attrappeKunden() : undefined;
+const lexwareClient = process.env.LEXWARE_API_KEY && umgebung() === 'prod' ? new LexwareClient(process.env.LEXWARE_API_KEY) : undefined;
+const lexware = lexwareClient ? lexwareKunden(lexwareClient) : umgebung() === 'test' && process.env.LEXWARE_ATTRAPPE === '1' ? attrappeKunden() : undefined;
+// Rechnungen aus Lexware (W103): dieselbe Verbindung (eine Drossel für alles); die Attrappe liefert erfundene Rechnungen zu den erfundenen Kunden
+const lexwareRechnungenQuelle = lexwareClient ? lexwareRechnungen(lexwareClient) : lexware?.attrappe ? attrappeRechnungen() : undefined;
 if (process.env.LEXWARE_API_KEY && umgebung() === 'test') console.warn('⚠ LEXWARE_API_KEY in der Testumgebung – wird nicht benutzt (N28: keine echten Patientendaten im Test)');
 if (lexware) console.log(lexware.attrappe ? 'Lexware: Attrappe mit erfundenen Kunden (Testumgebung)' : 'Lexware: Kunden werden aus der Public API gelesen (nur lesend)');
 
@@ -96,7 +99,7 @@ const dienst = praxisDienst({
   cockpit: ({ namenZeigen }) => cockpitDaten({ db, graph, namenZeigen, anfragen: anfragen?.stand }),
   rechnungen: db ? rechnungsDienst({ db, graph, laufwerk: (await ladeEinstellungen()).rechnungen.laufwerk }) : undefined,
   preislisten: db ? preislistenDienst({ db }) : undefined,
-  kartei: db && schluessel ? karteiDienst({ db, tresor: schluessel, graph, whatsapp, buchung: buchungAnzeige, lexware }) : undefined,
+  kartei: db && schluessel ? karteiDienst({ db, tresor: schluessel, graph, whatsapp, buchung: buchungAnzeige, lexware, lexwareRechnungen: lexwareRechnungenQuelle }) : undefined,
   anfragen,
   entwicklung,
   whatsapp: whatsappEinstellungen ? { verifyToken: whatsappEinstellungen.verifyToken, appSecret: whatsappEinstellungen.appSecret } : undefined,

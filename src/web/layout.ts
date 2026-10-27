@@ -322,6 +322,7 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .rk-pat{border-left:6px solid var(--rand)}.rk-pat.gelb{border-left-color:#f2d43a}.rk-pat.rot{border-left-color:#d93025}
 .rk-pat header{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--akzent)}.rk-pat header b{color:var(--fg);flex:1;min-width:0}
 .rk-pat-betrag{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.rk-jahr{margin:14px 0 2px;font-size:15px;color:var(--grau)}.rk-jahr .hint{font-weight:400}.rk-pat.lexware{border-left-style:dashed;border-left-color:#8a6d3b}.rk-pat.lexware.gelb{border-left-color:#f2d43a}.rk-pat.lexware.rot{border-left-color:#d93025}
 .verlauf-fenster{max-height:360px;overflow:auto;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:4px 14px}
 details.stammdaten.tafel{padding:10px 16px;margin:0 0 12px}details.stammdaten.tafel>summary{display:inline-flex;gap:6px;align-items:center;min-height:36px;color:var(--akzent);font-weight:600}
 details.stammdaten.tafel[open]>summary{margin-bottom:8px}

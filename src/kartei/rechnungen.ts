@@ -11,8 +11,8 @@
  */
 import { protokolliere, type Db } from '../db/index.ts';
 import { verwendungVermerken } from '../preise/preislisten.ts';
-import { betrag, rund, tag } from '../db/werte.ts';
-import type { Tresor } from '../tresor.ts';
+import { betrag, iso, rund, tag } from '../db/werte.ts';
+import { TresorFehler, type Tresor } from '../tresor.ts';
 import { kleinunternehmer, textbausteine, type Textbaustein } from './konfiguration.ts';
 import { KarteiFehler } from './patienten.ts';
 
@@ -51,7 +51,10 @@ export interface Rechnung {
   fallId: string | null;
   verordnungId: string | null;
   art: string;
-  steuerklasse: 'heilbehandlung_steuerfrei' | 'wellness_19';
+  /** null nur bei Rechnungen aus Lexware (W103): Leistungsgruppe dort nicht erfasst */
+  steuerklasse: 'heilbehandlung_steuerfrei' | 'wellness_19' | null;
+  /** ppm = hier entstanden; lexware = aus Lexware übernommen (ohne Positionen) */
+  quelle: 'ppm' | 'lexware';
   status: RechnungStatus;
   empfaenger: { name: string; strasse?: string; plz?: string; ort?: string; land?: string; zusatz?: string };
   preisliste: { id: string; name: string } | null;
@@ -70,7 +73,7 @@ export interface Rechnung {
   bezahltAm: string | null;
   storniertAm: string | null;
   stornoGrund: string | null;
-  lexware: { invoiceId: string | null; status: string | null; betrag: number | null; geprueftAm: string | null; abweichung: string | null; pdfAm: string | null };
+  lexware: { invoiceId: string | null; status: string | null; betrag: number | null; geprueftAm: string | null; abweichung: string | null; pdfAm: string | null; pdfName: string | null; erstelltAm: string | null; geaendertAm: string | null };
   notiz: string | null;
   erstelltAm: string;
   positionen: Position[];
@@ -97,11 +100,15 @@ export async function rechnungLesen(db: Db, patientId: string, id: string): Prom
     .map((b) => ({ id: String(b.id), code: (b.code as string | null) ?? null, kurzname: String(b.kurzname), text: String(b.text), wirkung: String(b.wirkung) }));
   return {
     id: String(r.id_text), patientId: String(r.pid), fallId: (r.fid as string | null) ?? null, verordnungId: (r.vid as string | null) ?? null, art: String(r.art),
-    steuerklasse: r.steuerklasse as Rechnung['steuerklasse'], status: r.status as RechnungStatus, empfaenger: (r.empfaenger as Rechnung['empfaenger']) ?? { name: '' },
+    steuerklasse: (r.steuerklasse as Rechnung['steuerklasse']) ?? null, quelle: r.quelle === 'lexware' ? 'lexware' : 'ppm', status: r.status as RechnungStatus, empfaenger: (r.empfaenger as Rechnung['empfaenger']) ?? { name: '' },
     preisliste: r.plid ? { id: String(r.plid), name: String(r.preisliste_name) } : null, zeitraumVon: tag(r.zeitraum_von), zeitraumBis: tag(r.zeitraum_bis), datum: tag(r.datum), faelligAm: tag(r.faellig_am),
     nummer: (r.nummer as string | null) ?? null, netto: betrag(r.netto), ust: betrag(r.ust), ustSatz: betrag(r.ust_satz), betrag: betrag(r.betrag), kleinunternehmer: Boolean(r.kleinunternehmer),
     versandArt: (r.versand_art as string | null) ?? null, versendetAm: tag(r.versendet_am), bezahltAm: tag(r.bezahlt_am), storniertAm: tag(r.storniert_am), stornoGrund: (r.storno_grund as string | null) ?? null,
-    lexware: { invoiceId: (r.lexware_invoice_id as string | null) ?? null, status: (r.lexware_status as string | null) ?? null, betrag: r.lexware_betrag == null ? null : Number(r.lexware_betrag), geprueftAm: r.lexware_geprueft_am ? new Date(r.lexware_geprueft_am as string).toISOString() : null, abweichung: (r.lexware_abweichung as string | null) ?? null, pdfAm: r.lexware_pdf_am ? new Date(r.lexware_pdf_am as string).toISOString() : null },
+    lexware: {
+      invoiceId: (r.lexware_invoice_id as string | null) ?? null, status: (r.lexware_status as string | null) ?? null, betrag: r.lexware_betrag == null ? null : Number(r.lexware_betrag),
+      geprueftAm: iso(r.lexware_geprueft_am), abweichung: (r.lexware_abweichung as string | null) ?? null, pdfAm: iso(r.lexware_pdf_am), pdfName: (r.lexware_pdf_name as string | null) ?? null,
+      erstelltAm: iso(r.lexware_erstellt_am), geaendertAm: iso(r.lexware_geaendert_am),
+    },
     notiz: (r.notiz as string | null) ?? null, erstelltAm: new Date(r.erstellt_am as string).toISOString(), positionen, bausteine,
   };
 }
@@ -438,7 +445,8 @@ export async function rechnungStatus(
  * voided → storniert (wenn hier nicht schon), paid → bezahlt, anderer Betrag → Abweichung für die Kachel.
  */
 export async function lexwareStandUebernehmen(
-  db: Db, rechnungId: string, l: { invoiceId?: string; nummer?: string; status: string; betrag?: number; bezahltAm?: string; pdf?: Uint8Array }, wer: string,
+  db: Db, t: Tresor, rechnungId: string,
+  l: { invoiceId?: string; nummer?: string; status: string; betrag?: number; bezahltAm?: string; pdf?: Uint8Array; pdfName?: string; erstelltAm?: string; geaendertAm?: string }, wer: string,
 ): Promise<void> {
   const r = (await db.query<{ status: RechnungStatus; betrag: string; patient_id: string }>('SELECT status::text, betrag::text, patient_id::text FROM rechnung WHERE id = $1', [rechnungId])).rows[0];
   if (!r) return;
@@ -454,13 +462,25 @@ export async function lexwareStandUebernehmen(
   await db.query(
     `UPDATE rechnung SET lexware_invoice_id = COALESCE($2, lexware_invoice_id), nummer = COALESCE($3, nummer), lexware_status = $4, lexware_betrag = $5, lexware_geprueft_am = now(),
        bezahlt_am = CASE WHEN $9::boolean THEN COALESCE($6::date, CURRENT_DATE) ELSE bezahlt_am END,
-       lexware_abweichung = $7, lexware_pdf = COALESCE($8::bytea, lexware_pdf), lexware_pdf_am = CASE WHEN $8::bytea IS NOT NULL THEN now() ELSE lexware_pdf_am END${statusSql}, geaendert_am = now() WHERE id = $1`,
-    [rechnungId, l.invoiceId ?? null, l.nummer ?? null, l.status, l.betrag ?? null, l.bezahltAm ?? null, abweichungen.join(' · ') || null, l.pdf ? Buffer.from(l.pdf) : null, bezahlt],
+       lexware_abweichung = $7, lexware_pdf = COALESCE($8::bytea, lexware_pdf), lexware_pdf_am = CASE WHEN $8::bytea IS NOT NULL THEN now() ELSE lexware_pdf_am END,
+       lexware_pdf_name = COALESCE($10, lexware_pdf_name), lexware_erstellt_am = COALESCE($11::timestamptz, lexware_erstellt_am), lexware_geaendert_am = COALESCE($12::timestamptz, lexware_geaendert_am)${statusSql}, geaendert_am = now() WHERE id = $1`,
+    // Das PDF liegt verschlüsselt im Tresor (W103) – Rechnungen nennen Leistungen und damit Gesundheitsbezug
+    [rechnungId, l.invoiceId ?? null, l.nummer ?? null, l.status, l.betrag ?? null, l.bezahltAm ?? null, abweichungen.join(' · ') || null, l.pdf ? t.verschluesseln(l.pdf, 'rechnung.lexware_pdf') : null, bezahlt,
+      l.pdfName ?? null, l.erstelltAm ?? null, l.geaendertAm ?? null],
   );
   await protokolliere(db, { actor: wer, action: 'rechnung_lexware_stand', objectType: 'patient', objectId: r.patient_id, details: { rechnung: Number(rechnungId), status: l.status, abweichung: abweichungen.length } });
 }
 
-export async function rechnungPdf(db: Db, patientId: string, rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined> {
-  const r = (await db.query<{ pdf: Uint8Array | null; nummer: string | null }>('SELECT lexware_pdf AS pdf, nummer FROM rechnung WHERE id = $1 AND patient_id = $2', [rechnungId, patientId])).rows[0];
-  return r?.pdf ? { daten: r.pdf, name: `Rechnung-${r.nummer ?? rechnungId}.pdf` } : undefined;
+/** Das Rechnungs-PDF aus dem Tresor; ältere, unverschlüsselt abgelegte Dateien (vor W103) werden noch erkannt */
+export async function rechnungPdf(db: Db, t: Tresor, patientId: string, rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined> {
+  if (!/^\d+$/.test(rechnungId)) return undefined;
+  const r = (await db.query<{ pdf: Uint8Array | null; nummer: string | null; name: string | null }>('SELECT lexware_pdf AS pdf, nummer, lexware_pdf_name AS name FROM rechnung WHERE id = $1 AND patient_id = $2', [rechnungId, patientId])).rows[0];
+  if (!r?.pdf) return undefined;
+  const name = r.name ?? `Rechnung-${r.nummer ?? rechnungId}.pdf`;
+  try {
+    return { daten: new Uint8Array(t.entschluesseln(r.pdf, 'rechnung.lexware_pdf')), name };
+  } catch (err) {
+    if (err instanceof TresorFehler && r.pdf.length > 4 && String.fromCharCode(...r.pdf.subarray(0, 4)) === '%PDF') return { daten: r.pdf, name };
+    throw err;
+  }
 }

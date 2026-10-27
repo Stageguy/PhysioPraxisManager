@@ -7,7 +7,7 @@
 import type { AkteDaten, LexwareKundenDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
 import type { KundeStand, LexwareKundeStand } from '../kartei/lexware-kunden.ts';
 import { kundenName, type LexwareKunde } from '../lexware/kunden.ts';
-import { VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz } from '../kartei/patienten.ts';
+import { VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz, type RechnungKurz } from '../kartei/patienten.ts';
 import { VORLAGEN } from '../nachrichten/vorlagen.ts';
 import { SEKTION_REIHE, SEKTIONEN, type Terminart } from '../kartei/terminarten.ts';
 import { rezeptKachel, serieKachel, serienKnoepfe } from './rezepte.ts';
@@ -255,15 +255,26 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
     <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}${waTermin(t.id)}</span>
     ${t.status === 'bestaetigt' || t.status === 'vorgeschlagen' ? form('termin_status', `<input type="hidden" name="termin_id" value="${t.id}"><select name="status" data-hilfe="termin.status" data-auto-senden><option value="">ändern …</option><option value="abgesagt_patient">abgesagt (Patient)</option><option value="abgesagt_praxis">abgesagt (Praxis)</option><option value="nicht_erschienen">nicht erschienen</option></select><button class="knopf klein nur-ohne-js">ok</button>`, { id: p.id, zurueck, klasse: 'tk-fuss' }) : ''}
   </article>`).join('');
-  const rechnungen = d.rechnungen.map((r) => {
+  const ART: Record<string, string> = { einzel: 'Einzelrechnung', zwischenrechnung: 'Zwischenrechnung', abschlussrechnung: 'Abschlussrechnung', monat: 'Monatsrechnung', ausfall: 'Ausfallgebühr' };
+  /** Rechnungskachel: aus dem PPM → Rechnungsseite; aus Lexware (W103) → die Datei selbst */
+  const rechnungKachel = (r: RechnungKurz) => {
     const verzug = r.status === 'gesendet' && r.faelligAm && r.faelligAm < heuteBerlin();
-    const ART: Record<string, string> = { einzel: 'Einzelrechnung', zwischenrechnung: 'Zwischenrechnung', abschlussrechnung: 'Abschlussrechnung', monat: 'Monatsrechnung', ausfall: 'Ausfallgebühr' };
-    return `<a class="rk-pat ${verzug ? (r.gemahnt ? 'rot' : 'gelb') : ''}" href="/patienten/${p.id}/rechnungen/${r.id}" data-hilfe="patient.rechnung">
-      <header>${symbol('euro', { groesse: 18 })}<b>${esc(r.nummer ?? `${ART[r.art] ?? r.art} (Entwurf)`)}</b><span class="chip ${verzug ? (r.gemahnt ? 'preset0' : 'preset3') : r.statusFarbe}">${verzug ? (r.gemahnt ? 'gemahnt' : 'überfällig') : esc(r.statusText)}</span></header>
+    const lexware = r.quelle === 'lexware';
+    const ziel = lexware && r.pdf ? `/patienten/${p.id}/rechnungen/${r.id}/pdf` : `/patienten/${p.id}/rechnungen/${r.id}`;
+    return `<a class="rk-pat ${verzug ? (r.gemahnt ? 'rot' : 'gelb') : ''}${lexware ? ' lexware' : ''}" href="${ziel}"${lexware && r.pdf ? ' target="_blank" rel="noopener"' : ''} data-hilfe="${lexware ? 'patient.rechnung.lexware' : 'patient.rechnung'}">
+      <header>${symbol(lexware ? 'rechnung' : 'euro', { groesse: 18 })}<b>${esc(r.nummer ?? `${ART[r.art] ?? r.art} (Entwurf)`)}</b><span class="chip ${verzug ? (r.gemahnt ? 'preset0' : 'preset3') : r.statusFarbe}">${verzug ? (r.gemahnt ? 'gemahnt' : 'überfällig') : esc(r.statusText)}</span></header>
       <span class="rk-pat-betrag">${euroText(r.betrag)}</span>
-      <dl class="liste-dl klein"><dt>Gruppe</dt><dd>${r.steuerklasse === 'wellness_19' ? 'Wellness' : 'Heilbehandlung'} · ${r.positionen} Pos.</dd><dt>Datum</dt><dd>${r.datum ? datumText(r.datum) : '–'}</dd>${r.faelligAm ? `<dt>Fällig</dt><dd>${datumText(r.faelligAm)}</dd>` : ''}${r.versandArt ? `<dt>Versand</dt><dd>${{ email: 'per Mail', post: 'per Post', beides: 'Mail + Post' }[r.versandArt] ?? r.versandArt}</dd>` : ''}</dl>
-      ${r.lexwareAbweichung ? `<span class="fk-warn">${symbol('warnung', { groesse: 14 })} ${esc(r.lexwareAbweichung)}</span>` : ''}${r.pdf ? `<span class="marke">${symbol('rechnung', { groesse: 12 })} PDF</span>` : ''}
+      <dl class="liste-dl klein">${lexware
+        ? `<dt>Datei</dt><dd>${r.pdf ? esc(r.dateiName ?? `Rechnung-${r.nummer ?? r.id}.pdf`) : '<span class="hint">keine Datei</span>'}</dd>`
+        : `<dt>Gruppe</dt><dd>${r.steuerklasse === 'wellness_19' ? 'Wellness' : 'Heilbehandlung'} · ${r.positionen} Pos.</dd>`}<dt>Datum</dt><dd>${r.datum ? datumText(r.datum) : '–'}</dd>${r.faelligAm ? `<dt>Fällig</dt><dd>${datumText(r.faelligAm)}</dd>` : ''}${r.bezahltAm ? `<dt>Bezahlt</dt><dd>${datumText(r.bezahltAm)}</dd>` : ''}${r.storniertAm ? `<dt>Storniert</dt><dd>${datumText(r.storniertAm)}</dd>` : ''}${r.versandArt ? `<dt>Versand</dt><dd>${{ email: 'per Mail', post: 'per Post', beides: 'Mail + Post' }[r.versandArt] ?? r.versandArt}</dd>` : ''}</dl>
+      ${r.lexwareAbweichung ? `<span class="fk-warn">${symbol('warnung', { groesse: 14 })} ${esc(r.lexwareAbweichung)}</span>` : ''}${lexware ? `<span class="marke">${symbol('rechnung', { groesse: 12 })} aus Lexware${r.lexwareStatus ? ` · ${esc(r.lexwareStatus)}` : ''}</span>` : r.pdf ? `<span class="marke">${symbol('rechnung', { groesse: 12 })} PDF</span>` : ''}
     </a>`;
+  };
+  // Nach Jahr gruppiert (W103): Entwürfe zuerst, dann die Jahre absteigend (so sortiert die Kartei)
+  const jahrVon = (r: RechnungKurz) => (r.status === 'entwurf' ? 'Entwürfe' : (r.datum ?? '').slice(0, 4) || 'ohne Datum');
+  const rechnungen = [...new Set(d.rechnungen.map(jahrVon))].map((j) => {
+    const liste = d.rechnungen.filter((r) => jahrVon(r) === j);
+    return `<h3 class="rk-jahr">${esc(j)} <span class="hint">${liste.length}</span></h3><div class="rk-pat-raster">${liste.map(rechnungKachel).join('')}</div>`;
   }).join('');
   const bezugspersonen = p.bezugspersonen.map((b) => `<li><span>${symbol('patient', { groesse: 18 })}</span><span><b>${esc(b.name)}</b> <span class="hint">${esc(b.rolle)}${b.beziehung ? ` · ${esc(b.beziehung)}` : ''}${b.berechtigungsgrund ? ` · ${esc(b.berechtigungsgrund)}` : ''}${b.telefon ? ` · ${esc(b.telefon)}` : ''}</span></span></li>`).join('');
   const feld = (label: string, nameAttr: string, wert: string | null | undefined, typ = 'text', extra = '') => `<label>${label}<input type="${typ}" name="${nameAttr}" value="${esc(wert ?? '')}"${extra}></label>`;
@@ -311,9 +322,10 @@ ${offenBox}
 </section>
 
 <section class="pat-abschnitt" id="rechnungen"><h2>${symbol('euro')} Rechnungen</h2>
-  ${rechnungen ? `<div class="rk-pat-raster">${rechnungen}</div>` : '<p class="leer">Noch keine Rechnung – Rezepte und Serien legen ihren Entwurf selbst an.</p>'}
+  ${rechnungen || '<p class="leer">Noch keine Rechnung – Rezepte und Serien legen ihren Entwurf selbst an.</p>'}
   <div class="knopfreihe">${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="heilbehandlung_steuerfrei"><button class="knopf klein" data-hilfe="rechnung.neu.heil">${symbol('euro', { groesse: 16 })} Neue Rechnung Heilbehandlung</button>`, { id: p.id, zurueck })}
   ${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="wellness_19"><button class="knopf klein" data-hilfe="rechnung.neu.wellness">${symbol('wellness', { groesse: 16 })} Neue Rechnung Wellness</button>`, { id: p.id, zurueck })}</div>
+  ${d.lexwareRechnungen ? `<p>${form('lexware_rechnungen', `<button class="knopf klein" data-hilfe="patient.lexware_rechnungen">${symbol('rechnung', { groesse: 16 })} Rechnungen aus Lexware holen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Lexware kennt diesen Patienten als Kunden – Rechnungen und Dateien kommen als Kacheln hierher.</span></p>` : ''}
 </section>
 
 <section class="pat-abschnitt" id="nachricht"><h2>${symbol('email')} Nachricht an ${esc(p.vorname)} <span class="hint">WhatsApp vom Handy · Mail-Entwurf für Outlook</span></h2>

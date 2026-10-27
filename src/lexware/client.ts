@@ -25,8 +25,10 @@ export interface Beleg {
   voucherStatus: Belegstatus;
   voucherNumber?: string;
   voucherDate?: string;
+  createdDate?: string;
   updatedDate?: string;
   dueDate?: string;
+  contactId?: string | null;
   contactName?: string;
   totalAmount?: number;
   openAmount?: number;
@@ -121,6 +123,8 @@ export class LexwareClient {
     status: Belegstatus[];
     geaendertAb?: string;
     belegnummer?: string;
+    /** nur Belege dieses Kontakts (contactId) */
+    kontaktId?: string;
   }): AsyncGenerator<Beleg> {
     for (let seite = 0; ; seite++) {
       const q = new URLSearchParams({
@@ -131,6 +135,7 @@ export class LexwareClient {
       });
       if (optionen.geaendertAb) q.set('updatedDateFrom', optionen.geaendertAb);
       if (optionen.belegnummer) q.set('voucherNumber', optionen.belegnummer);
+      if (optionen.kontaktId) q.set('contactId', optionen.kontaktId);
       const antwort = await this.#get<{ content: Beleg[]; last: boolean }>(`/v1/voucherlist?${q}`);
       yield* antwort.content;
       if (antwort.last || !antwort.content.length) return;
@@ -139,6 +144,48 @@ export class LexwareClient {
 
   zahlung(belegId: string): Promise<Zahlung> {
     return this.#get(`/v1/payments/${encodeURIComponent(belegId)}`);
+  }
+
+  /** Nur nachsehen, ob Lexware die Rechnungsdatei liefert (Zählung, W103) – Antwortkörper wird verworfen */
+  async rechnungDateiVorhanden(rechnungId: string): Promise<{ vorhanden: boolean; status: number; groesse?: number }> {
+    const warten = this.#letzter + this.#abstandMs - Date.now();
+    if (warten > 0) await sleep(warten);
+    this.#letzter = Date.now();
+    const res = await this.#abruf(`${BASIS}/v1/invoices/${encodeURIComponent(rechnungId)}/file`, {
+      headers: { Authorization: `Bearer ${this.#schluessel}`, Accept: '*/*' },
+      signal: AbortSignal.timeout(30_000),
+    });
+    const groesse = Number(res.headers.get('content-length') ?? '');
+    await res.body?.cancel().catch(() => {});
+    if (res.status === 401 || res.status === 403) throw new LexwareNichtBereit(`Lexware lehnt den Schlüssel ab (${res.status})`);
+    return { vorhanden: res.ok, status: res.status, groesse: Number.isFinite(groesse) && groesse > 0 ? groesse : undefined };
+  }
+
+  /** Die Rechnungsdatei (PDF) einer festgeschriebenen Rechnung mit dem Dateinamen aus Lexware – Entwürfe haben keine (409) */
+  async rechnungDatei(rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined> {
+    for (let versuch = 0; ; versuch++) {
+      const warten = this.#letzter + this.#abstandMs - Date.now();
+      if (warten > 0) await sleep(warten);
+      this.#letzter = Date.now();
+      const res = await this.#abruf(`${BASIS}/v1/invoices/${encodeURIComponent(rechnungId)}/file`, {
+        headers: { Authorization: `Bearer ${this.#schluessel}`, Accept: '*/*' },
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (res.ok) {
+        const m = /filename\*=(?:UTF-8'')?"?([^";]+)|filename="?([^";]+)/i.exec(res.headers.get('content-disposition') ?? '');
+        let name = m?.[1] ? decodeURIComponent(m[1]) : m?.[2] ?? `Rechnung-${rechnungId}.pdf`;
+        if (!/\.pdf$/i.test(name)) name += '.pdf';
+        return { daten: new Uint8Array(await res.arrayBuffer()), name: name.replace(/[\\/:*?"<>|]+/g, '_') };
+      }
+      await res.body?.cancel().catch(() => {});
+      if (res.status === 401 || res.status === 403) throw new LexwareNichtBereit(`Lexware lehnt den Schlüssel ab (${res.status})`);
+      if (res.status === 404 || res.status === 406 || res.status === 409) return undefined;
+      if ((res.status === 429 || res.status >= 500) && versuch < 5) {
+        await sleep(2 ** versuch * 1000);
+        continue;
+      }
+      throw new LexwareFehler(res.status, `Lexware ${res.status} bei GET /v1/invoices/${rechnungId}/file`);
+    }
   }
 
   /** Alle Kontakte mit der Rolle Kunde, Seite für Seite – nur lesend (W99) */

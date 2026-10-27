@@ -54,7 +54,8 @@ kennt, werden nie gelöscht oder überschrieben. Jobs (z. B. Rechnung zusammenst
 - **Akte ist unveränderlich** (§ 630f BGB): Behandlungen werden ersetzt, nie geändert oder gelöscht
   (Trigger in Migration 007). Patienten werden archiviert, nicht gelöscht.
 - **Rechnungen:** eine Leistungsgruppe je Rechnung (Heilbehandlung § 4 Nr. 14 UStG getrennt von
-  Wellness); Nummer, PDF und Zahlungsstand kommen aus Lexware (E28).
+  Wellness); Nummer, PDF und Zahlungsstand kommen aus Lexware (E28). Das PDF liegt verschlüsselt im Tresor
+  (`rechnung.lexware_pdf`, W103); Rechnungen aus Lexware tragen `quelle = 'lexware'` und haben keine Positionen.
 - **Zeit:** gespeichert in UTC, gerechnet in Europe/Berlin über `src/zeit.ts` (nie „Mitternacht + Minuten“).
   DATE-Spalten kommen als Text (`pg.types.setTypeParser(1082)`).
 

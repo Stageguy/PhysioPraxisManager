@@ -178,7 +178,7 @@ export async function mailEntwurf(
   const rechnungsIds = new Set(d.anhangRechnungen ?? []);
   if (d.vorlage === 'rechnung_info' && rechnung?.pdf) rechnungsIds.add(rechnung.id);
   for (const rid of rechnungsIds) {
-    const pdf = await rechnungPdf(db, patientId, rid);
+    const pdf = await rechnungPdf(db, t, patientId, rid);
     if (!pdf) throw new KarteiFehler('Für diese Rechnung liegt noch kein PDF aus Lexware vor');
     anhaenge.push({ name: pdf.name, mime: 'application/pdf', daten: pdf.daten });
   }

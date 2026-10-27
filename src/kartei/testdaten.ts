@@ -408,7 +408,7 @@ export async function testdatenErweitert(db: Db, t: Tresor, o: { adresse: string
     await rechnungStatus(db, rech, re, 'fertig', {}, wer);
     await rechnungStatus(db, rech, re, 'in_lexware', { nummer: 'RE-2026-0101', datum: tag(-20) }, wer);
     const betrag = Number((await db.query<{ b: string }>('SELECT betrag::text AS b FROM rechnung WHERE id = $1', [re])).rows[0]!.b);
-    await lexwareStandUebernehmen(db, re, { invoiceId: 'lx-test-101', nummer: 'RE-2026-0101', status: 'open', betrag: betrag + 5 }, wer);
+    await lexwareStandUebernehmen(db, t, re, { invoiceId: 'lx-test-101', nummer: 'RE-2026-0101', status: 'open', betrag: betrag + 5 }, wer);
   }
   // Nachsorge: Rechnung bezahlt (von Lexware gemeldet), Fall in Nachsorge; dazu ein archivierter Fall und ein archivierter Patient
   const nach = await phasen(32, 'Rita', 'Nachsorge', '1970-02-02');
@@ -431,7 +431,7 @@ export async function testdatenErweitert(db: Db, t: Tresor, o: { adresse: string
     await rechnungStatus(db, nach, re, 'in_lexware', { nummer: 'RE-2026-0077', datum: tag(-55) }, wer);
     await rechnungStatus(db, nach, re, 'versendet', { versandArt: 'post' }, wer);
     const betrag = Number((await db.query<{ b: string }>('SELECT betrag::text AS b FROM rechnung WHERE id = $1', [re])).rows[0]!.b);
-    await lexwareStandUebernehmen(db, re, { invoiceId: 'lx-test-077', nummer: 'RE-2026-0077', status: 'paid', betrag, bezahltAm: tag(-40) }, wer);
+    await lexwareStandUebernehmen(db, t, re, { invoiceId: 'lx-test-077', nummer: 'RE-2026-0077', status: 'paid', betrag, bezahltAm: tag(-40) }, wer);
     await phaseSetzen(db, nach, fall, 'nachsorge', wer);
     // Ein früherer, archivierter Fall derselben Patientin (Wellness-Serie, abgeschlossen)
     const wl = (await db.query<{ id: string }>('SELECT id::text FROM wellness_leistung WHERE aktiv ORDER BY id LIMIT 1')).rows[0]?.id

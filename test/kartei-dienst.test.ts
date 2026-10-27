@@ -435,12 +435,12 @@ test('Wellness-Rechnung: Kleinunternehmer → R2 und keine USt; ohne Kleinuntern
   assert.match(await seite('/konfiguration'), /R4/);
   // Lexware meldet: storniert → hier storniert + Abweichung; anderer Betrag → Abweichung
   await post({ aktion: 'rechnung_status', id: pid, rechnung_id: re.id, status_aktion: 'fertig' });
-  await lexwareStandUebernehmen(db, re.id, { invoiceId: 'lx-1', nummer: 'RE-7', status: 'open', betrag: 80 }, 'abgleich');
+  await lexwareStandUebernehmen(db, t, re.id, { invoiceId: 'lx-1', nummer: 'RE-7', status: 'open', betrag: 80 }, 'abgleich');
   let r = (await db.query<{ s: string; a: string | null; n: string }>('SELECT status::text AS s, lexware_abweichung AS a, nummer AS n FROM rechnung WHERE id = $1', [re.id])).rows[0]!;
   assert.equal(r.s, 'in_lexware');
   assert.equal(r.n, 'RE-7');
   assert.match(r.a!, /80,00 € statt 79,00 €/);
-  await lexwareStandUebernehmen(db, re.id, { status: 'voided', betrag: 79 }, 'abgleich');
+  await lexwareStandUebernehmen(db, t, re.id, { status: 'voided', betrag: 79 }, 'abgleich');
   r = (await db.query<{ s: string; a: string | null; n: string }>('SELECT status::text AS s, lexware_abweichung AS a, nummer AS n FROM rechnung WHERE id = $1', [re.id])).rows[0]!;
   assert.equal(r.s, 'storniert');
   assert.match(await seite(`/patienten/${pid}`), /Storniert/);
