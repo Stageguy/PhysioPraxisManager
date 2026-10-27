@@ -250,6 +250,8 @@ label.haken input{width:20px;height:20px;min-height:0;accent-color:var(--akzent)
 .pat{position:relative;display:flex;flex-direction:column;gap:8px;background:var(--karte);border:1px solid var(--rand);border-left:6px solid var(--rand);border-radius:14px;padding:12px 14px;min-width:0}
 .pat.gelb{border-left-color:#f2d43a}.pat.rot{border-left-color:#d93025}
 .pat.kopf{margin-top:8px}.pat.kopf h1{font-size:22px;margin:0}
+.pat.lexware{border-left-style:dashed;border-left-color:var(--grau)}.pat.lexware.vermutet{border-left-color:#f2d43a}.pat.lexware.verknuepft{border-left-style:solid;border-left-color:#2e7d32}
+.pat.lexware span.pat-kontakt{color:var(--fg)}.pat.lexware .pat-fuss{gap:8px;align-items:center}.pat.lexware .pat-fuss form.inline{display:inline}
 .pat-kopf{display:flex;gap:10px;align-items:center}.pat-name{color:var(--fg);text-decoration:none;font-size:17px;min-width:0;overflow-wrap:anywhere}.pat-name:hover b{text-decoration:underline}
 .pat-nr{color:var(--grau);font-size:13px;margin-left:auto;white-space:nowrap}
 .pat-hinweise{margin:0;display:flex;gap:6px;flex-wrap:wrap}.marke.warn-marke{border-color:#ff9a2e;color:var(--fg)}

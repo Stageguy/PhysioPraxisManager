@@ -7,6 +7,8 @@
  * - Profil:     GET /v1/profile – prüft Schlüssel und Tarif, bevor irgendetwas läuft
  * - Geprüft am 27.10.2026 mit echtem Schlüssel: `overdue` darf nicht mit anderen Status kombiniert werden
  *   (400 „cannot be used in combination“); `open` umfasst überfällige Rechnungen bereits
+ * - Kontakte:   GET /v1/contacts?customer=true&page=&size= (max. 250) – Personen (`person`) und Firmen
+ *   (`company`), Rechnungsadresse unter `addresses.billing[0]`, Mail/Telefon als Listen je Art (W99)
  * Die Public API gibt es erst ab Tarif XL.
  */
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -37,6 +39,20 @@ export interface Zahlung {
   paymentStatus: 'balanced' | 'openRevenue' | 'openExpense';
   voucherStatus: Belegstatus;
   paidDate?: string;
+}
+
+/** Kontakt aus /v1/contacts – nur die Felder, die die Kundenkarte braucht (W99) */
+export interface Kontakt {
+  id: string;
+  version: number;
+  roles: { customer?: { number?: number }; vendor?: { number?: number } };
+  person?: { salutation?: string; firstName?: string; lastName?: string };
+  company?: { name?: string; contactPersons?: { salutation?: string; firstName?: string; lastName?: string; primary?: boolean }[] };
+  addresses?: { billing?: { supplement?: string; street?: string; zip?: string; city?: string; countryCode?: string }[] };
+  emailAddresses?: Partial<Record<'business' | 'office' | 'private' | 'other', string[]>>;
+  phoneNumbers?: Partial<Record<'business' | 'office' | 'mobile' | 'private' | 'fax' | 'other', string[]>>;
+  note?: string;
+  archived?: boolean;
 }
 
 /** Schlüssel fehlt, ist ungültig oder der Tarif hat keine Public API */
@@ -123,5 +139,15 @@ export class LexwareClient {
 
   zahlung(belegId: string): Promise<Zahlung> {
     return this.#get(`/v1/payments/${encodeURIComponent(belegId)}`);
+  }
+
+  /** Alle Kontakte mit der Rolle Kunde, Seite für Seite – nur lesend (W99) */
+  async *kontakte(): AsyncGenerator<Kontakt> {
+    for (let seite = 0; ; seite++) {
+      const q = new URLSearchParams({ customer: 'true', page: String(seite), size: '250' });
+      const antwort = await this.#get<{ content: Kontakt[]; last: boolean }>(`/v1/contacts?${q}`);
+      yield* antwort.content;
+      if (antwort.last || !antwort.content.length) return;
+    }
   }
 }

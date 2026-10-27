@@ -26,6 +26,9 @@ import { anfragenEingang } from '../anfragen/eingang.ts';
 import { einstellungen } from '../kartei/konfiguration.ts';
 import { buchungAbgleich } from '../buchung/abgleich.ts';
 import { buchungsClientAusUmgebung } from '../buchung/client.ts';
+import { LexwareClient } from '../lexware/client.ts';
+import { attrappeKunden, lexwareKunden } from '../lexware/kunden.ts';
+import { umgebung } from '../umgebung.ts';
 
 const env = loadEnv();
 const port = Number(process.env.PORT ?? 3300);
@@ -77,6 +80,12 @@ const schluessel = db && process.env.PRAXIS_TRESOR_SCHLUESSEL ? tresor() : undef
 const buchung = buchungsClientAusUmgebung();
 const buchungAnzeige = buchung && process.env.BUCHUNG_OEFFENTLICHE_URL ? { url: process.env.BUCHUNG_OEFFENTLICHE_URL.replace(/\/$/, ''), oeffentlich: /^https:\/\//.test(process.env.BUCHUNG_OEFFENTLICHE_URL) && !/\.ts\.net/.test(process.env.BUCHUNG_OEFFENTLICHE_URL) } : undefined;
 const anfragen = db && schluessel ? anfragenDienst({ db, tresor: schluessel, graph }) : undefined;
+// Lexware-Kunden (W99), nur lesend: den echten Schlüssel nutzt nur die Produktion (N28 – die Testumgebung
+// zeigt keine echten Patientendaten); die Testumgebung bekommt mit LEXWARE_ATTRAPPE=1 erfundene Kunden
+const lexware = process.env.LEXWARE_API_KEY && umgebung() === 'prod' ? lexwareKunden(new LexwareClient(process.env.LEXWARE_API_KEY))
+  : umgebung() === 'test' && process.env.LEXWARE_ATTRAPPE === '1' ? attrappeKunden() : undefined;
+if (process.env.LEXWARE_API_KEY && umgebung() === 'test') console.warn('⚠ LEXWARE_API_KEY in der Testumgebung – wird nicht benutzt (N28: keine echten Patientendaten im Test)');
+if (lexware) console.log(lexware.attrappe ? 'Lexware: Attrappe mit erfundenen Kunden (Testumgebung)' : 'Lexware: Kunden werden aus der Public API gelesen (nur lesend)');
 
 const dienst = praxisDienst({
   erlaubt,
@@ -87,7 +96,7 @@ const dienst = praxisDienst({
   cockpit: ({ namenZeigen }) => cockpitDaten({ db, graph, namenZeigen, anfragen: anfragen?.stand }),
   rechnungen: db ? rechnungsDienst({ db, graph, laufwerk: (await ladeEinstellungen()).rechnungen.laufwerk }) : undefined,
   preislisten: db ? preislistenDienst({ db }) : undefined,
-  kartei: db && schluessel ? karteiDienst({ db, tresor: schluessel, graph, whatsapp, buchung: buchungAnzeige }) : undefined,
+  kartei: db && schluessel ? karteiDienst({ db, tresor: schluessel, graph, whatsapp, buchung: buchungAnzeige, lexware }) : undefined,
   anfragen,
   entwicklung,
   whatsapp: whatsappEinstellungen ? { verifyToken: whatsappEinstellungen.verifyToken, appSecret: whatsappEinstellungen.appSecret } : undefined,

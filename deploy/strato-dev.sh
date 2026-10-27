@@ -71,6 +71,8 @@ ENV_INHALT="$({
   grep -E '^(PRAXIS_NAME|PRAXIS_TELEFON|TEST_TELEFONE|WHATSAPP_TOKEN|WHATSAPP_TELEFON_ID|WHATSAPP_APP_SECRET|WHATSAPP_VERIFY_TOKEN|ANFRAGEN_TAKT_MIN)=.+' .env || true
   # Lexware nur in der Produktion – die Testumgebung schreibt keine Rechnungen
   [ "$ZIEL_UMGEBUNG" = prod ] && grep -E '^LEXWARE_API_KEY=.+' .env || true
+  # Testumgebung: erfundene Lexware-Kunden unter Patienten › „Aus Lexware“ (W99) statt echter
+  [ "$ZIEL_UMGEBUNG" = test ] && echo "LEXWARE_ATTRAPPE=1" || true
 })"
 printf '%s\n' "$ENV_INHALT" | ssh "$HOST" "kubectl -n $NS create secret generic praxis-env --from-env-file=/dev/stdin --dry-run=client -o yaml | kubectl apply -f - >/dev/null"
 # Prüfsumme der Umgebung am Pod: ändert sich nur das Secret (z. B. ERLAUBTE_NUTZER), startet der Dienst trotzdem neu

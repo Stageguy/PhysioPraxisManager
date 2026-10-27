@@ -4,7 +4,9 @@
  * „+“-Aktionen Termin, Behandlung, Rezept. Für das Handy gebaut: Anrufen, WhatsApp und Mail sind
  * echte Links (tel:, wa.me, mailto:), /praxis.js vermerkt den Anruf im Verlauf.
  */
-import type { AkteDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
+import type { AkteDaten, LexwareKundenDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
+import type { KundeStand, LexwareKundeStand } from '../kartei/lexware-kunden.ts';
+import { kundenName, type LexwareKunde } from '../lexware/kunden.ts';
 import { VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz } from '../kartei/patienten.ts';
 import { VORLAGEN } from '../nachrichten/vorlagen.ts';
 import { SEKTION_REIHE, SEKTIONEN, type Terminart } from '../kartei/terminarten.ts';
@@ -79,7 +81,7 @@ export function kachel(p: PatientKurz, o: { kopf?: boolean } = {}): string {
 }
 
 // ── Liste ───────────────────────────────────────────────────────────────────
-export function listeSeite(d: { patienten: PatientKurz[]; suche: string; archiv?: boolean }, o: Rahmen): string {
+export function listeSeite(d: { patienten: PatientKurz[]; suche: string; archiv?: boolean; lexware?: boolean }, o: Rahmen): string {
   const leer = d.suche ? `<p class="leer">Niemand passt zu „${esc(d.suche)}“.</p>` : d.archiv ? '<p class="leer">Das Archiv ist leer.</p>' : '<p class="leer">Noch keine Patienten – mit „Neu“ den ersten anlegen.</p>';
   return seite({
     titel: d.archiv ? 'Patienten – Archiv' : 'Patienten', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
@@ -88,42 +90,122 @@ export function listeSeite(d: { patienten: PatientKurz[]; suche: string; archiv?
   <label class="suche">Suchen<input type="search" name="suche" value="${esc(d.suche)}" placeholder="Name, Nummer, Telefon oder Mail" data-hilfe="patienten.suche" autocomplete="off"></label>
   <button class="knopf">Suchen</button>
   ${d.archiv ? '<a class="knopf" href="/patienten">Aktive Patienten</a>' : `<a class="knopf primaer" href="/patienten/neu" data-hilfe="patienten.neu">${symbol('patient', { groesse: 18 })} Neu</a>
-  <a class="knopf" href="/patienten/archiv" data-hilfe="patienten.archiv">${symbol('archiv', { groesse: 18 })} Archiv</a>`}
+  <a class="knopf" href="/patienten/archiv" data-hilfe="patienten.archiv">${symbol('archiv', { groesse: 18 })} Archiv</a>${d.lexware ? `
+  <a class="knopf" href="/patienten/lexware" data-hilfe="patienten.lexware">${symbol('euro', { groesse: 18 })} Aus Lexware</a>` : ''}`}
 </form>
 ${d.patienten.length ? `<div class="pat-raster">${d.patienten.map((p) => kachel(p)).join('')}</div>` : leer}`,
   });
+}
+
+// ── Aus Lexware (W99) ───────────────────────────────────────────────────────
+const STAND_TITEL: Record<KundeStand, string> = { neu: 'Noch nicht in der Kartei', vermutet: 'Wahrscheinlich schon Patient', verknuepft: 'Verknüpft' };
+
+/** Kundenkachel: wie die Patientenkachel, aber ohne Links in die Kartei – es gibt noch keinen Patienten */
+function lexwareKachel(k: LexwareKundeStand): string {
+  const a = k.adresse;
+  const adresse = a ? [a.zusatz, [a.strasse, a.hausnummer].filter(Boolean).join(' '), [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean).map((t) => esc(t!)).join(', ') : '<span class="hint">keine</span>';
+  const kontakt = (s: Symbol, wert: string | null, titel: string) => wert
+    ? `<span class="pat-kontakt" title="${titel}">${symbol(s, { groesse: 18 })}<span>${esc(wert)}</span></span>`
+    : `<span class="pat-kontakt fehlt" title="${titel}: kein Eintrag">${symbol(s, { groesse: 18 })}<span>–</span></span>`;
+  const marken = [
+    k.art === 'firma' ? '<span class="marke">Firma</span>' : '',
+    k.art === 'firma' && k.vorname ? `<span class="marke">als Person: ${esc(k.vorname)} ${esc(k.nachname)}?</span>` : '',
+    k.notiz ? '<span class="marke">Notiz in Lexware</span>' : '',
+    k.archiviert ? '<span class="marke warn-marke">in Lexware archiviert</span>' : '',
+  ].filter(Boolean).join(' ');
+  const neuLink = (text: string, klasse = 'knopf primaer') => `<a class="${klasse}" href="/patienten/neu?lexware=${esc(k.nummer)}" data-hilfe="lexware.anlegen">${text}</a>`;
+  const patient = (p: NonNullable<LexwareKundeStand['patient']>) => `${esc(p.name)} (${esc(p.patientennummer)}${p.status !== 'aktiv' ? `, ${esc(p.status)}` : ''})`;
+  const aktionen = k.stand === 'neu'
+    ? neuLink('Als Patient anlegen')
+    : k.stand === 'vermutet'
+      ? `${form('lexware_zuordnen', `<input type="hidden" name="kundennummer" value="${esc(k.nummer)}"><input type="hidden" name="kontakt_id" value="${esc(k.id)}"><button class="knopf primaer" data-hilfe="lexware.zuordnen">Zuordnen: ${patient(k.patient!)}</button>`, { id: k.patient!.id, zurueck: '/patienten/lexware' })} ${neuLink('Als neuen Patienten anlegen', 'knopf')}`
+      : `<a class="knopf" href="/patienten/${k.patient!.id}" data-hilfe="lexware.patient">${symbol('patient', { groesse: 18 })} ${patient(k.patient!)}</a> ${form('lexware_loesen', '<button class="knopf" data-hilfe="lexware.loesen">Verknüpfung lösen</button>', { id: k.patient!.id, zurueck: '/patienten/lexware' })}`;
+  return `<article class="pat lexware ${k.stand}" data-hilfe="lexware.kachel" id="lx-${esc(k.nummer)}">
+    <header class="pat-kopf"><span class="pat-name"><b>${esc(kundenName(k))}</b></span><span class="pat-nr">Lexware ${esc(k.nummer)}</span></header>
+    ${marken ? `<p class="pat-hinweise">${marken}</p>` : ''}
+    <div class="pat-kontakte">${kontakt('telefon', k.telefon, 'Telefon')}${kontakt('email', k.email, 'E-Mail')}</div>
+    <dl class="liste-dl klein"><dt>Rechnungsadresse</dt><dd>${adresse}</dd>${k.anrede ? `<dt>Anrede</dt><dd>${esc(k.anrede)}</dd>` : ''}</dl>
+    <p class="pat-fuss">${aktionen}</p>
+  </article>`;
+}
+
+export function lexwareKundenSeite(d: LexwareKundenDaten, o: Rahmen): string {
+  const je = (s: KundeStand) => d.kunden.filter((k) => k.stand === s);
+  const gruppen = (['neu', 'vermutet', 'verknuepft'] as const).filter((s) => je(s).length)
+    .map((s) => `<section class="pat-abschnitt" id="lexware-${s}"><h2>${STAND_TITEL[s]} <span class="hint">(${je(s).length})</span></h2><div class="pat-raster">${je(s).map(lexwareKachel).join('')}</div></section>`).join('');
+  const leer = d.fehler ? '' : d.suche ? `<p class="leer">Kein Lexware-Kunde passt zu „${esc(d.suche)}“.</p>` : '<p class="leer">Lexware kennt noch keine Kunden.</p>';
+  const zahl = d.kunden.length;
+  return seite({
+    titel: 'Patienten – aus Lexware', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
+    inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › Aus Lexware</p><h1>${symbol('euro', { groesse: 26 })} Kunden aus Lexware</h1>${meldungen(o)}
+${d.fehler ? `<p class="meldung fehler" role="alert">${symbol('warnung', { groesse: 18 })} ${esc(d.fehler)}</p>` : ''}
+<form method="get" action="/patienten/lexware" class="filter patienten-filter">
+  <label class="suche">Suchen<input type="search" name="suche" value="${esc(d.suche)}" placeholder="Name, Firma, Kundennummer, Ort oder Mail" data-hilfe="lexware.suche" autocomplete="off"></label>
+  <button class="knopf">Suchen</button>
+  <a class="knopf" href="/patienten/lexware?neu=1" data-hilfe="lexware.neuladen">Neu laden</a>
+  <a class="knopf" href="/patienten">Alle Patienten</a>
+</form>
+<p class="hint">${d.stand ? `${zahl} Kunde${zahl === 1 ? '' : 'n'}${d.suche ? ' passend' : ' in Lexware'} · Stand ${esc(datumZeitText(d.stand))}` : 'Kein Stand'} · ${je('verknuepft').length} verknüpft · ${je('vermutet').length} wahrscheinlich bekannt · ${je('neu').length} noch nicht in der Kartei${d.attrappe ? ' · <b>erfundene Kunden</b> (Testumgebung ohne Lexware-Schlüssel)' : ''}. Nur lesend – ein Patient entsteht erst über „Als Patient anlegen“.</p>
+${gruppen || leer}`,
+  });
+}
+
+/** Lexware-Kunde → Felder für „Neuer Patient“ (Mobil oder Festnetz nach der Vorwahl) */
+export function vorbelegungAusLexware(k: LexwareKunde): Vorbelegung {
+  const ziffern = (k.telefon ?? '').replace(/[^\d+]/g, '');
+  const mobil = /^(\+49|0049|0)1[5-7]/.test(ziffern);
+  return {
+    lexwareKundennummer: k.nummer, lexwareKontaktId: k.id, lexwareName: kundenName(k), firma: k.art === 'firma',
+    anrede: k.anrede ?? '', vorname: k.vorname, nachname: k.nachname, email: k.email ?? '',
+    mobil: mobil ? k.telefon! : '', telefon: !mobil && k.telefon ? k.telefon : '',
+    strasse: k.adresse?.strasse ?? '', hausnummer: k.adresse?.hausnummer ?? '', plz: k.adresse?.plz ?? '', ort: k.adresse?.ort ?? '',
+  };
 }
 
 // ── Neu ─────────────────────────────────────────────────────────────────────
 export interface Vorbelegung {
   /** Terminanfrage, der der neue Patient zugeordnet wird (A15) */
   anfrageId?: string;
+  anrede?: string;
   vorname?: string;
   nachname?: string;
   email?: string;
   mobil?: string;
+  telefon?: string;
+  strasse?: string;
+  hausnummer?: string;
+  plz?: string;
+  ort?: string;
+  /** Lexware-Kunde, den der neue Patient tragen soll (W99) */
+  lexwareKundennummer?: string;
+  lexwareKontaktId?: string;
+  lexwareName?: string;
+  /** In Lexware eine Firma – Vor- und Nachname sind geraten */
+  firma?: boolean;
 }
 
 export function neuSeite(o: Rahmen & { vorbelegung?: Vorbelegung }): string {
   const v = o.vorbelegung ?? {};
+  const zurueck = v.lexwareKundennummer ? `/patienten/neu?lexware=${esc(v.lexwareKundennummer)}` : '/patienten/neu';
   return seite({
     titel: 'Neuer Patient', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › Neu</p><h1>${symbol('patient', { groesse: 26 })} Neuer Patient</h1>${meldungen(o)}
 ${v.anfrageId ? `<p class="meldung ok">${symbol('anfrage', { groesse: 18 })} Aus <a href="/anfragen/${esc(v.anfrageId)}">Terminanfrage ${esc(v.anfrageId)}</a> – nach dem Anlegen ist der Patient der Anfrage zugeordnet.</p>` : ''}
+${v.lexwareKundennummer ? `<p class="meldung ok">${symbol('euro', { groesse: 18 })} Aus <a href="/patienten/lexware#lx-${esc(v.lexwareKundennummer)}">Lexware-Kunde ${esc(v.lexwareKundennummer)}</a> „${esc(v.lexwareName ?? '')}“ – bitte prüfen und ergänzen; nach dem Anlegen trägt der Patient diese Kundennummer.${v.firma ? ' In Lexware ist das eine Firma – Vor- und Nachname sind geraten.' : ''}</p>` : ''}
 <form method="post" action="/patienten/aktion" class="tafel formular" data-hilfe="patient.neu.formular">
-  <input type="hidden" name="aktion" value="anlegen"><input type="hidden" name="zurueck" value="/patienten/neu">${v.anfrageId ? `<input type="hidden" name="anfrage_id" value="${esc(v.anfrageId)}">` : ''}
-  <div class="zwei"><label>Anrede<input name="anrede" maxlength="40" placeholder="Frau / Herr / –"></label><label>Titel<input name="titel" maxlength="40"></label></div>
+  <input type="hidden" name="aktion" value="anlegen"><input type="hidden" name="zurueck" value="${zurueck}">${v.anfrageId ? `<input type="hidden" name="anfrage_id" value="${esc(v.anfrageId)}">` : ''}${v.lexwareKundennummer ? `<input type="hidden" name="lexware_kundennummer" value="${esc(v.lexwareKundennummer)}"><input type="hidden" name="lexware_kontakt_id" value="${esc(v.lexwareKontaktId ?? '')}">` : ''}
+  <div class="zwei"><label>Anrede<input name="anrede" maxlength="40" placeholder="Frau / Herr / –" value="${esc(v.anrede ?? '')}"></label><label>Titel<input name="titel" maxlength="40"></label></div>
   <div class="zwei"><label>Vorname<input name="vorname" required maxlength="80" autocomplete="off" value="${esc(v.vorname ?? '')}"></label><label>Nachname<input name="nachname" required maxlength="80" autocomplete="off" value="${esc(v.nachname ?? '')}"></label></div>
   <div class="zwei"><label>Geburtsdatum<input type="date" name="geburtsdatum"></label><label>Patient seit<input type="date" name="patient_seit" value="${heuteBerlin()}"></label></div>
   <fieldset><legend>Kontaktwege</legend>
     <label>Mobil<input name="mobil" inputmode="tel" placeholder="0151 …" value="${esc(v.mobil ?? '')}"></label>
     <label class="haken"><input type="checkbox" name="whatsapp_wie_mobil" value="1" checked> WhatsApp unter der Mobilnummer</label>
-    <label>Telefon (Festnetz)<input name="telefon" inputmode="tel"></label>
+    <label>Telefon (Festnetz)<input name="telefon" inputmode="tel" value="${esc(v.telefon ?? '')}"></label>
     <label>E-Mail<input name="email" type="email" value="${esc(v.email ?? '')}"></label>
   </fieldset>
   <fieldset><legend>Adresse (wird Rechnungsadresse)</legend>
-    <div class="zwei"><label>Straße<input name="strasse"></label><label>Nr.<input name="hausnummer" class="kurz"></label></div>
-    <div class="zwei"><label>PLZ<input name="plz" inputmode="numeric" class="kurz"></label><label>Ort<input name="ort"></label></div>
+    <div class="zwei"><label>Straße<input name="strasse" value="${esc(v.strasse ?? '')}"></label><label>Nr.<input name="hausnummer" class="kurz" value="${esc(v.hausnummer ?? '')}"></label></div>
+    <div class="zwei"><label>PLZ<input name="plz" inputmode="numeric" class="kurz" value="${esc(v.plz ?? '')}"></label><label>Ort<input name="ort" value="${esc(v.ort ?? '')}"></label></div>
   </fieldset>
   <label>Ansprache (nur auf Wunsch, z. B. Pronomen)<input name="ansprache" maxlength="120"></label>
   <label>Besonderheiten für die Kachel<input name="besonderheiten" maxlength="200" placeholder="z. B. Hörgerät, kommt mit Begleitung"></label>

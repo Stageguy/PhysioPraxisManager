@@ -22,7 +22,7 @@ import { KarteiFehler, type KarteiDienst } from './kartei/dienst.ts';
 import type { AnfragenDienst, AnfragenFilter } from './anfragen/dienst.ts';
 import { anfrageSeite, anfragenSeite } from './web/anfragen.ts';
 import { cockpitSeite } from './web/cockpit.ts';
-import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from './web/patienten.ts';
+import { akteSeite, behandlungNeuSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite, vorbelegungAusLexware } from './web/patienten.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from './web/rechnung.ts';
@@ -459,13 +459,22 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (pfad === '/rezepte') return senden(res, 200, 'text/html', rezepteSeite(await d.rezepte(adresse.searchParams.get('filter') === 'alle' ? 'alle' : 'aktiv'), r));
     if (pfad === '/rezepte/wellness') return senden(res, 200, 'text/html', wellnessSeite(await d.wellness(), r));
     const suche = adresse.searchParams.get('suche')?.slice(0, 80) ?? '';
-    if (pfad === '/patienten') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche }), suche }, r));
+    if (pfad === '/patienten') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche }), suche, lexware: d.lexwareAngebunden() }, r));
     if (pfad === '/patienten/archiv') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche, archiv: true }), suche, archiv: true }, r));
+    if (pfad === '/patienten/lexware') {
+      // Kunden aus Lexware neben der Kartei (W99) – nur lesend; ohne Anbindung gibt es die Seite nicht
+      const lk = await d.lexwareKunden({ suche, neu: adresse.searchParams.get('neu') === '1' });
+      if (!lk) return senden(res, 404, 'text/plain', 'Lexware ist nicht angebunden');
+      return senden(res, 200, 'text/html', lexwareKundenSeite(lk, r));
+    }
     if (pfad === '/patienten/neu') {
-      // Vorbelegung aus einer Terminanfrage (A15): Name, Mail, Mobil – der Patient wird danach der Anfrage zugeordnet
+      // Vorbelegung aus einer Terminanfrage (A15): Name, Mail, Mobil – der Patient wird danach der Anfrage zugeordnet;
+      // oder aus einem Lexware-Kunden (W99): Name, Anrede, Mail, Telefon, Adresse und die Kundennummer
       const q = (k: string) => adresse.searchParams.get(k)?.slice(0, 120) ?? '';
       const anfrage = /^\d+$/.test(q('anfrage')) ? q('anfrage') : '';
-      return senden(res, 200, 'text/html', patientNeuSeite({ ...r, vorbelegung: anfrage || q('vorname') || q('nachname') ? { anfrageId: anfrage, vorname: q('vorname'), nachname: q('nachname'), email: q('email'), mobil: q('mobil') } : undefined }));
+      const kunde = /^\d{1,12}$/.test(q('lexware')) ? await d.lexwareKunde(q('lexware')) : undefined;
+      if (q('lexware') && !kunde) return senden(res, 200, 'text/html', patientNeuSeite({ ...r, fehler: `Lexware-Kunde ${q('lexware')} ist nicht bekannt – Liste unter „Aus Lexware“ neu laden` }));
+      return senden(res, 200, 'text/html', patientNeuSeite({ ...r, vorbelegung: kunde ? vorbelegungAusLexware(kunde) : anfrage || q('vorname') || q('nachname') ? { anfrageId: anfrage, vorname: q('vorname'), nachname: q('nachname'), email: q('email'), mobil: q('mobil') } : undefined }));
     }
     const fm = /^\/patienten\/(\d+)\/faelle\/(\d+)$/.exec(pfad);
     if (fm) {

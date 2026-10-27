@@ -10,7 +10,8 @@ import type { CockpitDaten } from '../src/cockpit/daten.ts';
 import type { Position, Preisliste, QuelleKurz } from '../src/preise/preislisten.ts';
 import { menueStand } from '../src/web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from '../src/web/preislisten.ts';
-import { akteSeite, behandlungNeuSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
+import { akteSeite, behandlungNeuSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
+import type { LexwareKundeStand } from '../src/kartei/lexware-kunden.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from '../src/web/rezepte.ts';
 import { rueckmeldungenSeite } from '../src/web/rueckmeldung.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from '../src/web/pinnwand.ts';
@@ -31,6 +32,11 @@ const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
   basis: null, vorlage: { id: '1', name: 'GebüTh 15. Auflage' }, positionen: 58, uebernommen: 50, ...o,
 });
 const PK = { id: '1', art: 'mobil' as const, wert: '0151 1', normiert: '+491511', bezeichnung: null, primaer: true };
+const LK_PATIENT = { id: '1', name: 'Anna Test', patientennummer: 'P-1001', status: 'aktiv' };
+const LK = (o: Partial<LexwareKundeStand>): LexwareKundeStand => ({
+  id: 'lx-1', nummer: '1001', art: 'person', anrede: 'Frau', vorname: 'Anna', nachname: 'Test', firma: null, email: 'a@example.org', telefon: '0151 1',
+  adresse: { zusatz: null, strasse: 'Kurpromenade', hausnummer: '3', plz: '86825', ort: 'Bad Wörishofen', land: 'DE' }, notiz: false, archiviert: false, stand: 'neu', patient: null, ...o,
+});
 const PAT: Patient = {
   id: '1', patientennummer: 'P-1001', status: 'aktiv', anrede: 'Frau', titel: null, vorname: 'Anna', nachname: 'Test', patientSeit: '2026-01-10', ansprache: 'sie/ihr', besonderheiten: 'Hörgerät',
   telefon: PK, whatsapp: { ...PK, id: '2', art: 'whatsapp' }, email: { ...PK, id: '3', art: 'email', wert: 'a@example.org', normiert: 'a@example.org' },
@@ -145,9 +151,12 @@ const seiten = () => [
   detailsSeite(PL({ status: 'freigegeben', freigegebenAm: '2026-10-24T10:00:00Z', aktiv: true, patienten: 3 }), [POS], { patienten: [], rechnungen: [] }, { ...R, andere: [PL({ id: '6', name: 'Tagesgast', status: 'freigegeben', aktiv: true, standard: true })] }),
   detailsSeite(PL({ status: 'freigegeben', aktiv: true, standard: true }), [POS], { patienten: [], rechnungen: ['Rechnung 1'] }, R),
   positionSeite(PL(), { position: POS, gkv: { ...QP, id: '3', nummer: '20501', daten: { positionsnummer: 'X0501', originaltext: 'X0501 …' } }, beihilfe: QP, kandidaten: [{ ...QP, passt: 0.8 }] }, R),
-  listeSeite({ patienten: [PAT, { ...PAT, id: '2', status: 'archiviert', telefon: null, whatsapp: null, email: null, letzteBehandlung: null, naechsterTermin: null, rechnungsstand: 'rot', offeneAnrufe: 0 }], suche: '' }, R),
+  listeSeite({ patienten: [PAT, { ...PAT, id: '2', status: 'archiviert', telefon: null, whatsapp: null, email: null, letzteBehandlung: null, naechsterTermin: null, rechnungsstand: 'rot', offeneAnrufe: 0 }], suche: '', lexware: true }, R),
   listeSeite({ patienten: [], suche: 'x', archiv: true }, R),
+  lexwareKundenSeite({ kunden: [LK({}), LK({ id: 'lx-2', nummer: '1002', stand: 'vermutet', patient: LK_PATIENT }), LK({ id: 'lx-3', nummer: '1003', stand: 'verknuepft', art: 'firma', firma: 'Kurhotel GmbH', vorname: '', nachname: 'Kurhotel GmbH', notiz: true, archiviert: true, adresse: null, patient: LK_PATIENT })], stand: '2026-10-27T10:00:00Z', attrappe: true, suche: '' }, R),
+  lexwareKundenSeite({ kunden: [], stand: '', attrappe: false, suche: 'x', fehler: 'Lexware ist gerade nicht erreichbar' }, R),
   patientNeuSeite(R),
+  patientNeuSeite({ ...R, vorbelegung: { lexwareKundennummer: '1001', lexwareKontaktId: 'lx-1', lexwareName: 'Anna Test', firma: true, anrede: 'Frau', vorname: 'Anna', nachname: 'Test', telefon: '08247 1', strasse: 'Kurpromenade', hausnummer: '3', plz: '86825', ort: 'Bad Wörishofen' } }),
   patientSeite(PATIENT_DATEN, R),
   anfragenSeite({ anfragen: [ANFRAGE, ANFRAGE_MIT, ANFRAGE_FERTIG], filter: 'offen', stand: { neu: 1, vorgeschlagen: 1 }, terminarten: TERMINARTEN }, R),
   terminartenSeite({ terminarten: TERMINARTEN, buchung: { url: 'http://praxis.example:10003', oeffentlich: false } }, R),

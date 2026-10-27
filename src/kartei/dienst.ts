@@ -27,6 +27,8 @@ import { steuerfreieUmsaetze, type SteuerListe } from './steuer.ts';
 import { dokumente, mailEntwurf, whatsappAngebote, whatsappEingang, whatsappSenden, whatsappVermerken, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
 import { akteExport } from './akte-export.ts';
 import { terminartAktiv, terminarten, terminartSpeichern, type Terminart } from './terminarten.ts';
+import { kundenAbgleich, lexwareLoesen, lexwareNummerFrei, lexwareVerknuepfen, type LexwareKundeStand } from './lexware-kunden.ts';
+import type { LexwareKunde, LexwareKunden } from '../lexware/kunden.ts';
 import type { EingehendeNachricht, WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
 
 export { KarteiFehler };
@@ -73,6 +75,18 @@ export interface RezepteDaten {
   filter: 'aktiv' | 'alle';
 }
 
+/** Kunden aus Lexware neben der Kartei (W99) */
+export interface LexwareKundenDaten {
+  kunden: LexwareKundeStand[];
+  /** Wann die Kunden gelesen wurden (ISO); leer bei Fehler */
+  stand: string;
+  /** Erfundene Kunden (Testumgebung) */
+  attrappe: boolean;
+  suche: string;
+  /** Lexware nicht erreichbar – dann ist `kunden` leer */
+  fehler?: string;
+}
+
 export interface KarteiDienst {
   liste(o: { suche?: string; archiv?: boolean }): Promise<PatientKurz[]>;
   pinnwand(o: { archiv?: boolean }): Promise<Spalte[]>;
@@ -96,6 +110,12 @@ export interface KarteiDienst {
   buchung(): { url: string; oeffentlich: boolean } | undefined;
   /** Eingehende WhatsApp-Nachricht vom Webhook (W90) */
   whatsappEingang(n: EingehendeNachricht): Promise<'zugeordnet' | 'medien' | 'unbekannt'>;
+  /** Lexware angebunden (echt oder Attrappe) – dann gibt es „Aus Lexware“ in der Patientenliste (W99) */
+  lexwareAngebunden(): boolean;
+  /** Kunden aus Lexware, abgeglichen mit der Kartei; undefined ohne Anbindung */
+  lexwareKunden(o: { suche?: string; neu?: boolean }): Promise<LexwareKundenDaten | undefined>;
+  /** Ein Lexware-Kunde für die Vorbelegung von „Neuer Patient“ */
+  lexwareKunde(nummer: string): Promise<LexwareKunde | undefined>;
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
 }
 
@@ -103,7 +123,7 @@ const ARTEN: Kontaktart[] = ['mobil', 'telefon', 'whatsapp', 'email', 'sonstige'
 const kontaktart = (s: string | null): Kontaktart => (ARTEN.includes(s as Kontaktart) ? (s as Kontaktart) : 'sonstige');
 const ganz = (s: string | null, standard = 0) => (s && /^\d+$/.test(s.trim()) ? Number(s) : standard);
 
-export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'>; whatsapp?: WhatsAppCloud; buchung?: { url: string; oeffentlich: boolean } }): KarteiDienst {
+export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'>; whatsapp?: WhatsAppCloud; buchung?: { url: string; oeffentlich: boolean }; lexware?: LexwareKunden }): KarteiDienst {
   const { db, tresor: t } = q;
   /** Termin in den Kalender spiegeln; scheitert der Kalender, bleibt der Termin in der Kartei und die Meldung sagt es */
   const spiegeln = async (terminId: string, wer: string): Promise<string> => {
@@ -175,6 +195,28 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
     gruende: () => gespraechsgruende(db),
     terminarten: () => terminarten(db),
     buchung: () => q.buchung,
+    lexwareAngebunden: () => Boolean(q.lexware),
+    async lexwareKunden({ suche = '', neu = false }) {
+      if (!q.lexware) return undefined;
+      const s = suche.trim().toLowerCase();
+      try {
+        const { kunden, stand } = await q.lexware.alle({ neu });
+        const passend = s ? kunden.filter((k) => [k.vorname, k.nachname, k.firma, k.nummer, k.email, k.adresse?.ort].some((w) => w?.toLowerCase().includes(s))) : kunden;
+        return { kunden: await kundenAbgleich(db, passend), stand, attrappe: q.lexware.attrappe, suche };
+      } catch (err) {
+        console.warn(`Lexware-Kunden: ${(err as Error).message.slice(0, 200)}`);
+        return { kunden: [], stand: '', attrappe: q.lexware.attrappe, suche, fehler: `Lexware ist gerade nicht erreichbar – ${(err as Error).message.slice(0, 160)}` };
+      }
+    },
+    async lexwareKunde(nummer) {
+      if (!q.lexware || !/^\d{1,12}$/.test(nummer)) return undefined;
+      try {
+        return (await q.lexware.alle()).kunden.find((k) => k.nummer === nummer);
+      } catch (err) {
+        console.warn(`Lexware-Kunde ${nummer}: ${(err as Error).message.slice(0, 200)}`);
+        return undefined;
+      }
+    },
     async aktion(f, wer) {
       const id = f.get('id') ?? '';
       const g = (name: string) => f.get(name) ?? undefined;
@@ -188,11 +230,18 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
         if (g('mobil') && f.has('whatsapp_wie_mobil')) kontakte.push({ art: 'whatsapp', wert: g('mobil')! });
         else if (g('whatsapp')) kontakte.push({ art: 'whatsapp', wert: g('whatsapp')! });
         if (g('email')) kontakte.push({ art: 'email', wert: g('email')! });
+        // Aus Lexware (W99): die Kundennummer muss frei sein, bevor der Patient entsteht
+        const lexwareNummer = g('lexware_kundennummer')?.trim() || undefined;
+        if (lexwareNummer) await lexwareNummerFrei(db, lexwareNummer);
         const neu = await patientAnlegen(db, t, {
           anrede: g('anrede'), titel: g('titel'), vorname: g('vorname') ?? '', nachname: g('nachname') ?? '', geburtsdatum: g('geburtsdatum'), patientSeit: g('patient_seit'),
           ansprache: g('ansprache'), besonderheiten: g('besonderheiten'), sprache: g('sprache'), kontakte,
           adresse: { bezeichnung: g('adresse_bezeichnung') ?? 'Zuhause', zusatz: null, strasse: g('strasse') ?? null, hausnummer: g('hausnummer') ?? null, plz: g('plz') ?? null, ort: g('ort') ?? null, land: g('land') },
         }, wer);
+        if (lexwareNummer) {
+          await lexwareVerknuepfen(db, neu, { nummer: lexwareNummer, kontaktId: g('lexware_kontakt_id') }, wer);
+          return nach(`/patienten/${neu}`, `Patient angelegt und mit Lexware-Kunde ${lexwareNummer} verknüpft.`);
+        }
         // Aus einer Terminanfrage angelegt (A15): zuordnen und zurück zur Anfrage
         const anfrageId = g('anfrage_id');
         if (anfrageId && istId(anfrageId)) {
@@ -386,6 +435,16 @@ export function karteiDienst(q: { db: Db; tresor: Tresor; graph?: Pick<GraphClie
         case 'whatsapp_vermerken':
           await whatsappVermerken(db, t, id, { vorlage: g('vorlage') ?? '', terminId: g('termin_id') || undefined }, wer);
           return nach(`${seite}#verlauf`, 'WhatsApp vermerkt.');
+        // Lexware-Kunden (W99): nur die Verknüpfung über die Kundennummer – keine Stammdaten aus Lexware
+        case 'lexware_zuordnen': {
+          const nummer = (g('kundennummer') ?? '').trim();
+          const { name } = await lexwareVerknuepfen(db, id, { nummer, kontaktId: g('kontakt_id') }, wer);
+          return nach(`/patienten/lexware#lx-${nummer}`, `Lexware-Kunde ${nummer} ist jetzt ${name} zugeordnet.`);
+        }
+        case 'lexware_loesen': {
+          const { nummer } = await lexwareLoesen(db, id, wer);
+          return nach(nummer ? `/patienten/lexware#lx-${nummer}` : '/patienten/lexware', nummer ? `Verknüpfung mit Lexware-Kunde ${nummer} gelöst.` : 'Der Patient war mit keinem Lexware-Kunden verknüpft.');
+        }
         case 'archivieren':
           await statusSetzen(db, id, 'archiviert', wer);
           return nach('/patienten', 'Patient archiviert – die Akte bleibt erhalten.');

@@ -9,6 +9,8 @@
     { "name": "patient", "pfad": "/patienten/1" },
     { "name": "akte", "pfad": "/patienten/4/akte" },
     { "name": "behandlung-neu", "pfad": "/patienten/4/neu/behandlung" },
-    { "name": "patient-neu", "pfad": "/patienten/neu" }
+    { "name": "patient-neu", "pfad": "/patienten/neu" },
+    { "name": "patienten-lexware", "pfad": "/patienten/lexware" },
+    { "name": "patient-neu-lexware", "pfad": "/patienten/neu?lexware=10003" }
   ]
 }
