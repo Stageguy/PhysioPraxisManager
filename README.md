@@ -63,6 +63,7 @@ Jeder Befehl, der etwas verändert, ist ohne `--ausfuehren` nur ein Probelauf.
 | `npm run db:migrieren` | Datenbankschema anlegen bzw. fortschreiben |
 | `npm run rechnungen:zaehlen -- --jahr 2026 [--mit-geloeschten]` | Bestandsaufnahme: Mails mit Rechnungs-PDF zählen, je Ordnergruppe (nur Zahlen, verändert nichts) |
 | `npm run rechnungen:uebernahme -- --von 2025-12-01 [--bezahlt-bis …] [--mit-geloeschten]` | Altbestand aus allen Ordnern ablegen; bis zum Stichtag bezahlte gleich ins Archiv (`--ausfuehren`) |
+| `npm run lexware:pruefen` | Lexware-Schlüssel aus `.env` prüfen – nur lesend: Firma, Organisation, Zahl der offenen Ausgangsrechnungen |
 | `npm run zahlungen [-- --quelle outlook\|lexware]` | Bezahlte Rechnungen ins Exchange-Archiv – heute über Lillis Kategorie in Outlook, ab Tarif XL aus Lexware (`--ausfuehren`) |
 | `npm run kategorien` | Outlook-Kategorien des Rechnungs-Flows anlegen (`--ausfuehren`) |
 | `npm run finanzjahr -- --jahr 2027` | Finanzordner eines Jahres nach Vorlage des Vorjahres anlegen, mit „Eingangsrechnungen“ (`--ausfuehren`) |

@@ -31,7 +31,8 @@
     "testdaten": "node --env-file-if-exists=.env src/cli/testdaten.ts",
     "termine:abgleich": "node --env-file-if-exists=.env src/cli/termine-abgleich.ts",
     "anfragen": "node --env-file-if-exists=.env src/cli/anfragen.ts",
-    "buchung": "node --env-file-if-exists=.env src/cli/buchung-serve.ts"
+    "buchung": "node --env-file-if-exists=.env src/cli/buchung-serve.ts",
+    "lexware:pruefen": "node --env-file-if-exists=.env src/cli/lexware-pruefen.ts"
   },
   "dependencies": {
     "@azure/msal-node": "^6.0.1",
