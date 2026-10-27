@@ -174,7 +174,8 @@ function senden(res: ServerResponse, status: number, typ: string, inhalt: string
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
     'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'self'",
-    'Referrer-Policy': 'no-referrer',
+    // same-origin: eigene Seiten bekommen den Referer (Rückfall der Herkunftsprüfung bei Browsern ohne Sec-Fetch-Site), fremde Ziele (wa.me, Outlook) nichts
+    'Referrer-Policy': 'same-origin',
   });
   res.end(inhalt);
 }
