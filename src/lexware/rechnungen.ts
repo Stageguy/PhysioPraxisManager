@@ -152,7 +152,8 @@ export function attrappeRechnungen(): LexwareRechnungen {
   const rechnungen: (Erfunden & { zeilen?: string[] })[] = ERFUNDEN.map((e) => ({ ...e }));
   const namen = new Map<string, string>(ERFUNDEN.map((e) => [e.kontakt, e.name]));
   let kontakte = 0;
-  let nummern = 100;
+  // Nummernkreis 9001 ff., damit nichts mit den Testdaten (RE-2026-0012 … 0101) oder PPM-Nummern zusammenstößt
+  let nummern = 9000;
   return {
     attrappe: true,
     async *belege(o = {}) {

@@ -46,7 +46,7 @@ export async function rechnungSenden(
   if (!patient) throw new KarteiFehler('Unbekannter Patient');
   const r = await rechnungLesen(db, patientId, rechnungId);
   if (!r) throw new KarteiFehler('Diese Rechnung gibt es nicht');
-  if (!['in_lexware', 'freigegeben'].includes(r.status)) throw new KarteiFehler('Versenden erst, wenn die Rechnung in Lexware ist (Nummer und PDF)');
+  if (r.status !== 'in_lexware') throw new KarteiFehler(r.status === 'gesendet' || r.status === 'bezahlt' ? 'Die Rechnung ist schon versendet' : 'Versenden erst, wenn die Rechnung in Lexware ist (Nummer und PDF)');
   const art = ['email', 'post', 'beides'].includes(d.art ?? '') ? d.art! : patient.rechnungsversand;
   const kurz = (await rechnungen(db, patientId)).find((x) => x.id === rechnungId)!;
   const wege: string[] = [];

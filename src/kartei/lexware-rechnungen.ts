@@ -148,7 +148,14 @@ export async function rechnungNachLexware(
     positionen: r.positionen.map((p) => ({ name: p.nummer ? `${p.bezeichnung} (${p.nummer})` : p.bezeichnung, beschreibung: p.datum ? `Behandlung am ${datumText(p.datum)}` : undefined, anzahl: p.anzahl, einzelpreis: p.einzelpreis })),
   });
   const datei = await lex.datei(neu.id);
-  await lexwareStandUebernehmen(db, t, rechnungId, { invoiceId: neu.id, nummer: neu.nummer, status: 'open', betrag: r.betrag, pdf: datei?.daten, pdfName: datei?.name, erstelltAm: neu.erstelltAm, geaendertAm: neu.geaendertAm }, wer);
+  try {
+    await lexwareStandUebernehmen(db, t, rechnungId, { invoiceId: neu.id, nummer: neu.nummer, status: 'open', betrag: r.betrag, pdf: datei?.daten, pdfName: datei?.name, erstelltAm: neu.erstelltAm, geaendertAm: neu.geaendertAm }, wer);
+  } catch (err) {
+    // Die Nummer aus Lexware steht schon an einer anderen Rechnung der Kartei: Lexware-ID trotzdem festhalten, Abweichung melden
+    if ((err as { code?: string }).code !== '23505') throw err;
+    await db.query("UPDATE rechnung SET lexware_invoice_id = $2, lexware_status = 'open', lexware_abweichung = $3, geaendert_am = now() WHERE id = $1", [rechnungId, neu.id, `Lexware hat die Nummer ${neu.nummer} vergeben, die in der Kartei schon an einer anderen Rechnung steht`]);
+    throw new KarteiFehler(`Lexware hat die Rechnung angelegt (${neu.nummer}), aber diese Nummer trägt hier schon eine andere Rechnung – bitte die andere prüfen; die Lexware-ID ist vermerkt`);
+  }
   await db.query('UPDATE rechnung SET lexware_kontakt_id = $2, faellig_am = COALESCE($3::date, faellig_am), geaendert_am = now() WHERE id = $1', [rechnungId, kontaktId, neu.faellig]);
   await protokolliere(db, { actor: wer, action: 'rechnung_nach_lexware', objectType: 'patient', objectId: patientId, details: { rechnung: Number(rechnungId), kontaktNeu, pdf: Boolean(datei) } });
   return { nummer: neu.nummer, kontaktNeu };
