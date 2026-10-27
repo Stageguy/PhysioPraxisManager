@@ -3,7 +3,7 @@ import { beforeEach, test } from 'node:test';
 import type { Db } from '../src/db/index.ts';
 import { beihilfeLesen, beihilfeZuordnen, gebuethAuflage, gkvLesen, gkvLinkFinden } from '../src/preise/leser.ts';
 import {
-  aktivSetzen, alsVorlage, anlegen, archivieren, beihilfeSetzen, freigeben, listen, loeschen, musterAbweichung, musterHakenUebernehmen,
+  aktivSetzen, alsVorlage, anlegen, archivieren, beihilfeSetzen, freigeben, listen, loeschen, musterAbweichung, musterHakenUebernehmen, standardSetzen,
   positionDetail, positionen, PreislisteFehler, preisliste, preisRunden, speichern, wiederherstellen,
 } from '../src/preise/preislisten.ts';
 import { allePruefen, alsGesehen, neueQuellen } from '../src/preise/quellen.ts';
@@ -122,7 +122,7 @@ test('Anlegen aus GKV mit Standardfaktor; Faktor und Preis bedingen sich; Beihil
   await assert.rejects(speichern(db, id, { name: 'x', standardFaktor: '', zeilen: [{ nummer: '20501', uebernehmen: true, faktor: '', eigenerPreis: 'viel' }] }, 'lilli'), PreislisteFehler);
 });
 
-test('Lebenslauf: freigeben (dann fest), eine aktiv, archivieren, wiederherstellen, löschen nur Entwurf', async () => {
+test('Lebenslauf: freigeben (dann fest), mehrere aktiv, ein Standard, archivieren mit Umstellung, wiederherstellen, löschen nur Entwurf', async () => {
   const q = await grundlagen();
   const a = await anlegen(db, { name: 'A', gkvQuelleId: q.gkv, beihilfeQuelleId: q.beihilfe, standardFaktor: 1.3, wer: 'l' });
   const b = await anlegen(db, { name: 'B', gkvQuelleId: q.gkv, standardFaktor: 1.4, wer: 'l' });
@@ -132,12 +132,35 @@ test('Lebenslauf: freigeben (dann fest), eine aktiv, archivieren, wiederherstell
   await freigeben(db, b, 'l');
   await aktivSetzen(db, a, 'l');
   await aktivSetzen(db, b, 'l');
-  assert.deepEqual((await listen(db)).map((l) => [l.name, l.aktiv]).sort(), [['A', false], ['B', true]]);
-  await assert.rejects(archivieren(db, b, 'l'), /aktive/);
-  await archivieren(db, a, 'l');
-  assert.deepEqual((await listen(db, { archiv: true })).map((l) => l.name), ['A']);
-  await wiederherstellen(db, a, 'l', { aktiv: true });
-  assert.equal((await preisliste(db, a))!.aktiv, true);
+  assert.deepEqual((await listen(db)).map((l) => [l.name, l.aktiv, l.standard]).sort(), [['A', true, false], ['B', true, false]], 'beide aktiv, noch kein Standard');
+  await standardSetzen(db, b, 'l');
+  await standardSetzen(db, a, 'l');
+  assert.deepEqual((await listen(db)).map((l) => [l.name, l.aktiv, l.standard]).sort(), [['A', true, true], ['B', true, false]], 'genau ein Standard');
+  await assert.rejects(aktivSetzen(db, a, 'l', false), /Standard-Preisliste bleibt aktiv/);
+  await assert.rejects(archivieren(db, a, 'l'), /Standard/);
+  // Patienten: einer auf B, einer ohne Wahl (Standard)
+  const { patientAnlegen } = await import('../src/kartei/patienten.ts');
+  const { neuerHauptschluessel, tresor } = await import('../src/tresor.ts');
+  const t = tresor({ PRAXIS_TRESOR_SCHLUESSEL: neuerHauptschluessel() });
+  const p1 = await patientAnlegen(db, t, { vorname: 'Berta', nachname: 'B', preislisteId: b }, 'l');
+  const p2 = await patientAnlegen(db, t, { vorname: 'Stefan', nachname: 'Standard' }, 'l');
+  assert.equal((await preisliste(db, b))!.patienten, 1);
+  assert.deepEqual((await db.query<{ p: string | null }>('SELECT preisliste_id::text AS p FROM patient WHERE id = $1', [p2])).rows[0]!.p, null, 'ohne Wahl: Standard');
+  const { preislisteFuer } = await import('../src/kartei/rechnungen.ts');
+  assert.deepEqual([await preislisteFuer(db, p1), await preislisteFuer(db, p2)], [b, a]);
+  await aktivSetzen(db, b, 'l', false);
+  assert.equal(await preislisteFuer(db, p1), a, 'inaktive Liste: der Standard springt ein');
+  await aktivSetzen(db, b, 'l', true);
+  assert.equal((await archivieren(db, b, 'l')).umgestellt, 1, 'Archivieren stellt zugeordnete Patienten um');
+  assert.deepEqual((await db.query<{ p: string | null }>('SELECT preisliste_id::text AS p FROM patient WHERE id = $1', [p1])).rows[0]!.p, null, 'ohne Nachfolger auf den Standard');
+  assert.deepEqual((await listen(db, { archiv: true })).map((l) => [l.name, l.aktiv]), [['B', false]]);
+  await wiederherstellen(db, b, 'l', { aktiv: true });
+  assert.deepEqual([(await preisliste(db, b))!.aktiv, (await preisliste(db, b))!.standard, (await preisliste(db, a))!.standard], [true, false, true]);
+  await db.query('UPDATE patient SET preisliste_id = $2 WHERE id = $1', [p1, b]);
+  assert.equal((await archivieren(db, b, 'l', { nachfolgerId: a })).umgestellt, 1);
+  assert.deepEqual((await db.query<{ p: string | null }>('SELECT preisliste_id::text AS p FROM patient WHERE id = $1', [p1])).rows[0]!.p, a, 'mit Nachfolger dorthin');
+  assert.equal((await preisliste(db, b))!.nachfolger?.id, a);
+  await wiederherstellen(db, b, 'l', { aktiv: false });
   assert.equal((await preisliste(db, b))!.aktiv, false);
   await assert.rejects(loeschen(db, a, 'l'), /nur ein Entwurf/);
   const c = await anlegen(db, { name: 'C', gkvQuelleId: q.gkv, wer: 'l' });

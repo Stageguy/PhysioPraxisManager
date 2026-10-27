@@ -88,8 +88,8 @@ test('Erweiterte Testdaten: zwei Preislisten aus der GKV-Liste, sechs Patienten 
   assert.deepEqual([e.uebersprungen, e.preislisten, e.patienten], [false, 2, 14]);
   assert.ok((await testdatenErweitert(db, t, { adresse: 'shopping@2late.de', wer: 'test' })).uebersprungen);
   // Preislisten: Gerundet aktiv, Tagesgast freigegeben, Preise aufgerundet (MT 35,59 → 36 bzw. × 1,6 = 56,94 → 57)
-  const listen = (await db.query<{ name: string; status: string; aktiv: boolean }>("SELECT name, status::text, aktiv FROM preisliste WHERE name LIKE '%GKV%' ORDER BY id")).rows;
-  assert.deepEqual(listen, [{ name: 'Gerundet (GKV × 1,0)', status: 'freigegeben', aktiv: true }, { name: 'Tagesgast (GKV × 1,6)', status: 'freigegeben', aktiv: false }]);
+  const listen = (await db.query<{ name: string; status: string; aktiv: boolean }>("SELECT name, status::text, aktiv, standard FROM preisliste WHERE name LIKE '%GKV%' ORDER BY id")).rows;
+  assert.deepEqual(listen, [{ name: 'Gerundet (GKV × 1,0)', status: 'freigegeben', aktiv: true, standard: true }, { name: 'Tagesgast (GKV × 1,6)', status: 'freigegeben', aktiv: true, standard: false }]);
   const mt = (await db.query<{ name: string; p: string }>("SELECT l.name, pp.eigener_preis::text AS p FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE pp.nummer = '21201' AND l.name LIKE '%GKV%' ORDER BY l.id")).rows;
   assert.deepEqual(mt.map((x) => x.p), ['36.00', '57.00']);
   // Sechs Patienten: drei Adressen, genau eine Rechnungsadresse, Mail shopping@2late.de

@@ -5,7 +5,7 @@
 import type { Db } from '../db/index.ts';
 import type { NeuDaten, UebersichtDaten } from '../web/preislisten.ts';
 import {
-  aktivSetzen, alsVorlage, anlegen, archivieren, beihilfeSetzen, freigeben, listen, loeschen, musterAbweichung, musterHakenUebernehmen, positionDetail, positionen,
+  aktivSetzen, alsVorlage, anlegen, archivieren, beihilfeSetzen, patientenUmstellen, standardSetzen, freigeben, listen, loeschen, musterAbweichung, musterHakenUebernehmen, positionDetail, positionen,
   PreislisteFehler, preisliste, quellen, speichern, verwendung, vorlagen, wiederherstellen, type Position, type PositionDetail, type Preisliste, type Vorlage,
 } from './preislisten.ts';
 import { allePruefen, alsGesehen, neueQuellen, type Pruefergebnis } from './quellen.ts';
@@ -23,7 +23,7 @@ export interface PreislistenDienst {
   auswahl(archiv: boolean): Promise<Preisliste[]>;
   /** `musterFrage`: nach dem Speichern prüfen, ob die Liste vom Muster abweicht */
   editor(id: string, musterFrage?: boolean): Promise<{ liste: Preisliste; positionen: Position[]; muster: Vorlage[]; abweichung?: { muster: Vorlage; unterschiede: number } } | undefined>;
-  details(id: string): Promise<{ liste: Preisliste; positionen: Position[]; verwendung: { patienten: string[]; rechnungen: string[] } } | undefined>;
+  details(id: string): Promise<{ liste: Preisliste; positionen: Position[]; verwendung: { patienten: string[]; rechnungen: string[] }; andere: Preisliste[] } | undefined>;
   position(id: string, posId: string): Promise<{ liste: Preisliste; detail: PositionDetail } | undefined>;
   original(quelleId: string): Promise<{ daten: Uint8Array; typ: string; name: string } | undefined>;
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
@@ -60,7 +60,7 @@ export function preislistenDienst(q: { db: Db; holen?: (url: string) => Promise<
     },
     async details(id) {
       const liste = await preisliste(db, id);
-      return liste ? { liste, positionen: await positionen(db, id), verwendung: await verwendung(db, id) } : undefined;
+      return liste ? { liste, positionen: await positionen(db, id), verwendung: await verwendung(db, id), andere: (await listen(db)).filter((x) => x.status === 'freigegeben' && x.aktiv && x.id !== id) } : undefined;
     },
     async position(id, posId) {
       const liste = await preisliste(db, id);
@@ -87,8 +87,19 @@ export function preislistenDienst(q: { db: Db; holen?: (url: string) => Promise<
           return nach('/preislisten', 'Neue Grundlagen als gesehen markiert.');
         case 'aktiv': {
           const aktivId = f.get('aktiv_id') ?? id;
-          await aktivSetzen(db, aktivId, wer);
-          return nach(f.get('zurueck') ?? '/preislisten', `„${(await preisliste(db, aktivId))?.name}“ ist jetzt die aktive Preisliste.`);
+          const an = (f.getAll('aktiv').at(-1) ?? '1') === '1';
+          await aktivSetzen(db, aktivId, wer, an);
+          return nach(f.get('zurueck') ?? '/preislisten', `„${(await preisliste(db, aktivId))?.name}“ ist jetzt ${an ? 'aktiv – für Patienten wählbar' : 'nicht mehr aktiv – Patienten damit bekommen den Standard'}.`);
+        }
+        case 'standard': {
+          const standardId = f.get('standard_id') ?? id;
+          await standardSetzen(db, standardId, wer);
+          return nach(f.get('zurueck') ?? '/preislisten', `„${(await preisliste(db, standardId))?.name}“ ist jetzt die Standard-Preisliste – sie gilt für alle Patienten ohne eigene Liste.`);
+        }
+        case 'umstellen': {
+          const nachId = f.get('nach_id') || null;
+          const n = await patientenUmstellen(db, id, nachId, wer);
+          return nach(`/preislisten/${id}`, `${n} Patient(en) umgestellt${nachId ? ` auf „${(await preisliste(db, nachId))?.name}“` : ' auf den Standard'}.`);
         }
         case 'anlegen': {
           const grundlage = f.get('grundlage');
@@ -137,13 +148,14 @@ export function preislistenDienst(q: { db: Db; holen?: (url: string) => Promise<
         }
         case 'freigeben':
           await freigeben(db, id, wer);
-          return nach(`/preislisten/${id}`, 'Freigegeben – die Preisliste ist jetzt fest. Mit dem Knopf „aktiv“ wird sie für neue Rechnungen verwendet.');
+          return nach(`/preislisten/${id}`, 'Freigegeben – die Preisliste ist jetzt fest. Mit dem Haken „aktiv“ ist sie für Patienten wählbar; „Standard“ gilt für alle ohne eigene Liste.');
         case 'loeschen':
           await loeschen(db, id, wer);
           return nach('/preislisten', 'Entwurf gelöscht.');
-        case 'archivieren':
-          await archivieren(db, id, wer);
-          return nach('/preislisten/archiv', 'Archiviert – für Rechnungen nicht mehr wählbar.');
+        case 'archivieren': {
+          const arch = await archivieren(db, id, wer, { nachfolgerId: f.get('nachfolger_id') || undefined });
+          return nach('/preislisten', `Archiviert${arch.umgestellt ? ` – ${arch.umgestellt} Patient(en) ${f.get('nachfolger_id') ? 'auf den Nachfolger' : 'auf den Standard'} umgestellt` : ''}.`);
+        }
         case 'wiederherstellen':
         case 'wiederherstellen_aktiv':
           await wiederherstellen(db, id, wer, { aktiv: f.get('aktion') === 'wiederherstellen_aktiv' });

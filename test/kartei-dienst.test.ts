@@ -322,11 +322,12 @@ test('Pinnwand: Karte wandert nur mit vollständigen Daten; Drag & Drop antworte
 
 test('Rechnungsentwürfe: Rezept legt Entwurf mit Positionen und R1 an; Preisliste des Patienten; Behandlung füllt die Position', async () => {
   // Aktive Preisliste mit einer Position 21201 zu 50 €
-  const pl = (await db.query<{ id: string }>("INSERT INTO preisliste (name, status, aktiv) VALUES ('Privat Test', 'freigegeben', true) RETURNING id::text")).rows[0]!.id;
+  const pl = (await db.query<{ id: string }>("INSERT INTO preisliste (name, status, aktiv, standard) VALUES ('Privat Test', 'freigegeben', true, true) RETURNING id::text")).rows[0]!.id;
   await db.query("INSERT INTO preisliste_position (preisliste_id, reihenfolge, nummer, bezeichnung, gkv_preis, eigener_preis, uebernehmen) VALUES ($1, 1, '21201', 'Manuelle Therapie', 35.59, 50, true)", [pl]);
   const p = await post({ aktion: 'anlegen', vorname: 'Rita', nachname: 'Rechnung', strasse: 'Weg', hausnummer: '2', plz: '86825', ort: 'Bad Wörishofen' });
   const pid = /\/patienten\/(\d+)/.exec(ziel(p))![1]!;
-  assert.equal((await db.query<{ p: string }>('SELECT preisliste_id::text AS p FROM patient WHERE id = $1', [pid])).rows[0]!.p, pl, 'neuer Patient bekommt die aktive Preisliste');
+  assert.equal((await db.query<{ p: string | null }>('SELECT preisliste_id::text AS p FROM patient WHERE id = $1', [pid])).rows[0]!.p, null, 'ohne Wahl keine feste Zuordnung – es gilt der Standard (W97)');
+  assert.match(await seite(`/patienten/${pid}`), /Es gilt: Privat Test \(Standard\)/);
   await post({ aktion: 'termin_anlegen', id: pid, datum: '2099-03-02', zeit: '08:00', dauer_min: '30' });
   await post({ aktion: 'verordnung_anlegen', id: pid, ausgestellt_am: '2026-10-01', massnahme: 'Manuelle Therapie', leistung_nummer: '21201', anzahl: '3' });
   const rezept = (await db.query<{ id: string }>('SELECT id::text FROM verordnung WHERE patient_id = $1', [pid])).rows[0]!.id;

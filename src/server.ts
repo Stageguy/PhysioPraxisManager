@@ -526,7 +526,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
         return e ? senden(res, 200, 'text/html', editorSeite(e.liste, e.positionen, { ...r, muster: e.muster, abweichung: e.abweichung })) : senden(res, 404, 'text/plain', 'Diese Preisliste gibt es nicht');
       }
       const det = await d.details(id);
-      return det ? senden(res, 200, 'text/html', detailsSeite(det.liste, det.positionen, det.verwendung, r)) : senden(res, 404, 'text/plain', 'Diese Preisliste gibt es nicht');
+      return det ? senden(res, 200, 'text/html', detailsSeite(det.liste, det.positionen, det.verwendung, { ...r, andere: det.andere })) : senden(res, 404, 'text/plain', 'Diese Preisliste gibt es nicht');
     }
     return senden(res, 404, 'text/plain', 'Nicht gefunden');
   }

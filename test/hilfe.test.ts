@@ -26,7 +26,7 @@ import type { Patient } from '../src/kartei/patienten.ts';
 
 const Q: QuelleKurz = { id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2026', gueltigAb: '2026-01-01', abgerufenAm: '2026-10-23T03:00:00Z', url: 'https://x' };
 const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
-  id: '5', name: 'Privat 2026', status: 'entwurf', aktiv: false, genutzt: false, erstelltAm: '2026-10-23T10:00:00Z', erstelltVon: 'lilli',
+  id: '5', name: 'Privat 2026', status: 'entwurf', aktiv: false, standard: false, patienten: 0, nachfolger: null, genutzt: false, erstelltAm: '2026-10-23T10:00:00Z', erstelltVon: 'lilli',
   freigegebenAm: null, freigegebenVon: null, archiviertAm: null, standardFaktor: 1.3, aufrunden: false, notiz: null, gkv: Q, beihilfe: { ...Q, id: '2', art: 'beihilfe', version: 'BBhV Anlage 9' },
   basis: null, vorlage: { id: '1', name: 'GebüTh 15. Auflage' }, positionen: 58, uebernommen: 50, ...o,
 });
@@ -36,7 +36,7 @@ const PAT: Patient = {
   telefon: PK, whatsapp: { ...PK, id: '2', art: 'whatsapp' }, email: { ...PK, id: '3', art: 'email', wert: 'a@example.org', normiert: 'a@example.org' },
   letzteBehandlung: { id: '5', datum: '2026-10-20', fallId: '1' }, naechsterTermin: { id: '7', beginn: '2026-11-02T08:00:00Z', rezept: true }, rechnungsstand: 'gelb', offeneAnrufe: 1,
   geburtsdatum: '1984-03-12', geburtsname: null, sprache: null, kommunikationshilfe: null, berufBelastung: null, notiz: null, abrechnungsmodus: 'pro_serie', zwischenrechnungQuartale: null,
-  exchangeKontaktId: null, lexwareKundennummer: null, preisliste: { id: '5', name: 'Privat 2026' }, rechnungsversand: 'email', kontakte: [PK, { ...PK, id: '4', primaer: false }],
+  exchangeKontaktId: null, lexwareKundennummer: null, preisliste: { id: '5', name: 'Privat 2026' }, preislisteGilt: { id: '5', name: 'Privat 2026', standard: true }, rechnungsversand: 'email', kontakte: [PK, { ...PK, id: '4', primaer: false }],
   adressen: [{ id: '1', bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kurpromenade', hausnummer: '3', plz: '86825', ort: 'Bad Wörishofen', land: 'DE', rechnungsadresse: true }],
   bezugspersonen: [{ id: '1', rolle: 'notfallkontakt', name: 'Max', beziehung: 'Bruder', berechtigungsgrund: null, telefon: null, email: null }], versicherungen: [],
 };
@@ -61,7 +61,7 @@ const PATIENT_DATEN = {
   whatsappCloud: true,
   termine: [TERMIN], verordnungen: [VERORDNUNG, { ...VERORDNUNG, id: '3', art: 'korrektur' as const, status: 'ersetzt', vorgaengerId: '1' }], serien: [SERIE, { ...SERIE, id: '4', grundlage: 'direktzugang' as const, wellness: null, abgeschlossenAm: '2026-10-22' }],
   rechnungen: [RK, { ...RK, id: '2', status: 'entwurf', statusText: 'Entwurf', statusFarbe: 'preset10', nummer: null, datum: null, faelligAm: null, lexwareAbweichung: 'in Lexware storniert', pdf: true, steuerklasse: 'wellness_19' }],
-  preislisten: [PL({ status: 'freigegeben', aktiv: true })],
+  preislisten: [PL({ status: 'freigegeben', aktiv: true, standard: true }), PL({ id: '6', name: 'Tagesgast', status: 'freigegeben', aktiv: true })],
 };
 const ANFRAGE: Anfrage = {
   id: '1', status: 'neu', quelle: 'website', anliegen: 'termin', eingegangenAm: '2026-10-26T08:00:00Z', absenderName: 'Anna Test', absenderAdresse: 'a@example.org', absenderTelefon: '+491511', betreff: 'Terminanfrage',
@@ -77,7 +77,7 @@ const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abs
   positionen: [{ id: '1', reihenfolge: 1, datum: '2026-10-26', nummer: '21201', bezeichnung: 'Manuelle Therapie', anzahl: 1, einzelpreis: 46.27, betrag: 46.27, verordnungId: '1', terminId: '7', behandlungLeistungId: '3' }, { id: '2', reihenfolge: 2, datum: null, nummer: '21201', bezeichnung: 'Manuelle Therapie', anzahl: 1, einzelpreis: 46.27, betrag: 46.27, verordnungId: '1', terminId: null, behandlungLeistungId: null }],
   bausteine: [{ id: '1', code: 'R1', kurzname: 'Steuerfrei – Heilbehandlung', text: '§ 4 Nr. 14', wirkung: 'steuerfrei_heilbehandlung' }] };
 const TB = { id: '1', code: 'R1', kurzname: 'Steuerfrei', text: 'x', wirkung: 'steuerfrei_heilbehandlung' as const, automatisch: 'heilbehandlung' as const, aktiv: true };
-const RECHNUNG_DATEN = { patient: PAT, rechnung: RGE, textbausteine: [TB, { ...TB, id: '3', code: 'R3', kurzname: 'Dank', wirkung: 'keine' as const, automatisch: 'nie' as const }], preislistePositionen: [{ id: '9', nummer: '21201', bezeichnung: 'MT', preis: 46.27 }], wellness: [WELLNESS] };
+const RECHNUNG_DATEN = { patient: PAT, rechnung: RGE, textbausteine: [TB, { ...TB, id: '3', code: 'R3', kurzname: 'Dank', wirkung: 'keine' as const, automatisch: 'nie' as const }], preislistePositionen: [{ id: '9', nummer: '21201', bezeichnung: 'MT', preis: 46.27 }], wellness: [WELLNESS], preislisteAktuell: { id: '6', name: 'Tagesgast' } };
 const KT = { id: '7', patientId: '1', vorname: 'Anna', nachname: 'Test', patientennummer: 'P-1001', beginn: '2026-10-26T07:00:00Z', ende: '2026-10-26T07:30:00Z', art: 'behandlung', status: 'bestaetigt', rezept: true, imKalender: false, exchangeEventId: null, leistung: 'MT', sektion: 'rezept' as const };
 const AKTE = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', steuerklasse: 'heilbehandlung_steuerfrei', bezeichnung: 'Schulter', anlass: 'Schmerz', diagnoseArzt: 'M75.1', begonnenAm: '2026-10-01', abgeschlossenAm: null,
   behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
@@ -142,7 +142,8 @@ const seiten = () => [
   auswahlSeite([PL({ status: 'archiviert', archiviertAm: '2026-11-01T00:00:00Z' })], { ...R, titel: 'Archiv', archiv: true }),
   editorSeite(PL(), [POS], { ...R, muster: [{ id: '1', name: 'GebüTh 15. Auflage', standardFaktor: 1.3, aufrunden: true, positionen: {}, notiz: null }],
     abweichung: { muster: { id: '1', name: 'GebüTh 15. Auflage', standardFaktor: 1.3, aufrunden: true, positionen: {}, notiz: null }, unterschiede: 2 } }),
-  detailsSeite(PL({ status: 'freigegeben', freigegebenAm: '2026-10-24T10:00:00Z' }), [POS], { patienten: [], rechnungen: [] }, R),
+  detailsSeite(PL({ status: 'freigegeben', freigegebenAm: '2026-10-24T10:00:00Z', aktiv: true, patienten: 3 }), [POS], { patienten: [], rechnungen: [] }, { ...R, andere: [PL({ id: '6', name: 'Tagesgast', status: 'freigegeben', aktiv: true, standard: true })] }),
+  detailsSeite(PL({ status: 'freigegeben', aktiv: true, standard: true }), [POS], { patienten: [], rechnungen: ['Rechnung 1'] }, R),
   positionSeite(PL(), { position: POS, gkv: { ...QP, id: '3', nummer: '20501', daten: { positionsnummer: 'X0501', originaltext: 'X0501 …' } }, beihilfe: QP, kandidaten: [{ ...QP, passt: 0.8 }] }, R),
   listeSeite({ patienten: [PAT, { ...PAT, id: '2', status: 'archiviert', telefon: null, whatsapp: null, email: null, letzteBehandlung: null, naechsterTermin: null, rechnungsstand: 'rot', offeneAnrufe: 0 }], suche: '' }, R),
   listeSeite({ patienten: [], suche: 'x', archiv: true }, R),

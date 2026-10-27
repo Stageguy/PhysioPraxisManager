@@ -13,7 +13,7 @@ import { SEKTION_SQL, type Sektion } from './terminarten.ts';
 import type { Tresor } from '../tresor.ts';
 import { berlinZeitUtc } from '../zeit.ts';
 import { phaseVorruecken, type Phase } from './pinnwand.ts';
-import { behandlungZuordnen, entwurfAnKorrekturAnpassen, rechnungAusRezept, rechnungAusSerie, STATUS_TEXT as RECHNUNG_STATUS_TEXT, terminZuordnen } from './rechnungen.ts';
+import { behandlungZuordnen, entwurfAnKorrekturAnpassen, preislisteFuer, rechnungAusRezept, rechnungAusSerie, STATUS_TEXT as RECHNUNG_STATUS_TEXT, terminZuordnen } from './rechnungen.ts';
 
 export class KarteiFehler extends Error {}
 
@@ -94,7 +94,10 @@ export interface Patient extends PatientKurz {
   zwischenrechnungQuartale: number | null;
   exchangeKontaktId: string | null;
   lexwareKundennummer: string | null;
+  /** Ausdrücklich zugeordnete Preisliste; null = Standard */
   preisliste: { id: string; name: string } | null;
+  /** Die Preisliste, die tatsächlich gilt (eigene, falls aktiv – sonst Standard), W97 */
+  preislisteGilt: { id: string; name: string; standard: boolean } | null;
   rechnungsversand: 'email' | 'post' | 'beides';
   kontakte: Kontakt[];
   adressen: Adresse[];
@@ -301,7 +304,9 @@ export async function patientLesen(db: Db, t: Tresor, id: string): Promise<Patie
   const r = (await db.query<KachelZeile>(
     `SELECT ${KACHEL_SQL}, p.geburtsdatum, p.geburtsname, p.sprache, p.kommunikationshilfe, p.beruf_belastung, p.notiz, p.abrechnungsmodus::text,
        p.zwischenrechnung_quartale, p.exchange_kontakt_id, p.lexware_kundennummer, p.preisliste_id::text, p.rechnungsversand,
-       (SELECT name FROM preisliste l WHERE l.id = p.preisliste_id) AS preisliste_name FROM patient p WHERE p.id = $1`, [id],
+       (SELECT name FROM preisliste l WHERE l.id = p.preisliste_id) AS preisliste_name,
+       (SELECT json_build_object('id', g.id::text, 'name', g.name, 'standard', g.standard) FROM preisliste g WHERE g.id = coalesce((SELECT l.id FROM preisliste l WHERE l.id = p.preisliste_id AND l.status = 'freigegeben' AND l.aktiv), (SELECT id FROM preisliste WHERE standard LIMIT 1))) AS preisliste_gilt
+     FROM patient p WHERE p.id = $1`, [id],
   )).rows[0];
   if (!r) return undefined;
   const kontakte = (await db.query<Kontakt>('SELECT id::text, art::text, wert, normiert, bezeichnung, primaer FROM patient_kontakt WHERE patient_id = $1 ORDER BY art, primaer DESC, reihenfolge, id', [id])).rows;
@@ -315,7 +320,8 @@ export async function patientLesen(db: Db, t: Tresor, id: string): Promise<Patie
     notiz: t.entschluesselnText(r.notiz as Uint8Array | null, 'patient.notiz'),
     abrechnungsmodus: String(r.abrechnungsmodus), zwischenrechnungQuartale: zahl(r.zwischenrechnung_quartale),
     exchangeKontaktId: text(r.exchange_kontakt_id), lexwareKundennummer: text(r.lexware_kundennummer),
-    preisliste: r.preisliste_id ? { id: String(r.preisliste_id), name: String(r.preisliste_name) } : null, rechnungsversand: (r.rechnungsversand as Patient['rechnungsversand']) ?? 'email',
+    preisliste: r.preisliste_id ? { id: String(r.preisliste_id), name: String(r.preisliste_name) } : null,
+    preislisteGilt: r.preisliste_gilt ? ((typeof r.preisliste_gilt === 'string' ? JSON.parse(r.preisliste_gilt) : r.preisliste_gilt) as Patient['preislisteGilt']) : null, rechnungsversand: (r.rechnungsversand as Patient['rechnungsversand']) ?? 'email',
     kontakte, adressen, bezugspersonen, versicherungen,
   };
 }
@@ -366,10 +372,12 @@ export async function patientAnlegen(
   const nummer = text(d.patientennummer);
   const { rows } = await db.query<{ id: string }>(
     `INSERT INTO patient (${nummer ? 'patientennummer, ' : ''}anrede, titel, vorname, nachname, geburtsname, geburtsdatum, patient_seit, ansprache_hinweis, besonderheiten, sprache, kommunikationshilfe, beruf_belastung, notiz, erstellt_von, preisliste_id)
-     VALUES (${nummer ? '$15, ' : ''}$1, $2, $3, $4, $5, $6, COALESCE($7::date, CURRENT_DATE), $8, $9, $10, $11, $12, $13, $14, (SELECT id FROM preisliste WHERE aktiv LIMIT 1)) RETURNING id::text`,
+     VALUES (${nummer ? '$15, ' : ''}$1, $2, $3, $4, $5, $6, COALESCE($7::date, CURRENT_DATE), $8, $9, $10, $11, $12, $13, $14, $${nummer ? 16 : 15}) RETURNING id::text`,
     [text(d.anrede), text(d.titel), d.vorname.trim(), d.nachname.trim(), text(d.geburtsname), datumPruefen(d.geburtsdatum, 'Geburtsdatum'), datumPruefen(d.patientSeit, 'Patient seit'),
       geheim(t, d.ansprache, 'patient.ansprache_hinweis'), geheim(t, d.besonderheiten, 'patient.besonderheiten'), text(d.sprache), text(d.kommunikationshilfe),
-      geheim(t, d.berufBelastung, 'patient.beruf_belastung'), geheim(t, d.notiz, 'patient.notiz'), wer, ...(nummer ? [nummer] : [])],
+      geheim(t, d.berufBelastung, 'patient.beruf_belastung'), geheim(t, d.notiz, 'patient.notiz'), wer, ...(nummer ? [nummer] : []),
+      // Ohne ausdrückliche Wahl keine feste Zuordnung – es gilt der Standard (W97)
+      d.preislisteId && istId(d.preislisteId) ? d.preislisteId : null],
   );
   const id = rows[0]!.id;
   const gesehen = new Set<string>();
@@ -390,12 +398,12 @@ export async function stammdatenSpeichern(db: Db, t: Tresor, id: string, d: Stam
   const r = await db.query(
     `UPDATE patient SET anrede = $2, titel = $3, vorname = $4, nachname = $5, geburtsname = $6, geburtsdatum = $7, patient_seit = COALESCE($8::date, patient_seit),
        ansprache_hinweis = $9, besonderheiten = $10, sprache = $11, kommunikationshilfe = $12, beruf_belastung = $13, notiz = $14,
-       preisliste_id = COALESCE($15::bigint, preisliste_id), rechnungsversand = COALESCE($16, rechnungsversand), geaendert_am = now()
+       preisliste_id = CASE WHEN $15::text = 'standard' THEN NULL WHEN $15::text ~ '^[0-9]+$' THEN $15::bigint ELSE preisliste_id END, rechnungsversand = COALESCE($16, rechnungsversand), geaendert_am = now()
      WHERE id = $1 RETURNING id`,
     [id, text(d.anrede), text(d.titel), d.vorname.trim(), d.nachname.trim(), text(d.geburtsname), datumPruefen(d.geburtsdatum, 'Geburtsdatum'), datumPruefen(d.patientSeit, 'Patient seit'),
       geheim(t, d.ansprache, 'patient.ansprache_hinweis'), geheim(t, d.besonderheiten, 'patient.besonderheiten'), text(d.sprache), text(d.kommunikationshilfe),
       geheim(t, d.berufBelastung, 'patient.beruf_belastung'), geheim(t, d.notiz, 'patient.notiz'),
-      d.preislisteId && istId(d.preislisteId) ? d.preislisteId : null, ['email', 'post', 'beides'].includes(d.rechnungsversand ?? '') ? d.rechnungsversand : null],
+      d.preislisteId === 'standard' ? 'standard' : d.preislisteId && istId(d.preislisteId) ? d.preislisteId : null, ['email', 'post', 'beides'].includes(d.rechnungsversand ?? '') ? d.rechnungsversand : null],
   );
   if (!r.rows.length) throw new KarteiFehler('Diesen Patienten gibt es nicht');
   await protokolliere(db, { actor: wer, action: 'patient_geaendert', objectType: 'patient', objectId: id });
@@ -794,11 +802,13 @@ export async function fallAnlegen(
   return id;
 }
 
-/** Preis einer Leistung aus der aktiven Preisliste – null, wenn es keine gibt */
-async function preisAusAktiverListe(db: Db, nummer: string): Promise<{ preislisteId: string; positionId: string; bezeichnung: string; preis: number } | null> {
+/** Preis einer Leistung aus der Preisliste, die für den Patienten gilt (W97) – null, wenn es keine gibt */
+async function preisAusListe(db: Db, patientId: string, nummer: string): Promise<{ preislisteId: string; positionId: string; bezeichnung: string; preis: number } | null> {
+  const listeId = await preislisteFuer(db, patientId);
+  if (!listeId) return null;
   const r = (await db.query<Record<string, unknown>>(
     `SELECT l.id::text AS liste, pp.id::text AS position, pp.bezeichnung, coalesce(pp.eigener_preis, pp.gkv_preis) AS preis
-     FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.aktiv AND pp.nummer = $1 LIMIT 1`, [nummer],
+     FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.id = $2 AND pp.nummer = $1 LIMIT 1`, [nummer, listeId],
   )).rows[0];
   return r ? { preislisteId: String(r.liste), positionId: String(r.position), bezeichnung: String(r.bezeichnung), preis: Number(r.preis ?? 0) } : null;
 }
@@ -857,7 +867,7 @@ export async function behandlungErfassen(
     );
   }
   if (nummer || d.verordnungId) {
-    const preis = nummer ? await preisAusAktiverListe(db, nummer) : null;
+    const preis = nummer ? await preisAusListe(db, patientId, nummer) : null;
     const steuer = fallInfo.s;
     await db.query(
       `INSERT INTO behandlung_leistung (behandlung_id, verordnung_id, preisliste_id, preisliste_position_id, nummer, bezeichnung, anzahl, einzelpreis, steuerklasse)
@@ -905,7 +915,7 @@ export interface TerminKalender {
 
 /** Kurzbezeichnung der Behandlung je Termin – die Alias t (Termin), v (Rezept), f (Fall), w (Wellness-Leistung) liefert TERMIN_VERKNUEPFUNG_SQL */
 export const LEISTUNG_SQL = `coalesce(
-  (SELECT pp.kuerzel FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.aktiv AND pp.nummer = coalesce(t.leistung_nummer, v.leistung_nummer) LIMIT 1),
+  (SELECT pp.kuerzel FROM preisliste_position pp JOIN preisliste l ON l.id = pp.preisliste_id WHERE l.standard AND pp.nummer = coalesce(t.leistung_nummer, v.leistung_nummer) LIMIT 1),
   v.massnahme, w.code, CASE f.grundlage WHEN 'direktzugang' THEN 'Direktzugang' WHEN 'praevention' THEN 'Wellness' END)`;
 const TERMIN_VERKNUEPFUNG_SQL = 'FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN verordnung v ON v.id = t.verordnung_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN wellness_leistung w ON w.id = f.wellness_leistung_id LEFT JOIN terminart ta ON ta.id = t.terminart_id';
 

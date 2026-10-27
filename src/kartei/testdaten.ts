@@ -12,7 +12,7 @@ import {
 import { anamneseErfassen, befundErfassen, erklaerungErfassen, phaseSetzen } from './pinnwand.ts';
 import { bausteinHinzufuegen, lexwareStandUebernehmen, rechnungStatus } from './rechnungen.ts';
 import { textbausteinSpeichern, textbausteine } from './konfiguration.ts';
-import { aktivSetzen, anlegen as preislisteAnlegen, freigeben as preislisteFreigeben, quellen } from '../preise/preislisten.ts';
+import { aktivSetzen, anlegen as preislisteAnlegen, freigeben as preislisteFreigeben, quellen, standardSetzen } from '../preise/preislisten.ts';
 
 const PERSONEN: { vorname: string; nachname: string; anrede: string; geboren: string; ort: string; strasse: string; plz: string; besonderheiten?: string; ansprache?: string; sprache?: string }[] = [
   { vorname: 'Anna', nachname: 'Beispiel', anrede: 'Frau', geboren: '1984-03-12', ort: 'Bad Wörishofen', strasse: 'Kurpromenade 3', plz: '86825' },
@@ -93,8 +93,8 @@ export async function testtermineAnlegen(db: Db, t: Tresor, o: { adresse: string
 export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; behandlungen: number; termine: number; rechnungen: number }> {
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1001'")).rows.length) return { uebersprungen: true, patienten: 0, behandlungen: 0, termine: 0, rechnungen: 0 };
   // Ohne aktive Preisliste hätten die Rechnungsentwürfe keine Preise: die erste vorhandene Liste freigeben und aktiv setzen (nur Testumgebung)
-  if (!(await db.query('SELECT 1 FROM preisliste WHERE aktiv')).rows.length) {
-    await db.query("UPDATE preisliste SET status = 'freigegeben', aktiv = true, freigegeben_am = COALESCE(freigegeben_am, now()), freigegeben_von = COALESCE(freigegeben_von, $1) WHERE id = (SELECT min(id) FROM preisliste WHERE status <> 'archiviert')", [o.wer]);
+  if (!(await db.query('SELECT 1 FROM preisliste WHERE standard')).rows.length) {
+    await db.query("UPDATE preisliste SET status = 'freigegeben', aktiv = true, standard = true, freigegeben_am = COALESCE(freigegeben_am, now()), freigegeben_von = COALESCE(freigegeben_von, $1) WHERE id = (SELECT min(id) FROM preisliste WHERE status <> 'archiviert')", [o.wer]);
   }
   const [lokal, domain] = o.adresse.split('@');
   // Wellness-Katalog (W74) – erfundene Beispiele, Lilli ersetzt sie (Frage 10)
@@ -266,13 +266,15 @@ export async function testdatenErweitert(db: Db, t: Tresor, o: { adresse: string
       await fertigmachen(gerundet);
       preislisten++;
     }
-    await aktivSetzen(db, gerundet, wer);
+    await standardSetzen(db, gerundet, wer);
     tagesgast = (await vorhanden('Tagesgast (GKV × 1,6)')) ?? null;
     if (!tagesgast) {
       tagesgast = await preislisteAnlegen(db, { name: 'Tagesgast (GKV × 1,6)', gkvQuelleId: gkv.id, beihilfeQuelleId: beihilfe?.id, standardFaktor: 1.6, aufrunden: true, wer });
       await fertigmachen(tagesgast);
       preislisten++;
     }
+    // Beide Listen aktiv: „Gerundet“ ist der Standard (alle ohne eigene Liste), „Tagesgast“ ausdrücklich den Tagesgästen zugeordnet (W97)
+    await aktivSetzen(db, tagesgast, wer);
   }
   // Ein weiterer Textbaustein für die Rechnungen
   if (!(await textbausteine(db, { alle: true })).some((b) => b.kurzname === 'Bankverbindung')) {

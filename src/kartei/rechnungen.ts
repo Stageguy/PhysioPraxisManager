@@ -10,6 +10,7 @@
  * storniert jederzeit mit Grund. Was Lexware meldet (storniert, anderer Betrag), steht als Abweichung an der Rechnung.
  */
 import { protokolliere, type Db } from '../db/index.ts';
+import { verwendungVermerken } from '../preise/preislisten.ts';
 import { betrag, rund, tag } from '../db/werte.ts';
 import type { Tresor } from '../tresor.ts';
 import { kleinunternehmer, textbausteine, type Textbaustein } from './konfiguration.ts';
@@ -119,8 +120,11 @@ async function empfaengerErmitteln(db: Db, patientId: string): Promise<Rechnung[
   return { name: [p.anrede, p.titel, p.vorname, p.nachname].filter(Boolean).join(' '), zusatz: p.zusatz ?? undefined, strasse: [p.strasse, p.hausnummer].filter(Boolean).join(' ') || undefined, plz: p.plz ?? undefined, ort: p.ort ?? undefined, land: p.land ?? undefined };
 }
 
-async function preislisteFuer(db: Db, patientId: string): Promise<string | null> {
-  const r = (await db.query<{ id: string | null }>('SELECT coalesce(p.preisliste_id, (SELECT id FROM preisliste WHERE aktiv LIMIT 1))::text AS id FROM patient p WHERE p.id = $1', [patientId])).rows[0];
+/** Die Preisliste, die für den Patienten gilt (W97): seine eigene, solange sie freigegeben und aktiv ist, sonst der Standard */
+export async function preislisteFuer(db: Db, patientId: string): Promise<string | null> {
+  const r = (await db.query<{ id: string | null }>(
+    `SELECT coalesce((SELECT l.id FROM preisliste l WHERE l.id = p.preisliste_id AND l.status = 'freigegeben' AND l.aktiv), (SELECT id FROM preisliste WHERE standard LIMIT 1))::text AS id FROM patient p WHERE p.id = $1`, [patientId],
+  )).rows[0];
   return r?.id ?? null;
 }
 
@@ -170,8 +174,35 @@ export async function rechnungAnlegen(
   const id = rows[0]!.id;
   await bausteineAutomatisch(db, id, d.steuerklasse);
   await summenBerechnen(db, id);
+  if (preislisteId) await verwendungVermerken(db, preislisteId, { patientRef: await patientennummer(db, patientId), rechnungRef: `Rechnung ${id}` });
   await protokolliere(db, { actor: wer, action: 'rechnung_entwurf', objectType: 'patient', objectId: patientId, details: { rechnung: Number(id), steuerklasse: d.steuerklasse } });
   return id;
+}
+
+const patientennummer = async (db: Db, patientId: string) => (await db.query<{ n: string }>('SELECT patientennummer AS n FROM patient WHERE id = $1', [patientId])).rows[0]?.n ?? `Patient ${patientId}`;
+
+/**
+ * Entwurf auf die heute gültige Preisliste des Patienten umstellen (W97): Positionen mit Leistungsnummer
+ * bekommen den Preis aus der neuen Liste, alles andere bleibt. Nur Entwürfe – eine fertige Rechnung ändert sich nie.
+ */
+export async function preiseAktualisieren(db: Db, patientId: string, rechnungId: string, wer: string): Promise<{ geaendert: number; name: string }> {
+  await nurEntwurf(db, rechnungId, patientId);
+  const listeId = await preislisteFuer(db, patientId);
+  if (!listeId) throw new KarteiFehler('Es gibt keine Standard-Preisliste – bitte unter Preislisten eine als Standard setzen');
+  const name = (await db.query<{ name: string }>('SELECT name FROM preisliste WHERE id = $1', [listeId])).rows[0]!.name;
+  const { rows } = await db.query<{ id: string; nummer: string | null; anzahl: string }>('SELECT id::text, nummer, anzahl::text FROM rechnung_position WHERE rechnung_id = $1 AND nummer IS NOT NULL AND wellness_leistung_id IS NULL', [rechnungId]);
+  let geaendert = 0;
+  for (const pos of rows) {
+    const p = await preisAus(db, listeId, pos.nummer!);
+    if (!p) continue;
+    const r = await db.query('UPDATE rechnung_position SET einzelpreis = $2, betrag = $3, preisliste_position_id = $4 WHERE id = $1 AND einzelpreis IS DISTINCT FROM $2 RETURNING id', [pos.id, rund(p.preis), rund(p.preis * Number(pos.anzahl)), p.positionId]);
+    geaendert += r.rows.length;
+  }
+  await db.query('UPDATE rechnung SET preisliste_id = $2, geaendert_am = now() WHERE id = $1', [rechnungId, listeId]);
+  await summenBerechnen(db, rechnungId);
+  await verwendungVermerken(db, listeId, { patientRef: await patientennummer(db, patientId), rechnungRef: `Rechnung ${rechnungId}` });
+  await protokolliere(db, { actor: wer, action: 'rechnung_preise_aktualisiert', objectType: 'patient', objectId: patientId, details: { rechnung: Number(rechnungId), preisliste: Number(listeId), geaendert } });
+  return { geaendert, name };
 }
 
 /** Entwurf aus einem Rezept: je verordneter Einheit eine Position, Datum aus den Terminen des Rezepts (W79) */

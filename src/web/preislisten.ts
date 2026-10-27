@@ -18,7 +18,7 @@ export const STATUS_TEXT = (l: Preisliste) =>
   l.status === 'archiviert' ? ['archiviert', 'preset12'] : l.status === 'entwurf' ? ['erstellt', 'preset3'] : l.genutzt ? ['genutzt', 'preset7'] : ['freigegeben', 'preset4'];
 const statusChip = (l: Preisliste) => {
   const [t, f] = STATUS_TEXT(l);
-  return `<span class="chip ${f}">${t}</span>${l.aktiv ? ' <span class="chip preset19">aktiv</span>' : ''}`;
+  return `<span class="chip ${f}">${t}</span>${l.aktiv ? ' <span class="chip preset19">aktiv</span>' : ''}${l.standard ? ' <span class="chip preset24">Standard</span>' : ''}`;
 };
 const quelleText = (q: QuelleKurz | null) => (q ? `${esc(q.version)}${/abgerufen/.test(q.version) ? '' : ` · abgerufen ${datumText(q.abgerufenAm)}`}` : '–');
 const grundlage = (l: Preisliste) => (l.basis ? `Preisliste „${esc(l.basis.name)}“ · GKV ${quelleText(l.gkv)}` : `GKV ${quelleText(l.gkv)}`);
@@ -38,7 +38,7 @@ export interface UebersichtDaten {
 }
 
 function kachel(l: Preisliste): string {
-  return `<article class="pk${l.aktiv ? ' aktiv' : ''}" data-hilfe="preislisten.kachel">
+  return `<article class="pk${l.standard ? ' standard' : l.aktiv ? ' aktiv' : ''}" data-hilfe="preislisten.kachel">
     <a class="pk-link" href="/preislisten/${l.id}">
       <span class="pk-kopf">${symbol('euro', { groesse: 20 })}<b>${esc(l.name)}</b></span>
       <span>${statusChip(l)}</span>
@@ -49,9 +49,13 @@ function kachel(l: Preisliste): string {
         <dt>Erstellt</dt><dd>${datumText(l.erstelltAm)}</dd>
         <dt>Freigegeben</dt><dd>${l.freigegebenAm ? datumText(l.freigegebenAm) : 'noch nicht'}</dd>
         <dt>Positionen</dt><dd>${l.uebernommen} von ${l.positionen} übernommen</dd>
+        <dt>Patienten</dt><dd>${l.patienten} zugeordnet${l.standard ? ' · plus alle ohne eigene Liste' : ''}</dd>
       </dl>
     </a>
-    ${form('aktiv', `<label class="pk-aktiv" data-hilfe="preislisten.aktiv"><input type="radio" name="aktiv_id" value="${l.id}"${l.aktiv ? ' checked' : ''}${l.status !== 'freigegeben' ? ' disabled' : ''} data-auto-senden> aktiv</label><button class="knopf klein nur-ohne-js">übernehmen</button>`, { id: l.id, klasse: 'pk-aktiv-form nur-desktop' })}
+    <div class="pk-fuss nur-desktop">
+    ${form('aktiv', `<input type="hidden" name="aktiv_id" value="${l.id}"><input type="hidden" name="aktiv" value="0"><label class="pk-aktiv" data-hilfe="preislisten.aktiv"><input type="checkbox" name="aktiv" value="1"${l.aktiv ? ' checked' : ''}${l.status !== 'freigegeben' || l.standard ? ' disabled' : ''} data-auto-senden> aktiv</label><button class="knopf klein nur-ohne-js">übernehmen</button>`, { id: l.id, klasse: 'pk-aktiv-form' })}
+    ${form('standard', `<input type="hidden" name="standard_id" value="${l.id}"><label class="pk-aktiv" data-hilfe="preislisten.standard"><input type="radio" name="standard_wahl" value="${l.id}"${l.standard ? ' checked' : ''}${l.status !== 'freigegeben' ? ' disabled' : ''} data-auto-senden> Standard</label><button class="knopf klein nur-ohne-js">übernehmen</button>`, { id: l.id, klasse: 'pk-aktiv-form' })}
+    </div>
   </article>`;
 }
 
@@ -137,7 +141,7 @@ export function auswahlSeite(listen: Preisliste[], o: Rahmen & { titel?: string;
     <td>erstellt ${datumText(l.erstelltAm)}<br><span class="hint">${l.freigegebenAm ? `freigegeben ${datumText(l.freigegebenAm)}` : 'nicht freigegeben'}${l.archiviertAm ? ` · archiviert ${datumText(l.archiviertAm)}` : ''}</span></td>
     <td>${statusChip(l)}</td>
     ${o.archiv ? `<td class="nur-desktop">${form('wiederherstellen', `<button class="knopf klein" data-hilfe="preislisten.wiederherstellen">Wiederherstellen</button>`, { id: l.id, zurueck: '/preislisten/archiv' })}
-      ${form('wiederherstellen_aktiv', `<button class="knopf klein" data-hilfe="preislisten.wiederherstellen-aktiv">… und aktiv setzen</button>`, { id: l.id, zurueck: '/preislisten/archiv' })}</td>` : ''}
+      ${form('wiederherstellen_aktiv', `<button class="knopf klein" data-hilfe="preislisten.wiederherstellen-aktiv">… und aktiv setzen</button>`, { id: l.id, zurueck: '/preislisten/archiv' })}${l.nachfolger ? `<br><span class="hint">Patienten gingen zu „${esc(l.nachfolger.name)}“</span>` : ''}</td>` : ''}
   </tr>`).join('');
   return seite({
     titel: o.titel ?? 'Preislisten bearbeiten', aktiv: 'preislisten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
@@ -225,7 +229,9 @@ ${fest ? '' : `<div class="knopfreihe nur-desktop editor-aktionen">
 }
 
 // ── Details ─────────────────────────────────────────────────────────────────
-export function detailsSeite(l: Preisliste, pos: Position[], verw: { patienten: string[]; rechnungen: string[] }, o: Rahmen): string {
+export function detailsSeite(l: Preisliste, pos: Position[], verw: { patienten: string[]; rechnungen: string[] }, o: Rahmen & { andere?: Preisliste[] }): string {
+  const andere = o.andere ?? [];
+  const nachWahl = (name: string, hilfe: string) => `<select name="${name}" data-hilfe="${hilfe}"><option value="">auf den Standard (keine feste Zuordnung)</option>${andere.map((x) => `<option value="${x.id}">${esc(x.name)}${x.standard ? ' – Standard' : ''}</option>`).join('')}</select>`;
   const zeilen = pos.filter((p) => p.uebernehmen).map((p) => `<tr data-href="/preislisten/${l.id}/positionen/${p.id}"><td><b>${esc(p.nummer)}</b><br><span class="hint">${esc(p.kuerzel ?? '')}</span></td>
     <td><a href="/preislisten/${l.id}/positionen/${p.id}">${esc(p.bezeichnung)}</a><br><span class="hint">${zweiteZeile(p)}</span></td>
     <td class="zahlspalte">${euroText(p.gkvPreis)}<br><span class="hint">× ${faktorText(p.faktor) || '–'}</span></td><td class="zahlspalte"><b>${euroText(p.eigenerPreis)}</b></td></tr>`).join('');
@@ -246,14 +252,17 @@ export function detailsSeite(l: Preisliste, pos: Position[], verw: { patienten: 
     <dt>Positionen</dt><dd>${l.uebernommen} von ${l.positionen} übernommen</dd>
   </dl></section>
   <section class="tafel" data-hilfe="preisliste.verwendung"><h2>Verwendet</h2>
-    <p><b>${verw.patienten.length}</b> Patienten · <b>${verw.rechnungen.length}</b> Rechnungen</p>
+    <p><b>${l.patienten}</b> Patienten zugeordnet${l.standard ? ' – dazu alle ohne eigene Liste (Standard)' : ''} · <b>${verw.rechnungen.length}</b> Rechnungen</p>
+    ${l.patienten && l.status !== 'archiviert' ? form('umstellen', `<label>Patienten dieser Liste umstellen ${nachWahl('nach_id', 'preisliste.umstellen')}</label><button class="knopf klein">Umstellen</button>`, { id: l.id, zurueck, klasse: 'formular zeile' }) : ''}
     ${verw.rechnungen.length ? `<ul>${verw.rechnungen.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : '<p class="hint">Noch in keiner Rechnung – Rechnungen an Patienten kommen mit dem Patientenbereich.</p>'}
   </section>
 </div>
 <div class="knopfreihe nur-desktop" data-hilfe="preisliste.aktionen">
   ${l.status === 'entwurf' ? `<a class="knopf primaer" href="/preislisten/${l.id}/bearbeiten">Bearbeiten</a>${form('freigeben', '<button class="knopf">Freigeben</button>', { id: l.id, zurueck })}` : ''}
-  ${l.status === 'freigegeben' && !l.aktiv ? form('aktiv', `<input type="hidden" name="aktiv_id" value="${l.id}"><button class="knopf primaer">Aktiv setzen</button>`, { id: l.id, zurueck }) : ''}
-  ${l.status === 'freigegeben' && !l.aktiv ? form('archivieren', `<button class="knopf" data-hilfe="preisliste.archivieren">${symbol('archiv', { groesse: 18 })} Archivieren</button>`, { id: l.id, zurueck }) : ''}
+  ${l.status === 'freigegeben' && !l.aktiv ? form('aktiv', `<input type="hidden" name="aktiv_id" value="${l.id}"><input type="hidden" name="aktiv" value="1"><button class="knopf primaer">Aktiv setzen</button>`, { id: l.id, zurueck }) : ''}
+  ${l.status === 'freigegeben' && l.aktiv && !l.standard ? form('aktiv', `<input type="hidden" name="aktiv_id" value="${l.id}"><input type="hidden" name="aktiv" value="0"><button class="knopf">Nicht mehr aktiv</button>`, { id: l.id, zurueck }) : ''}
+  ${l.status === 'freigegeben' && !l.standard ? form('standard', `<input type="hidden" name="standard_id" value="${l.id}"><button class="knopf primaer" data-hilfe="preislisten.standard">Als Standard</button>`, { id: l.id, zurueck }) : ''}
+  ${l.status === 'freigegeben' && !l.standard ? form('archivieren', `${l.patienten ? `<label class="hint">${l.patienten} Patienten ${nachWahl('nachfolger_id', 'preisliste.nachfolger')}</label>` : ''}<button class="knopf" data-hilfe="preisliste.archivieren">${symbol('archiv', { groesse: 18 })} Archivieren</button>`, { id: l.id, zurueck, klasse: l.patienten ? 'formular zeile' : 'inline' }) : ''}
   ${l.status === 'archiviert' ? form('wiederherstellen', '<button class="knopf">Wiederherstellen</button>', { id: l.id, zurueck }) : ''}
   <a class="knopf" href="/preislisten/neu?basis=${l.id}" data-hilfe="preisliste.kopieren">Als neue Preisliste kopieren</a>
   ${l.status === 'entwurf' && !l.genutzt ? form('loeschen', '<button class="knopf warnend">Löschen</button>', { id: l.id, zurueck: '/preislisten' }) : ''}

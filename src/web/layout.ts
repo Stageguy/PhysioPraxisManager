@@ -202,7 +202,8 @@ nav a{position:relative}
 .pruefung{list-style:none;padding:0;margin:8px 0;font-size:14px}.pruefung li{display:flex;gap:6px;align-items:center;padding:2px 0}
 .pk-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:12px 0 8px}
 .pk{display:flex;flex-direction:column;background:var(--karte);border:1px solid var(--rand);border-radius:14px;min-width:0}
-.pk.aktiv{border:2px solid var(--ok)}
+.pk.aktiv{border:2px solid var(--ok)}.pk.standard{border:2px solid var(--akzent)}
+.pk-fuss{display:flex;gap:14px;flex-wrap:wrap;border-top:1px solid var(--rand);margin-top:auto;padding:4px 14px 8px}.pk-fuss .pk-aktiv-form{border-top:0;padding:4px 0;margin:0}
 .pk-link{display:flex;flex-direction:column;gap:8px;padding:14px;color:var(--fg);text-decoration:none}
 .pk-link:hover b{text-decoration:underline}
 .pk-kopf{display:flex;gap:8px;align-items:center;color:var(--akzent)}.pk-kopf b{color:var(--fg);overflow-wrap:anywhere}

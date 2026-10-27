@@ -61,16 +61,21 @@ test('Ablauf: prüfen → roter Punkt → anlegen → speichern → freigeben �
 
   assert.match(ziel(await post({ aktion: 'freigeben', id })), /Freigegeben/);
   assert.match(ziel(await post({ aktion: 'speichern', id, name: 'x', z_nummer: [], zurueck: `/preislisten/${id}/bearbeiten` })), /fehler=.*nicht mehr ändern/);
-  assert.match(ziel(await post({ aktion: 'aktiv', aktiv_id: id })), /aktive Preisliste/);
+  assert.match(ziel(await post({ aktion: 'aktiv', aktiv_id: id, aktiv: '1' })), /ist jetzt aktiv/);
   assert.match(await seite('/preislisten'), /class="pk aktiv"/);
-  assert.match(ziel(await post({ aktion: 'archivieren', id, zurueck: `/preislisten/${id}` })), /fehler=.*aktive/);
+  assert.match(ziel(await post({ aktion: 'standard', standard_id: id })), /Standard-Preisliste/);
+  assert.match(await seite('/preislisten'), /class="pk standard"[\s\S]*<input type="checkbox" name="aktiv" value="1" checked disabled/, 'Standard: Haken aktiv gesetzt und gesperrt');
+  assert.match(ziel(await post({ aktion: 'aktiv', aktiv_id: id, aktiv: '0' })), /fehler=.*Standard-Preisliste bleibt aktiv/);
+  assert.match(ziel(await post({ aktion: 'archivieren', id, zurueck: `/preislisten/${id}` })), /fehler=.*Standard/);
 
   const zweit = /\/preislisten\/(\d+)\//.exec(ziel(await post({ aktion: 'anlegen', name: 'Kopie', grundlage: 'preisliste', basis_id: id, zurueck: '/preislisten/neu' })))![1]!;
   assert.match(await seite(`/preislisten/${zweit}/bearbeiten`), /name="z_preis_20500" value="30,00"/, 'Kopie übernimmt die Preise');
   for (const n of nummern) felder[`z_uebernehmen_${n}`] = '1';
   await post({ ...felder, id: zweit, zurueck: `/preislisten/${zweit}/bearbeiten` });
   await post({ aktion: 'freigeben', id: zweit });
-  await post({ aktion: 'aktiv', aktiv_id: zweit });
+  await post({ aktion: 'aktiv', aktiv_id: zweit, aktiv: '1' });
+  assert.match(await seite('/preislisten'), /class="pk aktiv"[\s\S]*class="pk standard"|class="pk standard"[\s\S]*class="pk aktiv"/, 'zwei aktive, eine davon Standard');
+  await post({ aktion: 'standard', standard_id: zweit });
   assert.match(ziel(await post({ aktion: 'archivieren', id, zurueck: `/preislisten/${id}` })), /Archiviert/);
   assert.match(await seite('/preislisten/archiv'), /Privat 2026/);
   assert.match(ziel(await post({ aktion: 'wiederherstellen_aktiv', id, zurueck: '/preislisten/archiv' })), /aktiv gesetzt/);

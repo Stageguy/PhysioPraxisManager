@@ -2,8 +2,10 @@
  * Preislisten (W59): eigene Preise je Leistung, aufgebaut auf einer Grundlage (GKV-Fassung oder
  * einer anderen Preisliste), mit Faktor auf den GKV-Preis und Beihilfe-Höchstbetrag zum Vergleich.
  *
- * Lebenslauf: Entwurf („erstellt“) → freigegeben (danach unveränderlich) → optional aktiv (genau eine)
- * → archiviert (für Rechnungen nicht mehr wählbar) → wiederherstellbar. „Genutzt“, sobald eine
+ * Lebenslauf: Entwurf („erstellt“) → freigegeben (danach unveränderlich) → aktiv (mehrere möglich; für
+ * Patienten wählbar) → eine davon Standard (gilt für alle Patienten ohne eigene Liste, W97)
+ * → archiviert (Patienten wandern zum Nachfolger oder zum Standard) → wiederherstellbar.
+ * Rechnungen frieren Preisliste und Einzelpreise ein – eine Preisänderung ist immer eine neue Liste. „Genutzt“, sobald eine
  * Rechnung sie verwendet (preisliste_verwendung) – dann nie mehr löschbar.
  *
  * Vorlage: speichert, welche Positionen übernommen werden und mit welchem Faktor – etwa die
@@ -32,6 +34,11 @@ export interface Preisliste {
   name: string;
   status: Status;
   aktiv: boolean;
+  /** Gilt für alle Patienten ohne eigene Preisliste – genau eine */
+  standard: boolean;
+  /** Patienten, die diese Liste ausdrücklich zugeordnet haben */
+  patienten: number;
+  nachfolger: { id: string; name: string } | null;
   genutzt: boolean;
   erstelltAm: string;
   erstelltVon: string | null;
@@ -75,11 +82,13 @@ const QUELL_SQL = (alias: string, spalte: string) =>
   `(SELECT json_build_object('id', q.id::text, 'art', q.art, 'titel', q.titel, 'version', q.version, 'gueltigAb', to_char(q.gueltig_ab, 'YYYY-MM-DD'),
      'abgerufenAm', q.abgerufen_am, 'url', q.url) FROM preisquelle q WHERE q.id = ${alias}.${spalte}) AS ${spalte.replace('_id', '')}`;
 
-const LISTEN_SQL = `SELECT l.id::text, l.name, l.status::text, l.aktiv, l.erstellt_am, l.erstellt_von, l.freigegeben_am, l.freigegeben_von,
+const LISTEN_SQL = `SELECT l.id::text, l.name, l.status::text, l.aktiv, l.standard, l.erstellt_am, l.erstellt_von, l.freigegeben_am, l.freigegeben_von,
   l.archiviert_am, l.standard_faktor::text, l.aufrunden, l.notiz,
   ${QUELL_SQL('l', 'gkv_quelle_id')}, ${QUELL_SQL('l', 'beihilfe_quelle_id')},
   (SELECT json_build_object('id', b.id::text, 'name', b.name) FROM preisliste b WHERE b.id = l.basis_preisliste_id) AS basis,
   (SELECT json_build_object('id', v.id::text, 'name', v.name) FROM preisvorlage v WHERE v.id = l.vorlage_id) AS vorlage,
+  (SELECT json_build_object('id', n.id::text, 'name', n.name) FROM preisliste n WHERE n.id = l.nachfolger_id) AS nachfolger,
+  (SELECT count(*)::int FROM patient pa WHERE pa.preisliste_id = l.id AND pa.status <> 'archiviert') AS patienten,
   EXISTS (SELECT 1 FROM preisliste_verwendung u WHERE u.preisliste_id = l.id) AS genutzt,
   (SELECT count(*)::int FROM preisliste_position p WHERE p.preisliste_id = l.id) AS positionen,
   (SELECT count(*)::int FROM preisliste_position p WHERE p.preisliste_id = l.id AND p.uebernehmen) AS uebernommen
@@ -94,7 +103,7 @@ const jsonAus = (v: unknown) => (v ? ((typeof v === 'string' ? JSON.parse(v) : v
 
 function zuListe(r: Record<string, unknown>): Preisliste {
   return {
-    id: String(r.id), name: String(r.name), status: r.status as Status, aktiv: Boolean(r.aktiv), genutzt: Boolean(r.genutzt),
+    id: String(r.id), name: String(r.name), status: r.status as Status, aktiv: Boolean(r.aktiv), standard: Boolean(r.standard), patienten: Number(r.patienten ?? 0), nachfolger: jsonAus(r.nachfolger), genutzt: Boolean(r.genutzt),
     erstelltAm: iso(r.erstellt_am)!, erstelltVon: (r.erstellt_von as string) ?? null,
     freigegebenAm: iso(r.freigegeben_am), freigegebenVon: (r.freigegeben_von as string) ?? null, archiviertAm: iso(r.archiviert_am),
     standardFaktor: zahl(r.standard_faktor), aufrunden: Boolean(r.aufrunden), notiz: (r.notiz as string) ?? null,
@@ -304,20 +313,56 @@ export async function freigeben(db: Db, id: string, wer: string): Promise<void> 
   await protokolliere(db, { actor: wer, action: 'preisliste_freigegeben', objectType: 'preisliste', objectId: id });
 }
 
-export async function aktivSetzen(db: Db, id: string, wer: string): Promise<void> {
+/** Haken „aktiv“: für Patienten wählbar. Mehrere Listen können aktiv sein; der Standard bleibt immer aktiv */
+export async function aktivSetzen(db: Db, id: string, wer: string, aktiv = true): Promise<void> {
   const l = await preisliste(db, id);
   if (!l || l.status !== 'freigegeben') throw new PreislisteFehler('Aktiv sein kann nur eine freigegebene Preisliste');
-  await db.query('UPDATE preisliste SET aktiv = false WHERE aktiv AND id <> $1', [id]);
-  await db.query('UPDATE preisliste SET aktiv = true WHERE id = $1', [id]);
-  await protokolliere(db, { actor: wer, action: 'preisliste_aktiv', objectType: 'preisliste', objectId: id });
+  if (!aktiv && l.standard) throw new PreislisteFehler('Die Standard-Preisliste bleibt aktiv – erst einen anderen Standard wählen');
+  await db.query('UPDATE preisliste SET aktiv = $2 WHERE id = $1', [id, aktiv]);
+  await protokolliere(db, { actor: wer, action: aktiv ? 'preisliste_aktiv' : 'preisliste_inaktiv', objectType: 'preisliste', objectId: id });
 }
 
-export async function archivieren(db: Db, id: string, wer: string): Promise<void> {
+/** Genau eine Preisliste ist der Standard – sie gilt für alle Patienten ohne eigene Liste (W97) */
+export async function standardSetzen(db: Db, id: string, wer: string): Promise<void> {
+  const l = await preisliste(db, id);
+  if (!l || l.status !== 'freigegeben') throw new PreislisteFehler('Standard kann nur eine freigegebene Preisliste sein');
+  await db.query('UPDATE preisliste SET standard = false WHERE standard AND id <> $1', [id]);
+  await db.query('UPDATE preisliste SET aktiv = true, standard = true WHERE id = $1', [id]);
+  await protokolliere(db, { actor: wer, action: 'preisliste_standard', objectType: 'preisliste', objectId: id });
+}
+
+export async function standardListe(db: Db): Promise<{ id: string; name: string } | undefined> {
+  return (await db.query<{ id: string; name: string }>('SELECT id::text, name FROM preisliste WHERE standard LIMIT 1')).rows[0];
+}
+
+/** Patienten einer Preisliste auf eine andere umstellen; `nachId` null = Standard (keine feste Zuordnung) */
+export async function patientenUmstellen(db: Db, vonId: string, nachId: string | null, wer: string): Promise<number> {
+  const von = await preisliste(db, vonId);
+  if (!von) throw new PreislisteFehler('Diese Preisliste gibt es nicht');
+  if (nachId) {
+    const nach = await preisliste(db, nachId);
+    if (!nach || nach.status !== 'freigegeben' || !nach.aktiv) throw new PreislisteFehler('Umstellen geht nur auf eine aktive, freigegebene Preisliste');
+    if (nach.id === von.id) throw new PreislisteFehler('Das ist dieselbe Preisliste');
+  }
+  const r = await db.query<{ id: string }>('UPDATE patient SET preisliste_id = $2, geaendert_am = now() WHERE preisliste_id = $1 RETURNING id', [vonId, nachId]);
+  await protokolliere(db, { actor: wer, action: 'preisliste_patienten_umgestellt', objectType: 'preisliste', objectId: vonId, details: { nach: nachId ? Number(nachId) : 'standard', patienten: r.rows.length } });
+  return r.rows.length;
+}
+
+/** Archivieren: nie der Standard; zugeordnete Patienten wandern zum Nachfolger oder (ohne Nachfolger) zum Standard */
+export async function archivieren(db: Db, id: string, wer: string, o: { nachfolgerId?: string } = {}): Promise<{ umgestellt: number }> {
   const l = await preisliste(db, id);
   if (!l || l.status !== 'freigegeben') throw new PreislisteFehler('Archivieren lässt sich nur eine freigegebene Preisliste');
-  if (l.aktiv) throw new PreislisteFehler('Die aktive Preisliste lässt sich nicht archivieren – erst eine andere aktiv setzen');
-  await db.query("UPDATE preisliste SET status = 'archiviert', archiviert_am = now() WHERE id = $1", [id]);
-  await protokolliere(db, { actor: wer, action: 'preisliste_archiviert', objectType: 'preisliste', objectId: id });
+  if (l.standard) throw new PreislisteFehler('Die Standard-Preisliste lässt sich nicht archivieren – erst einen anderen Standard wählen');
+  const umgestellt = l.patienten ? await patientenUmstellen(db, id, o.nachfolgerId || null, wer) : 0;
+  await db.query("UPDATE preisliste SET status = 'archiviert', aktiv = false, archiviert_am = now(), nachfolger_id = $2 WHERE id = $1", [id, o.nachfolgerId || null]);
+  await protokolliere(db, { actor: wer, action: 'preisliste_archiviert', objectType: 'preisliste', objectId: id, details: { umgestellt } });
+  return { umgestellt };
+}
+
+/** Vermerk, dass eine Rechnung die Liste verwendet – danach ist sie nie mehr löschbar */
+export async function verwendungVermerken(db: Db, preislisteId: string, o: { patientRef: string; rechnungRef: string }): Promise<void> {
+  await db.query('INSERT INTO preisliste_verwendung (preisliste_id, patient_ref, rechnung_ref) VALUES ($1, $2, $3)', [preislisteId, o.patientRef, o.rechnungRef]);
 }
 
 export async function wiederherstellen(db: Db, id: string, wer: string, o: { aktiv: boolean }): Promise<void> {

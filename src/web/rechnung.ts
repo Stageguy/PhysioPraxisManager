@@ -20,6 +20,8 @@ export interface RechnungSeiteDaten {
   /** Positionen der Preisliste des Patienten (für „+“) */
   preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[];
   wellness: WellnessLeistung[];
+  /** Die heute für den Patienten gültige Preisliste (W97) – weicht sie vom Entwurf ab, gibt es „Preise übernehmen“ */
+  preislisteAktuell: { id: string; name: string } | null;
 }
 
 
@@ -68,7 +70,7 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen): string {
   const versandWunsch = { email: 'per Mail', post: 'per Post', beides: 'per Mail und Post' }[p.rechnungsversand];
   const aktionen = (() => {
     switch (r.status) {
-      case 'entwurf': return `${form('rechnung_status', `<input type="hidden" name="status_aktion" value="fertig"><button class="knopf primaer" data-hilfe="rechnung.fertig">${symbol('haken', { groesse: 18 })} Fertig – an Lexware übertragen</button>`)}
+      case 'entwurf': return `${d.preislisteAktuell && d.preislisteAktuell.id !== r.preisliste?.id ? form('rechnung_preise', `<button class="knopf" data-hilfe="rechnung.preise">${symbol('euro', { groesse: 18 })} Preise aus „${esc(d.preislisteAktuell.name)}“ übernehmen</button>`) : ''}${form('rechnung_status', `<input type="hidden" name="status_aktion" value="fertig"><button class="knopf primaer" data-hilfe="rechnung.fertig">${symbol('haken', { groesse: 18 })} Fertig – an Lexware übertragen</button>`)}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`)}`;
       case 'freigegeben': return `<p class="hint">Die Übertragung nach Lexware kommt mit dem Tarif XL. Bis dahin: Rechnung in Lexware anlegen und die Nummer hier eintragen.</p>
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="in_lexware"><label>Rechnungsnummer aus Lexware<input name="nummer" required maxlength="40"></label><label>Rechnungsdatum<input type="date" name="datum" value="${heuteBerlin()}"></label><button class="knopf primaer" data-hilfe="rechnung.nummer">Nummer eintragen</button>`, 'formular zeile')}
@@ -93,7 +95,7 @@ ${meldungen(o)}
     <p class="hint">Versand laut Stammdaten: ${versandWunsch}${r.versendetAm ? ` · versendet ${datumText(r.versendetAm)}` : ''}</p></div>
   <div class="tafel"><h2>Rechnung</h2><dl class="liste-dl klein">
     <dt>Leistungsgruppe</dt><dd>${wellness ? `Wellness · ${r.ustSatz ? `${r.ustSatz} % USt` : 'keine USt (§ 19 UStG)'}` : 'Heilbehandlung · steuerfrei (§ 4 Nr. 14 UStG)'}</dd>
-    <dt>Preisliste</dt><dd>${r.preisliste ? `<a href="/preislisten/${r.preisliste.id}">${esc(r.preisliste.name)}</a>` : '<span class="warn">keine – Preise bitte von Hand</span>'}</dd>
+    <dt>Preisliste</dt><dd>${r.preisliste ? `<a href="/preislisten/${r.preisliste.id}">${esc(r.preisliste.name)}</a> <span class="hint">(Stand dieser Rechnung)</span>` : '<span class="warn">keine – Preise bitte von Hand</span>'}</dd>
     <dt>Datum</dt><dd>${r.datum ? datumText(r.datum) : 'bei Fertigstellung'}${r.faelligAm ? ` · fällig ${datumText(r.faelligAm)}` : ''}</dd>
     ${r.zeitraumVon ? `<dt>Zeitraum</dt><dd>${datumText(r.zeitraumVon)} – ${datumText(r.zeitraumBis)}</dd>` : ''}
     ${r.lexware.status ? `<dt>Lexware</dt><dd>${esc(r.lexware.status)}${r.lexware.geprueftAm ? ` · geprüft ${datumText(r.lexware.geprueftAm)}` : ''}</dd>` : ''}
