@@ -101,8 +101,12 @@ test('Übernahme: Kacheln je Jahr, Datei im Tresor, Zahldatum; Probelauf schreib
   for (const x of rows) assert.notEqual(Buffer.from(x.pdf as Uint8Array).subarray(0, 4).toString(), '%PDF', 'im Tresor, nicht im Klartext');
   // Patientenseite: Jahre, Dateiname, Zahldatum, Klick führt zum PDF
   const html = await seite(`/patienten/${annaId}`);
-  assert.match(html, /<h3 class="rk-jahr">2026 <span class="hint">2<\/span><\/h3>[\s\S]*<h3 class="rk-jahr">2025 <span class="hint">1<\/span><\/h3>/);
-  assert.match(html, /href="\/patienten\/\d+\/rechnungen\/\d+\/pdf" target="_blank" rel="noopener" data-hilfe="patient.rechnung.lexware">[\s\S]{0,800}<b>RE-2025-0007<\/b>[\s\S]{0,800}<dt>Datei<\/dt><dd>RE-2025-0007\.pdf<\/dd>[\s\S]{0,400}<dt>Bezahlt<\/dt><dd>12\.03\.2025<\/dd>/);
+  // Jahre zuklappbar (W104): das neueste offen, ältere nur als Zeile mit der Anzahl; Legende und Dokumentfenster auf der Seite
+  assert.match(html, /<details class="rk-jahr" open><summary data-hilfe="patient.rechnung.jahr"><b>2026<\/b> <span class="hint">Anz\. Rechnungen: 2<\/span><\/summary>[\s\S]*<details class="rk-jahr"><summary data-hilfe="patient.rechnung.jahr"><b>2025<\/b> <span class="hint">Anz\. Rechnungen: 1<\/span><\/summary>/);
+  assert.match(html, /<h2>[\s\S]{0,400}Rechnungen <span class="rk-legende" data-hilfe="patient.rechnung.legende"/);
+  assert.match(html, /<aside class="pdf-fenster" id="pdf-fenster" hidden[\s\S]{0,600}id="pdf-schliessen" data-hilfe="pdf.schliessen"/);
+  assert.match(html, /href="\/patienten\/\d+\/rechnungen\/\d+\/pdf" data-pdf="RE-2025-0007" data-hilfe="patient.rechnung.lexware">[\s\S]{0,800}<b>RE-2025-0007<\/b>[\s\S]{0,800}<dt>Datei<\/dt><dd>RE-2025-0007\.pdf<\/dd>[\s\S]{0,400}<dt>Bezahlt<\/dt><dd>12\.03\.2025<\/dd>/);
+  assert.doesNotMatch(html, /target="_blank"[^>]*patient\.rechnung/, 'kein Tab-Wechsel');
   assert.match(html, /RE-2026-0088[\s\S]{0,200}überfällig/);
   assert.match(html, /aus Lexware · paid/);
   assert.match(html, /name="anhang_rechnung"[^>]*> Rechnung RE-2025-0007 \(PDF\)/, 'als Mail-Anhang wählbar');

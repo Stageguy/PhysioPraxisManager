@@ -51,3 +51,13 @@ export const sektionLegende = () =>
 
 /** Farbiger Status-Chip (Outlook-Farbpaletten „presetN“) */
 export const chip = (text: string, farbe: string) => `<span class="chip ${farbe}">${esc(text)}</span>`;
+
+/**
+ * Seitliches Dokumentfenster (W104): /praxis.js lädt beim Klick auf `a[data-pdf]` das PDF in den Rahmen, statt die
+ * Seite oder den Tab zu wechseln; „Schließen“ oder Escape blendet es aus. Ohne Skript (oder am iPhone, wo der Rahmen
+ * nur die erste Seite zeigt) öffnet der Link das PDF im selben Tab – „Zurück“ führt zur Seite.
+ */
+export const pdfFenster = () => `<aside class="pdf-fenster" id="pdf-fenster" hidden aria-label="Dokument">
+  <header>${symbol('rechnung', { groesse: 18 })}<b id="pdf-titel"></b><a id="pdf-oeffnen" class="knopf klein" href="#" data-hilfe="pdf.oeffnen">Öffnen</a><button type="button" class="knopf klein" id="pdf-schliessen" data-hilfe="pdf.schliessen">${symbol('kreuz', { groesse: 16 })} Schließen</button></header>
+  <iframe id="pdf-rahmen" title="Dokument" src="about:blank"></iframe>
+</aside>`;

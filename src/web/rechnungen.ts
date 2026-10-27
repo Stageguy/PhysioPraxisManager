@@ -362,5 +362,27 @@ export const PRAXIS_SKRIPT = String.raw`
     var tr = t.closest && t.closest('tr[data-href]');
     if (tr && !t.closest('input,select,textarea,button,a,label')) window.location.href = tr.getAttribute('data-href');
   });
+  // Dokumente im seitlichen Fenster (W104): Klick auf a[data-pdf] lädt das PDF in den Rahmen, kein Seiten- oder Tab-Wechsel.
+  // Am iPhone zeigt ein Rahmen nur die erste PDF-Seite – dort öffnet der Link das PDF im selben Tab (Zurück = Seite).
+  var pdfFenster = document.getElementById('pdf-fenster');
+  if (pdfFenster) {
+    var pdfRahmen = document.getElementById('pdf-rahmen'), pdfTitel = document.getElementById('pdf-titel'), pdfOeffnen = document.getElementById('pdf-oeffnen');
+    var ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    function pdfSchliessen() { pdfFenster.hidden = true; pdfRahmen.src = 'about:blank'; document.body.classList.remove('pdf-offen'); }
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[data-pdf]');
+      if (a && !ios) {
+        e.preventDefault();
+        pdfTitel.textContent = a.getAttribute('data-pdf') || 'Dokument';
+        pdfOeffnen.href = a.href;
+        pdfRahmen.src = a.href;
+        pdfFenster.hidden = false;
+        document.body.classList.add('pdf-offen');
+        return;
+      }
+      if (e.target.closest && e.target.closest('#pdf-schliessen')) { e.preventDefault(); pdfSchliessen(); }
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pdfFenster.hidden) pdfSchliessen(); });
+  }
 })();
 `;

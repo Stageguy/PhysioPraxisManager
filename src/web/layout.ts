@@ -322,7 +322,19 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .rk-pat{border-left:6px solid var(--rand)}.rk-pat.gelb{border-left-color:#f2d43a}.rk-pat.rot{border-left-color:#d93025}
 .rk-pat header{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--akzent)}.rk-pat header b{color:var(--fg);flex:1;min-width:0}
 .rk-pat-betrag{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
-.rk-jahr{margin:14px 0 2px;font-size:15px;color:var(--grau)}.rk-jahr .hint{font-weight:400}.rk-pat.lexware{border-left-style:dashed;border-left-color:#8a6d3b}.rk-pat.lexware.gelb{border-left-color:#f2d43a}.rk-pat.lexware.rot{border-left-color:#d93025}
+.rk-pat.lexware{border-left-style:dashed;border-left-color:#8a6d3b}.rk-pat.lexware.gelb{border-left-color:#f2d43a}.rk-pat.lexware.rot{border-left-color:#d93025}
+/* Rechnungen je Jahr (W104): zuklappbar, Legende oben rechts, Dokumentfenster seitlich */
+details.rk-jahr{margin:10px 0 0}details.rk-jahr summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:center;font-size:15px;color:var(--grau);min-height:36px}
+details.rk-jahr summary::-webkit-details-marker{display:none}details.rk-jahr summary::before{content:'▸';color:var(--akzent);width:14px}details.rk-jahr[open] summary::before{content:'▾'}
+details.rk-jahr summary b{color:var(--fg);font-size:16px}
+.rk-legende{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;font-size:12px;font-weight:400;color:var(--grau);align-items:center;cursor:help}
+.rk-legende span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.rk-legende i{display:inline-block;width:18px;height:12px;border-radius:3px;border:1px solid var(--rand);border-left:5px solid var(--rand);background:var(--karte)}
+.rk-legende i.lexware{border-left-style:dashed;border-left-color:#8a6d3b}.rk-legende i.gelb{border-left-color:#f2d43a}.rk-legende i.rot{border-left-color:#d93025}
+.pdf-fenster{position:fixed;top:0;right:0;height:100dvh;width:min(760px,100vw);background:var(--karte);border-left:1px solid var(--rand);box-shadow:-10px 0 30px rgba(0,0,0,.2);z-index:1100;display:flex;flex-direction:column}
+.pdf-fenster[hidden]{display:none}.pdf-fenster header{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--rand);color:var(--akzent)}
+.pdf-fenster header b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}.pdf-fenster iframe{flex:1;border:0;width:100%;background:#fff}
+body.pdf-offen{overflow:hidden}
 .verlauf-fenster{max-height:360px;overflow:auto;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:4px 14px}
 details.stammdaten.tafel{padding:10px 16px;margin:0 0 12px}details.stammdaten.tafel>summary{display:inline-flex;gap:6px;align-items:center;min-height:36px;color:var(--akzent);font-weight:600}
 details.stammdaten.tafel[open]>summary{margin-bottom:8px}
