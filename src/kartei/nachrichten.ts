@@ -7,13 +7,13 @@
 import type { Db } from '../db/index.ts';
 import { protokolliere } from '../db/index.ts';
 import { GraphError, type GraphClient } from '../graph.ts';
-import { entwurfAnlegen, type Anhang } from '../mail/entwurf.ts';
+import { anhangKoerper, entwurfAnlegen, entwurfKoerper, pruefeMail, type Anhang, type NeueMail } from '../mail/entwurf.ts';
 import { gesundheitsbegriffe, rendern, VORLAGEN, vorlage, VorlageFehler, type Kanal } from '../nachrichten/vorlagen.ts';
 import type { Tresor } from '../tresor.ts';
-import { SchrankeVerletzt } from '../umgebung.ts';
+import { pruefeEmpfaenger, SchrankeVerletzt } from '../umgebung.ts';
 import { waLink, WhatsAppFehler, type EingehendeNachricht, type WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
 import { KarteiFehler, patientLesen, rechnungen, termine, type Patient, type RechnungKurz, type TerminKurz } from './patienten.ts';
-import { rechnungPdf } from './rechnungen.ts';
+import { rechnungLesen, rechnungPdf, rechnungStatus } from './rechnungen.ts';
 
 export interface DokumentKurz {
   id: string;
@@ -33,6 +33,47 @@ export async function dokumente(db: Db, t: Tresor, patientId: string): Promise<D
     id: String(r.id), titel: t.entschluesselnText(r.titel as Uint8Array, 'dokument.titel') ?? 'Dokument', mime: String(r.mime), groesse: Number(r.groesse), art: String(r.art),
     datum: r.dokument_datum ? String(r.dokument_datum).slice(0, 10) : null,
   }));
+}
+
+/**
+ * Klick 2 (W100/A28): die Rechnung versenden – per Mail sofort aus dem Praxispostfach mit dem PDF aus Lexware
+ * (die bewusste Ausnahme von Leitplanke 3, E30a), per Post als Vermerk mit Druckhinweis. Schranke 2: Test nur an Testadressen.
+ */
+export async function rechnungSenden(
+  db: Db, t: Tresor, graph: Pick<GraphClient, 'postOhneAntwort'> | undefined, patientId: string, rechnungId: string, d: { art?: string }, wer: string,
+): Promise<{ meldung: string; art: string }> {
+  const patient = await patientLesen(db, t, patientId);
+  if (!patient) throw new KarteiFehler('Unbekannter Patient');
+  const r = await rechnungLesen(db, patientId, rechnungId);
+  if (!r) throw new KarteiFehler('Diese Rechnung gibt es nicht');
+  if (!['in_lexware', 'freigegeben'].includes(r.status)) throw new KarteiFehler('Versenden erst, wenn die Rechnung in Lexware ist (Nummer und PDF)');
+  const art = ['email', 'post', 'beides'].includes(d.art ?? '') ? d.art! : patient.rechnungsversand;
+  const kurz = (await rechnungen(db, patientId)).find((x) => x.id === rechnungId)!;
+  const wege: string[] = [];
+  if (art === 'email' || art === 'beides') {
+    if (!graph) throw new KarteiFehler('Kein Postfach verbunden – Versand per Mail nicht möglich');
+    if (!patient.email) throw new KarteiFehler('Keine Mailadresse hinterlegt – bitte Versand per Post wählen');
+    const pdf = await rechnungPdf(db, t, patientId, rechnungId);
+    if (!pdf) throw new KarteiFehler('Für diese Rechnung liegt noch kein PDF aus Lexware vor');
+    const { betreff, text } = nachrichtText('email', 'rechnung_info', patient, { rechnung: kurz });
+    const mail: NeueMail = { an: [patient.email.normiert], betreff, text, anhaenge: [{ name: pdf.name, mime: 'application/pdf', daten: pdf.daten }] };
+    try {
+      pruefeMail(mail);
+      pruefeEmpfaenger(mail.an);
+      await graph.postOhneAntwort('/me/sendMail', { message: { ...entwurfKoerper(mail), attachments: (mail.anhaenge ?? []).map(anhangKoerper) }, saveToSentItems: true });
+    } catch (err) {
+      if (err instanceof SchrankeVerletzt) throw new KarteiFehler(err.message);
+      if (err instanceof GraphError) throw new KarteiFehler(`Postfach nicht erreichbar (${err.status}) – die Rechnung wurde nicht gesendet`);
+      if (err instanceof Error && !(err instanceof KarteiFehler) && /Anhang|Mailadresse|Empfänger/.test(err.message)) throw new KarteiFehler(err.message);
+      throw err;
+    }
+    await verlauf(db, t, patientId, { art: 'email', kontaktId: patient.email.id, terminId: null, notiz: `Rechnung ${kurz.nummer ?? rechnungId} per Mail gesendet (${pdf.name})`, quelleRef: null, wer });
+    wege.push(`per Mail an ${patient.email.wert}`);
+  }
+  if (art === 'post' || art === 'beides') wege.push('per Post – bitte das PDF drucken');
+  await rechnungStatus(db, patientId, rechnungId, 'versendet', { versandArt: art }, wer);
+  await protokolliere(db, { actor: wer, action: 'rechnung_gesendet', objectType: 'patient', objectId: patientId, details: { rechnung: Number(rechnungId), art } });
+  return { meldung: `Rechnung ${kurz.nummer ?? ''} versendet ${wege.join(' und ')}.`, art };
 }
 
 /** Gültige Einwilligung in WhatsApp (patient_erklaerung, nicht widerrufen, nicht abgelaufen) */

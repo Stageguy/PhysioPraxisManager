@@ -180,3 +180,11 @@ dir, du bestätigst. Bitte entscheiden: (a) welche Terminarten online stehen (we
 **Hinweistext** über dem Formular, (e) ob die Seite im Kontaktbereich von lilli-nebel.de oder auf einer
 eigenen Unterseite „Termin“ stehen soll. Öffentlich wird sie erst, wenn Christian sie freigibt.
 
+
+**26. Weniger, längere Termine als verordnet (W108):** Manche Patienten wollen statt 10 × 20 Minuten lieber
+5 × 40 Minuten. Der PPM kann das als **Doppelbehandlung** abbilden: ein 40-Minuten-Termin verbraucht zwei
+Einheiten des Rezepts, Akte und Rechnung zeigen das genau so (ein Tag, zwei Einheiten). Nicht möglich ist eine
+Dokumentation mit erfundenen Terminen – das wäre eine falsche Behandlungsdokumentation. Bitte entscheiden:
+(a) Willst du Doppelbehandlungen anbieten? (b) Sprichst du mit den verordnenden Ärzten ab, dass sie
+„Doppelbehandlung“ oder eine 40-Minuten-Leistung gleich verordnen? (c) Sollen Patienten vorher den Hinweis
+bekommen, dass ihre Versicherung Doppelbehandlungen ohne Verordnung kürzen kann (eine Erklärung in der Akte)?

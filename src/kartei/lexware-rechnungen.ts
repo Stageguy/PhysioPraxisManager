@@ -5,11 +5,14 @@
  * Zahldatum, Datei nachholen. Es wird nichts gelöscht; was nur der PPM kennt (Positionen, Rezept, Fall), bleibt (§4d).
  */
 import { protokolliere, type Db } from '../db/index.ts';
+import { datumText } from '../format.ts';
 import type { Tresor } from '../tresor.ts';
 import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
 import type { LexwareKunden } from '../lexware/kunden.ts';
-import { lexwareStandUebernehmen, type RechnungStatus } from './rechnungen.ts';
-import { KarteiFehler } from './patienten.ts';
+import { nurProduktion, SchrankeVerletzt } from '../umgebung.ts';
+import { ART_TEXT, lexwareStandUebernehmen, rechnungLesen, rechnungStatus, type RechnungStatus } from './rechnungen.ts';
+import { lexwareVerknuepfen } from './lexware-kunden.ts';
+import { KarteiFehler, patientLesen } from './patienten.ts';
 
 export interface Uebernahme {
   /** In Lexware gefunden (im gewählten Ausschnitt) */
@@ -97,6 +100,61 @@ export async function rechnungenUebernehmen(
   if (!o.probelauf) await protokolliere(db, { actor: o.wer, action: 'rechnung_lexware_import', objectType: 'patient', objectId: o.patientId ?? '0', details: { ...e } });
   return e;
 }
+
+/** Der Empfänger der Rechnung ist der Patient selbst (sonst eine Bezugsperson – eigener Lexware-Kontakt) */
+const istPatient = (name: string, p: { vorname: string; nachname: string }): boolean => {
+  const n = name.toLowerCase();
+  return n.includes(p.vorname.toLowerCase()) && n.includes(p.nachname.toLowerCase());
+};
+
+/**
+ * Klick 1 (W100/A28): Rechnung nach Lexware – fertigstellen, Kontakt sicherstellen, Rechnung festgeschrieben anlegen,
+ * Nummer und PDF zurück in die Kartei. Schreibt in Lexware nur in der Produktion (Schranke 4); die Testumgebung hat die Attrappe.
+ */
+export async function rechnungNachLexware(
+  db: Db, t: Tresor, lex: LexwareRechnungen, patientId: string, rechnungId: string, wer: string,
+): Promise<{ nummer: string; kontaktNeu: boolean }> {
+  if (!lex.attrappe) nurProduktion('Rechnung nach Lexware');
+  let r = await rechnungLesen(db, patientId, rechnungId);
+  if (!r) throw new KarteiFehler('Diese Rechnung gibt es nicht');
+  if (r.quelle === 'lexware') throw new KarteiFehler('Diese Rechnung kommt schon aus Lexware');
+  if (!['entwurf', 'freigegeben'].includes(r.status)) throw new KarteiFehler('Die Rechnung ist schon in Lexware');
+  if (r.status === 'entwurf') {
+    await rechnungStatus(db, patientId, rechnungId, 'fertig', {}, wer);
+    r = (await rechnungLesen(db, patientId, rechnungId))!;
+  }
+  if (!r.positionen.length) throw new KarteiFehler('Die Rechnung hat noch keine Position');
+  if (r.betrag <= 0) throw new KarteiFehler('Die Rechnung hat keinen Betrag');
+  const patient = await patientLesen(db, t, patientId);
+  if (!patient) throw new KarteiFehler('Unbekannter Patient');
+  // Lexware-Kontakt: der Patient (verknüpft über W99 oder jetzt angelegt) oder die Bezugsperson als Rechnungsempfänger
+  const eigener = istPatient(r.empfaenger.name, patient);
+  let kontaktId = eigener ? (await db.query<{ k: string | null }>('SELECT lexware_kontakt_id AS k FROM patient WHERE id = $1', [patientId])).rows[0]?.k ?? null : null;
+  let kontaktNeu = false;
+  if (!kontaktId) {
+    const e = r.empfaenger;
+    const neu = await lex.kontaktAnlegen(eigener
+      ? { anrede: patient.anrede, vorname: patient.vorname, nachname: patient.nachname, strasse: e.strasse, plz: e.plz, ort: e.ort, land: e.land, email: patient.email?.normiert }
+      : { nachname: e.name, strasse: e.strasse, plz: e.plz, ort: e.ort, land: e.land });
+    kontaktId = neu.id;
+    kontaktNeu = true;
+    if (eigener && neu.nummer) {
+      try { await lexwareVerknuepfen(db, patientId, { nummer: neu.nummer, kontaktId: neu.id }, wer); } catch (err) { if (!(err instanceof KarteiFehler)) throw err; }
+    }
+  }
+  const neu = await lex.rechnungAnlegen({
+    kontaktId, datum: r.datum ?? new Date().toISOString().slice(0, 10), zeitraumVon: r.zeitraumVon, zeitraumBis: r.zeitraumBis, titel: ART_TEXT[r.art] ?? 'Rechnung',
+    bemerkung: r.bausteine.map((b) => b.text.trim()).filter(Boolean).join('\n\n'), ustSatz: r.ustSatz,
+    positionen: r.positionen.map((p) => ({ name: p.nummer ? `${p.bezeichnung} (${p.nummer})` : p.bezeichnung, beschreibung: p.datum ? `Behandlung am ${datumText(p.datum)}` : undefined, anzahl: p.anzahl, einzelpreis: p.einzelpreis })),
+  });
+  const datei = await lex.datei(neu.id);
+  await lexwareStandUebernehmen(db, t, rechnungId, { invoiceId: neu.id, nummer: neu.nummer, status: 'open', betrag: r.betrag, pdf: datei?.daten, pdfName: datei?.name, erstelltAm: neu.erstelltAm, geaendertAm: neu.geaendertAm }, wer);
+  await db.query('UPDATE rechnung SET lexware_kontakt_id = $2, faellig_am = COALESCE($3::date, faellig_am), geaendert_am = now() WHERE id = $1', [rechnungId, kontaktId, neu.faellig]);
+  await protokolliere(db, { actor: wer, action: 'rechnung_nach_lexware', objectType: 'patient', objectId: patientId, details: { rechnung: Number(rechnungId), kontaktNeu, pdf: Boolean(datei) } });
+  return { nummer: neu.nummer, kontaktNeu };
+}
+
+export { SchrankeVerletzt };
 
 export const uebernahmeText = (e: Uebernahme): string =>
   `${e.gefunden} Rechnung${e.gefunden === 1 ? '' : 'en'} in Lexware – ${e.neu} neu, ${e.aktualisiert} aktualisiert, ${e.unveraendert} unverändert${e.ohnePatient ? `, ${e.ohnePatient} ohne verknüpften Patienten` : ''}${e.konflikt ? `, ${e.konflikt} mit Nummernkonflikt` : ''}${e.ohneDatei ? `, ${e.ohneDatei} ohne Datei` : ''}${e.dateien ? ` · ${e.dateien} Datei${e.dateien === 1 ? '' : 'en'} in den Tresor gelegt` : ''}.`;

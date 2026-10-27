@@ -67,6 +67,8 @@ const quelle: LexwareRechnungen = {
   },
   datei: (id) => attrappe.datei(id),
   zahlung: async (id) => (bezahltUmstellen && id === 'attrappe-re-3' ? { openAmount: 0, paymentStatus: 'balanced', voucherStatus: 'paid', paidDate: '2026-10-19T00:00:00.000+02:00' } : attrappe.zahlung(id)),
+  kontaktAnlegen: (k) => attrappe.kontaktAnlegen(k),
+  rechnungAnlegen: (r) => attrappe.rechnungAnlegen(r),
 };
 
 before(async () => {

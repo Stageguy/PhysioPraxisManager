@@ -24,11 +24,11 @@ import {
 import { termineZeitraum, type TerminKalender } from './patienten.ts';
 import { listen as preislistenListen, type Preisliste } from '../preise/preislisten.ts';
 import { steuerfreieUmsaetze, type SteuerListe } from './steuer.ts';
-import { dokumente, mailEntwurf, whatsappAngebote, whatsappEingang, whatsappSenden, whatsappVermerken, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
+import { dokumente, mailEntwurf, rechnungSenden, whatsappAngebote, whatsappEingang, whatsappSenden, whatsappVermerken, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
 import { akteExport } from './akte-export.ts';
 import { terminartAktiv, terminarten, terminartSpeichern, type Terminart } from './terminarten.ts';
 import { kundenAbgleich, lexwareLoesen, lexwareNummerFrei, lexwareVerknuepfen, type LexwareKundeStand } from './lexware-kunden.ts';
-import { kontaktIdNachtragen, rechnungenUebernehmen, uebernahmeText } from './lexware-rechnungen.ts';
+import { kontaktIdNachtragen, rechnungenUebernehmen, rechnungNachLexware, uebernahmeText } from './lexware-rechnungen.ts';
 import type { LexwareKunde, LexwareKunden } from '../lexware/kunden.ts';
 import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
 import type { EingehendeNachricht, WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
@@ -101,7 +101,7 @@ export interface KarteiDienst {
   aktePdf(id: string, wer: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
   neuAktion(id: string): Promise<NeuAktionDaten | undefined>;
   rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
-  rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[]; preislisteAktuell: { id: string; name: string } | null } | undefined>;
+  rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[]; preislisteAktuell: { id: string; name: string } | null; lexware: boolean; postfach: boolean } | undefined>;
   rechnungPdf(patientId: string, rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
   konfiguration(): Promise<{ textbausteine: Textbaustein[]; einstellungen: Record<string, string> }>;
   kalender(vonIso: string, bisIso: string): Promise<TerminKalender[]>;
@@ -128,7 +128,7 @@ const kontaktart = (s: string | null): Kontaktart => (ARTEN.includes(s as Kontak
 const ganz = (s: string | null, standard = 0) => (s && /^\d+$/.test(s.trim()) ? Number(s) : standard);
 
 export function karteiDienst(q: {
-  db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete'>; whatsapp?: WhatsAppCloud; buchung?: { url: string; oeffentlich: boolean };
+  db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete' | 'postOhneAntwort'>; whatsapp?: WhatsAppCloud; buchung?: { url: string; oeffentlich: boolean };
   /** Kunden aus Lexware (W99) */
   lexware?: LexwareKunden;
   /** Rechnungen aus Lexware (W103) */
@@ -197,7 +197,11 @@ export function karteiDienst(q: {
         ? (await db.query<{ id: string; nummer: string; bezeichnung: string; preis: string | null }>('SELECT id::text, nummer, bezeichnung, coalesce(eigener_preis, gkv_preis)::text AS preis FROM preisliste_position WHERE preisliste_id = $1 AND uebernehmen ORDER BY reihenfolge', [rechnung.preisliste.id])).rows
           .map((x) => ({ id: x.id, nummer: x.nummer, bezeichnung: x.bezeichnung, preis: x.preis === null ? null : Number(x.preis) }))
         : [];
-      return { patient, rechnung, textbausteine: await textbausteine(db), preislistePositionen: positionen, wellness: await wellnessLeistungen(db), preislisteAktuell: patient.preislisteGilt ? { id: patient.preislisteGilt.id, name: patient.preislisteGilt.name } : null };
+      return {
+        patient, rechnung, textbausteine: await textbausteine(db), preislistePositionen: positionen, wellness: await wellnessLeistungen(db),
+        preislisteAktuell: patient.preislisteGilt ? { id: patient.preislisteGilt.id, name: patient.preislisteGilt.name } : null,
+        lexware: Boolean(q.lexwareRechnungen), postfach: Boolean(q.graph),
+      };
     },
     rechnungPdf: (patientId, rechnungId) => rechnungPdf(db, t, patientId, rechnungId),
     async konfiguration() { return { textbausteine: await textbausteine(db, { alle: true }), einstellungen: await einstellungen(db) }; },
@@ -429,6 +433,16 @@ export function karteiDienst(q: {
           if (!['fertig', 'zurueck', 'in_lexware', 'versendet', 'bezahlt', 'storno'].includes(a)) throw new KarteiFehler('Unbekannte Aktion');
           const meldung = await rechnungStatus(db, id, g('rechnung_id') ?? '', a, { versandArt: g('versand_art'), grund: g('grund'), nummer: g('nummer'), datum: g('datum') }, wer);
           return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, meldung);
+        }
+        // Rechnung in zwei Klicks (W100/A28): Klick 1 nach Lexware, Klick 2 versenden
+        case 'rechnung_lexware': {
+          if (!q.lexwareRechnungen) throw new KarteiFehler('Lexware ist nicht angebunden');
+          const e = await rechnungNachLexware(db, t, q.lexwareRechnungen, id, g('rechnung_id') ?? '', wer);
+          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, `In Lexware mit Nummer ${e.nummer} – PDF liegt im Tresor.${e.kontaktNeu ? ' Der Empfänger wurde in Lexware als Kunde angelegt.' : ''} Jetzt „Versenden“.`);
+        }
+        case 'rechnung_versenden': {
+          const e = await rechnungSenden(db, t, q.graph, id, g('rechnung_id') ?? '', { art: g('versand_art') }, wer);
+          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, e.meldung);
         }
         // Nachrichten (W90, W91)
         case 'mail_entwurf': {

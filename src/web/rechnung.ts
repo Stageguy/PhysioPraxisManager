@@ -22,6 +22,10 @@ export interface RechnungSeiteDaten {
   wellness: WellnessLeistung[];
   /** Die heute für den Patienten gültige Preisliste (W97) – weicht sie vom Entwurf ab, gibt es „Preise übernehmen“ */
   preislisteAktuell: { id: string; name: string } | null;
+  /** Lexware angebunden – Klick 1 „Nach Lexware“ (W100) */
+  lexware: boolean;
+  /** Postfach verbunden – Klick 2 „Versenden“ per Mail */
+  postfach: boolean;
 }
 
 
@@ -68,16 +72,20 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen): string {
     ${form('rechnung_baustein_hinzufuegen', `<label>Textbaustein<select name="textbaustein_id">${d.textbausteine.filter((b) => !r.bausteine.some((x) => x.code === b.code)).map((b) => `<option value="${b.id}">${esc(b.code)} · ${esc(b.kurzname)}</option>`).join('')}</select></label><button class="knopf primaer">Hinzufügen</button>`, 'formular zeile')}
   </details>` : '';
   const versandWunsch = { email: 'per Mail', post: 'per Post', beides: 'per Mail und Post' }[p.rechnungsversand];
+  // Rechnung in zwei Klicks (W100): Klick 1 nach Lexware (Nummer, PDF), Klick 2 versenden über den Standardweg des Patienten
+  const nachLexware = d.lexware && r.quelle !== 'lexware' ? form('rechnung_lexware', `<button class="knopf primaer" data-hilfe="rechnung.lexware">${symbol('euro', { groesse: 18 })} Nach Lexware – Nummer und PDF holen</button>`) : '';
+  const VERSAND: Record<string, string> = { email: 'per Mail', post: 'per Post', beides: 'per Mail und Post' };
+  const versenden = d.postfach ? form('rechnung_versenden', `<label>Versand<select name="versand_art" data-hilfe="rechnung.versand-art"><option value="${p.rechnungsversand}">${versandWunsch} (Wunsch des Patienten)</option>${(['email', 'post', 'beides'] as const).filter((a) => a !== p.rechnungsversand).map((a) => `<option value="${a}">${VERSAND[a]}</option>`).join('')}</select></label><button class="knopf primaer" data-hilfe="rechnung.versenden">${symbol('email', { groesse: 18 })} Versenden</button>`) : '';
   const aktionen = (() => {
     switch (r.status) {
-      case 'entwurf': return `${d.preislisteAktuell && d.preislisteAktuell.id !== r.preisliste?.id ? form('rechnung_preise', `<button class="knopf" data-hilfe="rechnung.preise">${symbol('euro', { groesse: 18 })} Preise aus „${esc(d.preislisteAktuell.name)}“ übernehmen</button>`) : ''}${form('rechnung_status', `<input type="hidden" name="status_aktion" value="fertig"><button class="knopf primaer" data-hilfe="rechnung.fertig">${symbol('haken', { groesse: 18 })} Fertig – an Lexware übertragen</button>`)}
+      case 'entwurf': return `${nachLexware}${d.preislisteAktuell && d.preislisteAktuell.id !== r.preisliste?.id ? form('rechnung_preise', `<button class="knopf" data-hilfe="rechnung.preise">${symbol('euro', { groesse: 18 })} Preise aus „${esc(d.preislisteAktuell.name)}“ übernehmen</button>`) : ''}${form('rechnung_status', `<input type="hidden" name="status_aktion" value="fertig"><button class="knopf primaer" data-hilfe="rechnung.fertig">${symbol('haken', { groesse: 18 })} Fertig – an Lexware übertragen</button>`)}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`)}`;
-      case 'freigegeben': return `<p class="hint">Die Übertragung nach Lexware kommt mit dem Tarif XL. Bis dahin: Rechnung in Lexware anlegen und die Nummer hier eintragen.</p>
+      case 'freigegeben': return `${nachLexware || '<p class="hint">Lexware ist nicht angebunden – Rechnung in Lexware anlegen und die Nummer hier eintragen.</p>'}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="in_lexware"><label>Rechnungsnummer aus Lexware<input name="nummer" required maxlength="40"></label><label>Rechnungsdatum<input type="date" name="datum" value="${heuteBerlin()}"></label><button class="knopf primaer" data-hilfe="rechnung.nummer">Nummer eintragen</button>`, 'formular zeile')}
-        <button class="knopf" disabled data-hilfe="rechnung.nummer-holen">${symbol('euro', { groesse: 18 })} Nummer aus Lexware holen <small>(kommt mit XL)</small></button>
+        ${d.lexware ? '' : `<button class="knopf" disabled data-hilfe="rechnung.nummer-holen">${symbol('euro', { groesse: 18 })} Nummer aus Lexware holen <small>(kommt mit XL)</small></button>`}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="zurueck"><button class="knopf" data-hilfe="ausgang.zurueck">Zurück in den Entwurf</button>`)}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`)}`;
-      case 'in_lexware': return `${form('rechnung_status', `<input type="hidden" name="status_aktion" value="versendet"><label>Versendet<select name="versand_art"><option value="${p.rechnungsversand}">${versandWunsch} (Wunsch des Patienten)</option><option value="email">per Mail</option><option value="post">per Post</option><option value="beides">per Mail und Post</option></select></label><button class="knopf primaer" data-hilfe="rechnung.versendet">${symbol('email', { groesse: 18 })} Als versendet vermerken</button>`, 'formular zeile')}
+      case 'in_lexware': return `${versenden}${form('rechnung_status', `<input type="hidden" name="status_aktion" value="versendet"><label>Versendet<select name="versand_art"><option value="${p.rechnungsversand}">${versandWunsch} (Wunsch des Patienten)</option><option value="email">per Mail</option><option value="post">per Post</option><option value="beides">per Mail und Post</option></select></label><button class="knopf primaer" data-hilfe="rechnung.versendet">${symbol('email', { groesse: 18 })} Als versendet vermerken</button>`, 'formular zeile')}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`)}`;
       case 'gesendet': return `${form('rechnung_status', `<input type="hidden" name="status_aktion" value="bezahlt"><label>Bezahlt am<input type="date" name="datum" value="${heuteBerlin()}"></label><button class="knopf primaer" data-hilfe="rechnung.bezahlt">${symbol('euro', { groesse: 18 })} Bezahlt</button>`, 'formular zeile')}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`)}`;

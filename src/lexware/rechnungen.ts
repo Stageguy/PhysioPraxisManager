@@ -1,10 +1,46 @@
 /**
- * Ausgangsrechnungen aus Lexware (W103): Belegliste, Datei (PDF) und Zahlungsstand – nur lesend. Die echte Quelle
- * spricht mit der Public API (2 Anfragen/s), die Attrappe liefert erfundene Rechnungen zu den erfundenen Kunden der
- * Testumgebung, mit selbst erzeugten PDFs (N28: keine echten Patientendaten im Test).
+ * Ausgangsrechnungen in Lexware (W103, W100): Belegliste, Datei (PDF) und Zahlungsstand lesen; Kontakt und Rechnung
+ * anlegen (Klick 1 „Nach Lexware“ – festgeschrieben, Lexware vergibt die Nummer und erzeugt das PDF). Die echte
+ * Quelle spricht mit der Public API (2 Anfragen/s), die Attrappe hält erfundene Rechnungen zu den erfundenen Kunden
+ * der Testumgebung im Speicher und erzeugt PDFs selbst (N28: keine echten Patientendaten im Test).
  */
 import { textPdf } from '../pdf/text.ts';
+import { berlinMitternachtUtc, tagPlus } from '../zeit.ts';
 import type { Beleg, Belegstatus, LexwareClient, Zahlung } from './client.ts';
+
+export interface NeuerKontakt {
+  anrede?: string | null;
+  vorname?: string | null;
+  nachname: string;
+  strasse?: string | null;
+  plz?: string | null;
+  ort?: string | null;
+  land?: string | null;
+  email?: string | null;
+}
+
+export interface NeueRechnung {
+  kontaktId: string;
+  /** Rechnungsdatum (JJJJ-MM-TT) */
+  datum: string;
+  zeitraumVon?: string | null;
+  zeitraumBis?: string | null;
+  titel: string;
+  /** Text unter den Positionen (Textbausteine) */
+  bemerkung?: string;
+  /** 0 = steuerfrei bzw. Kleinunternehmer; sonst Prozent */
+  ustSatz: number;
+  positionen: { name: string; beschreibung?: string; anzahl: number; einzelpreis: number }[];
+}
+
+export interface AngelegteRechnung {
+  id: string;
+  nummer: string;
+  datum: string;
+  faellig: string | null;
+  erstelltAm?: string;
+  geaendertAm?: string;
+}
 
 export interface LexwareRechnungen {
   attrappe: boolean;
@@ -13,17 +49,73 @@ export interface LexwareRechnungen {
   /** Die Datei einer festgeschriebenen Rechnung – Entwürfe haben keine */
   datei(rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
   zahlung(rechnungId: string): Promise<Zahlung>;
+  /** Kunden anlegen – Lexware vergibt die Kundennummer */
+  kontaktAnlegen(k: NeuerKontakt): Promise<{ id: string; nummer: string }>;
+  /** Rechnung anlegen und festschreiben – Nummer und Fälligkeit kommen zurück */
+  rechnungAnlegen(r: NeueRechnung): Promise<AngelegteRechnung>;
 }
 
 /** Alle Status, die sich kombinieren lassen („overdue“ ist nur eine Sicht auf „open“) */
 export const ALLE_STATUS: Belegstatus[] = ['draft', 'open', 'paid', 'paidoff', 'voided', 'transferred', 'sepadebit'];
 
-export function lexwareRechnungen(client: Pick<LexwareClient, 'belege' | 'rechnungDatei' | 'zahlung'>): LexwareRechnungen {
+/** „2026-10-28“ → „2026-10-28T00:00:00.000+01:00“ (Lexware will Datum mit Zeitzone; Berlin, Sommer-/Winterzeit) */
+export function lexwareDatum(tag: string): string {
+  const minuten = Math.round((Date.parse(`${tag}T00:00:00Z`) - Date.parse(berlinMitternachtUtc(tag))) / 60_000);
+  const h = String(Math.floor(Math.abs(minuten) / 60)).padStart(2, '0');
+  const m = String(Math.abs(minuten) % 60).padStart(2, '0');
+  return `${tag}T00:00:00.000${minuten < 0 ? '-' : '+'}${h}:${m}`;
+}
+
+const leer = (s: string | null | undefined) => (s && s.trim() ? s.trim() : undefined);
+
+/** Lexware-Körper für einen Kundenkontakt (Person); höchstens eine Adresse und eine Mailadresse (API-Grenze) */
+export function kontaktKoerper(k: NeuerKontakt): Record<string, unknown> {
+  const adresse = leer(k.strasse) || leer(k.ort) || leer(k.plz);
+  return {
+    version: 0,
+    roles: { customer: {} },
+    person: { salutation: leer(k.anrede), firstName: leer(k.vorname), lastName: k.nachname.trim() },
+    ...(adresse ? { addresses: { billing: [{ street: leer(k.strasse), zip: leer(k.plz), city: leer(k.ort), countryCode: leer(k.land) ?? 'DE' }] } } : {}),
+    ...(leer(k.email) ? { emailAddresses: { private: [k.email!.trim()] } } : {}),
+  };
+}
+
+/** Lexware-Körper für eine Rechnung: freie Positionen, steuerfrei (vatfree) oder netto mit USt */
+export function rechnungKoerper(r: NeueRechnung): Record<string, unknown> {
+  return {
+    voucherDate: lexwareDatum(r.datum),
+    address: { contactId: r.kontaktId },
+    lineItems: r.positionen.map((p) => ({
+      type: 'custom', name: p.name.slice(0, 255), description: p.beschreibung || undefined, quantity: p.anzahl, unitName: 'Einheit',
+      unitPrice: { currency: 'EUR', netAmount: p.einzelpreis, taxRatePercentage: r.ustSatz },
+    })),
+    totalPrice: { currency: 'EUR' },
+    taxConditions: { taxType: r.ustSatz > 0 ? 'net' : 'vatfree' },
+    shippingConditions: r.zeitraumVon && r.zeitraumBis
+      ? { shippingType: 'serviceperiod', shippingDate: lexwareDatum(r.zeitraumVon), shippingEndDate: lexwareDatum(r.zeitraumBis) }
+      : { shippingType: 'service', shippingDate: lexwareDatum(r.datum) },
+    paymentConditions: { paymentTermLabel: 'Zahlbar innerhalb von 14 Tagen ohne Abzug.', paymentTermDuration: 14 },
+    title: r.titel,
+    ...(r.bemerkung ? { remark: r.bemerkung } : {}),
+  };
+}
+
+export function lexwareRechnungen(client: Pick<LexwareClient, 'belege' | 'rechnungDatei' | 'zahlung' | 'kontaktAnlegen' | 'kontakt' | 'rechnungAnlegen' | 'rechnung'>): LexwareRechnungen {
   return {
     attrappe: false,
     belege: (o = {}) => client.belege({ typ: 'invoice', status: ALLE_STATUS, kontaktId: o.kontaktId }),
     datei: (id) => client.rechnungDatei(id),
     zahlung: (id) => client.zahlung(id),
+    async kontaktAnlegen(k) {
+      const { id } = await client.kontaktAnlegen(kontaktKoerper(k));
+      const kontakt = await client.kontakt(id);
+      return { id, nummer: kontakt.roles?.customer?.number == null ? '' : String(kontakt.roles.customer.number) };
+    },
+    async rechnungAnlegen(r) {
+      const { id } = await client.rechnungAnlegen(rechnungKoerper(r), { finalize: true });
+      const neu = await client.rechnung(id);
+      return { id, nummer: neu.voucherNumber ?? '', datum: neu.voucherDate?.slice(0, 10) ?? r.datum, faellig: neu.dueDate?.slice(0, 10) ?? null, erstelltAm: neu.createdDate, geaendertAm: neu.updatedDate };
+    },
   };
 }
 
@@ -45,31 +137,55 @@ const beleg = (e: Erfunden): Beleg => ({
 });
 
 /** PDF, wie es Lexware liefern würde – erfunden, nur Testdaten */
-export function erfundenesRechnungsPdf(e: { nummer: string; name: string; datum: string; betrag: number; faellig: string }): Uint8Array {
+export function erfundenesRechnungsPdf(e: { nummer: string; name: string; datum: string; betrag: number; faellig: string; zeilen?: string[] }): Uint8Array {
   return textPdf({
     titel: `Rechnung ${e.nummer}`, untertitel: 'Privatpraxis für Physiotherapie – TESTDATEN, keine echte Rechnung', fuss: 'Erzeugt von der Lexware-Attrappe der Testumgebung',
     abschnitte: [
       { zeilen: [`Rechnungsempfänger: ${e.name}`, `Rechnungsdatum: ${e.datum}`, `Fällig am: ${e.faellig}`] },
-      { titel: 'Leistungen', zeilen: ['Krankengymnastik, 3 × 20 Min.', `Gesamtbetrag: ${e.betrag.toFixed(2).replace('.', ',')} €`, 'Umsatzsteuerfrei nach § 19 UStG (Kleinunternehmer).'] },
+      { titel: 'Leistungen', zeilen: [...(e.zeilen ?? ['Krankengymnastik, 3 × 20 Min.']), `Gesamtbetrag: ${e.betrag.toFixed(2).replace('.', ',')} €`, 'Umsatzsteuerfrei nach § 19 UStG (Kleinunternehmer).'] },
     ],
   });
 }
 
+/** Attrappe mit eigenem Speicher je Instanz: angelegte Kontakte und Rechnungen erscheinen danach in der Belegliste */
 export function attrappeRechnungen(): LexwareRechnungen {
+  const rechnungen: (Erfunden & { zeilen?: string[] })[] = ERFUNDEN.map((e) => ({ ...e }));
+  const namen = new Map<string, string>(ERFUNDEN.map((e) => [e.kontakt, e.name]));
+  let kontakte = 0;
+  let nummern = 100;
   return {
     attrappe: true,
     async *belege(o = {}) {
-      for (const e of ERFUNDEN) if (!o.kontaktId || e.kontakt === o.kontaktId) yield beleg(e);
+      for (const e of rechnungen) if (!o.kontaktId || e.kontakt === o.kontaktId) yield beleg(e);
     },
     async datei(id) {
-      const e = ERFUNDEN.find((x) => x.id === id);
+      const e = rechnungen.find((x) => x.id === id);
       return e && e.status !== 'draft' ? { daten: erfundenesRechnungsPdf(e), name: `${e.nummer}.pdf` } : undefined;
     },
     async zahlung(id) {
-      const e = ERFUNDEN.find((x) => x.id === id);
+      const e = rechnungen.find((x) => x.id === id);
       if (!e) throw new Error(`Attrappe kennt Rechnung ${id} nicht`);
       const bezahlt = e.status === 'paid';
       return { openAmount: bezahlt || e.status === 'voided' ? 0 : e.betrag, paymentStatus: bezahlt ? 'balanced' : 'openRevenue', voucherStatus: e.status, paidDate: e.bezahlt ? `${e.bezahlt}T00:00:00.000+01:00` : undefined };
+    },
+    async kontaktAnlegen(k) {
+      kontakte++;
+      const id = `attrappe-k-${kontakte}`;
+      namen.set(id, [k.vorname, k.nachname].filter(Boolean).join(' '));
+      return { id, nummer: String(10100 + kontakte) };
+    },
+    async rechnungAnlegen(r) {
+      if (!namen.has(r.kontaktId)) throw new Error(`Attrappe kennt Kontakt ${r.kontaktId} nicht`);
+      nummern++;
+      const nummer = `RE-${r.datum.slice(0, 4)}-${String(nummern).padStart(4, '0')}`;
+      const jetzt = new Date().toISOString();
+      const e: Erfunden & { zeilen?: string[] } = {
+        id: `attrappe-re-${nummer}`, kontakt: r.kontaktId, name: namen.get(r.kontaktId)!, nummer, datum: r.datum, faellig: tagPlus(r.datum, 14), status: 'open',
+        betrag: Math.round(r.positionen.reduce((s, p) => s + p.anzahl * p.einzelpreis, 0) * (1 + r.ustSatz / 100) * 100) / 100, geaendert: jetzt,
+        zeilen: r.positionen.map((p) => `${p.anzahl} × ${p.name}${p.beschreibung ? ` (${p.beschreibung})` : ''} à ${p.einzelpreis.toFixed(2).replace('.', ',')} €`),
+      };
+      rechnungen.push(e);
+      return { id: e.id, nummer, datum: e.datum, faellig: e.faellig, erstelltAm: jetzt, geaendertAm: jetzt };
     },
   };
 }

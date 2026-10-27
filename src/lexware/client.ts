@@ -112,9 +112,50 @@ export class LexwareClient {
     }
   }
 
+  /** Schreibend (POST/PUT) mit derselben Drossel; 429 und 5xx werden wiederholt, 4xx mit Lexware-Text gemeldet */
+  async #schreiben<T>(methode: 'POST' | 'PUT', pfad: string, body: unknown): Promise<T> {
+    for (let versuch = 0; ; versuch++) {
+      const warten = this.#letzter + this.#abstandMs - Date.now();
+      if (warten > 0) await sleep(warten);
+      this.#letzter = Date.now();
+      const res = await this.#abruf(BASIS + pfad, {
+        method: methode,
+        headers: { Authorization: `Bearer ${this.#schluessel}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.ok) return (await res.json()) as T;
+      const text = await res.text().catch(() => '');
+      if (res.status === 401 || res.status === 403) throw new LexwareNichtBereit(`Lexware lehnt den Schlüssel ab (${res.status}) – Schlüssel prüfen; die Public API braucht den Tarif XL`);
+      if ((res.status === 429 || res.status >= 500) && versuch < 5) {
+        await sleep(2 ** versuch * 1000);
+        continue;
+      }
+      throw new LexwareFehler(res.status, `Lexware ${res.status} bei ${methode} ${pfad}${text ? `: ${text.slice(0, 300)}` : ''}`);
+    }
+  }
+
   /** Schlüssel und Tarif prüfen – bricht mit klarer Meldung ab, statt still weiterzulaufen */
   profil(): Promise<{ organizationId: string; companyName?: string }> {
     return this.#get('/v1/profile');
+  }
+
+  /** Kontakt anlegen (Kunde) – Antwort: id, version; die Kundennummer vergibt Lexware, sie steht danach im Kontakt (W100) */
+  kontaktAnlegen(body: unknown): Promise<{ id: string; resourceUri?: string; version: number }> {
+    return this.#schreiben('POST', '/v1/contacts', body);
+  }
+
+  kontakt(id: string): Promise<Kontakt> {
+    return this.#get(`/v1/contacts/${encodeURIComponent(id)}`);
+  }
+
+  /** Rechnung anlegen; mit finalize sofort festgeschrieben (Nummer, PDF) */
+  rechnungAnlegen(body: unknown, o: { finalize: boolean }): Promise<{ id: string; resourceUri?: string; version: number }> {
+    return this.#schreiben('POST', `/v1/invoices${o.finalize ? '?finalize=true' : ''}`, body);
+  }
+
+  rechnung(id: string): Promise<{ id: string; voucherNumber?: string; voucherStatus: string; voucherDate?: string; dueDate?: string; createdDate?: string; updatedDate?: string; totalPrice?: { totalGrossAmount?: number; totalNetAmount?: number } }> {
+    return this.#get(`/v1/invoices/${encodeURIComponent(id)}`);
   }
 
   /** Alle Belege eines Typs mit diesen Status, Seite für Seite */
