@@ -42,6 +42,9 @@ kennt, werden nie gelöscht oder überschrieben. Jobs (z. B. Rechnung zusammenst
 
 - **Nichts geht automatisch an Patienten.** Mails nur als Entwurf im Postfach (Leitplanke 3); WhatsApp nur
   per Click-to-Chat vom Handy oder – mit Einwilligung – über die Cloud API, nie automatisch.
+  **Einzige Ausnahme (E30, 27.10.2026): Rechnungen.** Zwei Klicks im PPM – Klick 1 erstellt die Rechnung in
+  Lexware (Datei zurück → Rechnungskachel), Klick 2 in der Kachel versendet sie über den Standardweg des
+  Patienten (Mail; Druck bei Postweg). Nie ohne Klick, nie im Hintergrund.
 - **Keine Gesundheitsdaten außerhalb der Kartei:** nicht im Kalendertitel (nur Initialen + Patientennummer),
   nicht in Mails oder WhatsApp, nicht in Protokollen (Leitplanke 9). Gesundheitsbezogenes in der Datenbank
   nur verschlüsselt (`src/tresor.ts`, Kontext = Spaltenname).
