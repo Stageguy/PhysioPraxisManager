@@ -76,16 +76,29 @@ export function tailnetKonto(req: IncomingMessage, lokalerZugang?: string): stri
   return lokalerZugang?.toLowerCase();
 }
 
-/** Aktionen nur von unseren eigenen Seiten – schützt vor Formularen fremder Websites (CSRF) */
+/**
+ * Aktionen nur von unseren eigenen Seiten – schützt vor Formularen fremder Websites (CSRF).
+ * Moderne Browser sagen es mit Sec-Fetch-Site. Fehlt die Kopfzeile (ältere Safari-Fassungen), zählt der
+ * Host aus Origin bzw. Referer – verglichen mit dem Host, den der Browser sieht: hinter tailscale serve
+ * steht der in X-Forwarded-Host (der Dienst selbst sieht 127.0.0.1), sonst in Host oder PRAXIS_URL.
+ */
 export function gleicheHerkunft(req: IncomingMessage): boolean {
   const site = req.headers['sec-fetch-site'];
-  if (typeof site === 'string') return site === 'same-origin';
-  const origin = req.headers.origin;
+  if (site === 'same-origin') return true;
+  if (site === 'cross-site') return false;
+  const quelle = (typeof req.headers.origin === 'string' && req.headers.origin !== 'null' ? req.headers.origin : undefined) ?? (typeof req.headers.referer === 'string' ? req.headers.referer : undefined);
+  if (!quelle) return false;
+  let host: string;
   try {
-    return typeof origin === 'string' && new URL(origin).host === req.headers.host;
+    host = new URL(quelle).host.toLowerCase();
   } catch {
     return false;
   }
+  const eigene = [req.headers['x-forwarded-host'], req.headers.host, process.env.PRAXIS_URL ? new URL(process.env.PRAXIS_URL).host : undefined]
+    .flatMap((h) => (typeof h === 'string' ? h.split(',') : []))
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  return eigene.includes(host);
 }
 
 async function rumpf(req: IncomingMessage, max: number): Promise<string> {
@@ -137,6 +150,8 @@ const FREMDE_HERKUNFT = 'Nur von den Seiten der Praxis-Assistenz';
 /** Aktion von einer fremden Seite? Dann ist 403 schon gesendet */
 function fremdeHerkunft(req: IncomingMessage, res: ServerResponse): boolean {
   if (gleicheHerkunft(req)) return false;
+  // Ins Protokoll, damit ein Fehlalarm (etwa ein Browser ohne Sec-Fetch-Site hinter einem Proxy) erkennbar wird – ohne Inhalte
+  console.warn(`Herkunft abgewiesen: ${req.method} ${req.url} · sec-fetch-site=${String(req.headers['sec-fetch-site'] ?? '-')} origin=${String(req.headers.origin ?? '-')} referer=${String(req.headers.referer ?? '-')} host=${String(req.headers.host ?? '-')} x-forwarded-host=${String(req.headers['x-forwarded-host'] ?? '-')} ua=${String(req.headers['user-agent'] ?? '-').slice(0, 80)}`);
   senden(res, 403, 'text/plain', FREMDE_HERKUNFT);
   return true;
 }

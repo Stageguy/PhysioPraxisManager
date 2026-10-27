@@ -53,6 +53,24 @@ test('Patient anlegen: Kachel zeigt Telefon, WhatsApp, Mail und Patient seit', a
   assert.match(await seite('/patienten?suche=1234567'), /Anna Test/, 'Suche über die Nummer');
 });
 
+test('Herkunftsprüfung: ohne Sec-Fetch-Site zählen Origin oder Referer gegen Host bzw. X-Forwarded-Host (tailscale serve)', async () => {
+  const eigene = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const versuch = (kopf: Record<string, string>) => post({ aktion: 'unbekannt', id }, kopf);
+  assert.equal((await versuch({ 'Sec-Fetch-Site': 'cross-site', Origin: eigene })).status, 403, 'cross-site immer abgewiesen');
+  assert.equal((await versuch({ Origin: 'http://boese.example' })).status, 403);
+  assert.equal((await versuch({ Origin: eigene })).status, 303, 'Origin passt zum Host');
+  assert.equal((await versuch({ Referer: `${eigene}/patienten/1` })).status, 303, 'Referer als Rückfall');
+  assert.equal((await versuch({ Origin: 'http://praxis.tailnet.ts.net:10001', 'X-Forwarded-Host': 'praxis.tailnet.ts.net:10001' })).status, 303, 'hinter tailscale serve: X-Forwarded-Host');
+  assert.equal((await versuch({ Origin: 'http://praxis.tailnet.ts.net:10001' })).status, 403, 'ohne Weiterleitungs-Kopfzeile fremd');
+  const alt = process.env.PRAXIS_URL;
+  process.env.PRAXIS_URL = 'http://praxis.tailnet.ts.net:10001';
+  try {
+    assert.equal((await versuch({ Origin: 'http://praxis.tailnet.ts.net:10001' })).status, 303, 'PRAXIS_URL kennt die eigene Adresse');
+  } finally {
+    if (alt === undefined) delete process.env.PRAXIS_URL; else process.env.PRAXIS_URL = alt;
+  }
+});
+
 test('Fehler landen als Meldung auf der Seite, nicht als 500', async () => {
   const r = await post({ aktion: 'anlegen', vorname: '', nachname: 'X' });
   assert.match(ziel(r), /fehler=Vorname und Nachname/);
