@@ -5,6 +5,8 @@
  * - Belegliste: GET /v1/voucherlist?voucherType=…&voucherStatus=a,b,c&page=&size= (max. 250)
  * - Zahlungen:  GET /v1/payments/{voucherId} → openAmount, paymentStatus, voucherStatus, paidDate
  * - Profil:     GET /v1/profile – prüft Schlüssel und Tarif, bevor irgendetwas läuft
+ * - Geprüft am 27.10.2026 mit echtem Schlüssel: `overdue` darf nicht mit anderen Status kombiniert werden
+ *   (400 „cannot be used in combination“); `open` umfasst überfällige Rechnungen bereits
  * Die Public API gibt es erst ab Tarif XL.
  */
 import { setTimeout as sleep } from 'node:timers/promises';

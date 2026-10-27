@@ -14,12 +14,12 @@ try {
   console.log(`✓ Schlüssel gültig · Firma: ${p.companyName ?? '(ohne Namen)'} · Organisation ${p.organizationId}`);
   let offen = 0;
   let betrag = 0;
-  for await (const b of lex.belege({ typ: 'invoice', status: ['open', 'overdue'] })) {
+  for await (const b of lex.belege({ typ: 'invoice', status: ['open'] })) {
     offen++;
     betrag += b.openAmount ?? 0;
     if (offen >= 250) break;
   }
-  console.log(`✓ Lesen funktioniert · ${offen} offene Ausgangsrechnungen${offen ? ` · offen ${betrag.toFixed(2)} €` : ''}${offen >= 250 ? ' (mehr vorhanden)' : ''}`);
+  console.log(`✓ Lesen funktioniert · ${offen} offene oder überfällige Ausgangsrechnungen${offen ? ` · offen ${betrag.toFixed(2)} €` : ''}${offen >= 250 ? ' (mehr vorhanden)' : ''}`);
   console.log('  Nächste Schritte: deploy/strato-dev.sh prod trägt den Schlüssel nur in die Produktion ein (Test bleibt ohne); dann Zahlungsabgleich (A14b) und Ausgangsrechnungen (E28).');
 } catch (err) {
   if (err instanceof LexwareNichtBereit) {
