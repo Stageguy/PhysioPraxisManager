@@ -496,6 +496,52 @@ nicht in den Tresor (N16, N27).
 7. **Im mondre-Tailnet löschen:** `tailscale serve --http=10000 off` auf strato-dev; `mondre.net@icloud.com` aus `ERLAUBTE_NUTZER` nur entfernen, wenn Christian über den Praxis-Tailnet zugreift; README/requirements anpassen.
 8. Danach erst: Lilli einladen, Härtung (A25), Tresor mit echten Daten.
 
+## 5b. Produktion: Vorgehen, Name, Zugang, HTTPS (Christians Fragen, 27.10.2026)
+
+**Stand:** Produktion (`praxis`, Port 3300) und Test (`praxis-test`, 3301) laufen auf strato-dev, der noch im
+mondre-Tailnet hängt (`strato-dev.tail6ca16b.ts.net`, nur HTTP über `tailscale serve :10000/:10001`). Echte
+Patientendaten liegen dort noch nicht. Der Weg in Lillis eigenen Tailnet steht in §5a; hier die Antworten dazu.
+
+1. **Name.** Der Rechnername ist frei wählbar (`tailscale set --hostname praxis` bzw. in der Admin-Konsole), der
+   Tailnet-Teil nicht: Tailscale vergibt unter DNS → „Tailnet name“ nur zufällige „fun names“ (z. B.
+   `cat-salmon.ts.net`), die man ein paarmal neu würfeln kann. Ergebnis: **`https://praxis.<fun-name>.ts.net`**
+   (Produktion, ohne Port) und **`https://praxis-test.<fun-name>.ts.net`** (Test) – je ein eigener Tailscale-Knoten
+   als Sidecar im Namespace, der Server selbst bleibt im mondre-Tailnet (§5a Schritt 5). Ein eigener Name wie
+   `praxis.lilli-nebel.de` wäre möglich (öffentlicher DNS-Eintrag auf die Tailnet-Adresse, Zertifikat per DNS-01),
+   bringt aber eigene Zertifikatspflege mit – Backlog W105, nicht jetzt.
+2. **Zugang.** Lilli legt den Tailnet mit ihrer Apple-ID an und ist Eigentümerin (Verantwortliche, Leitplanke 1);
+   Christian wird als Admin eingeladen (Betreiber mit AVV). Der kostenlose Tarif reicht (3 Nutzer, 100 Geräte).
+   **Christian sieht die Produktion von seinem Laptop** – über Tailscales Kontenwechsel (ein Gerät ist zu einer Zeit
+   in einem Tailnet; der Wechsel mondre ↔ Praxis dauert Sekunden). Die App lässt nur `ERLAUBTE_NUTZER` herein
+   (Lillis und Christians Tailnet-Konten); jedes Öffnen einer Akte steht mit Namen im Protokoll; Lilli kann Christian
+   jederzeit aus dem Tailnet entfernen. Empfehlung: ja, für Betrieb, Fehlersuche und Übernahmen (A30) – mit einer
+   Rolle „Betreiber“ ohne Akte, sobald W89 (Rollen) gebaut ist. **Entscheidung E31.**
+3. **HTTPS.** Ja, sinnvoll und für den nächsten Schritt notwendig: Kamera (Rezept fotografieren, W69/W70),
+   „Zum Home-Bildschirm“ als App, Zwischenablage und Web-Share verlangen einen sicheren Kontext; Safari zeigt sonst
+   „nicht sicher“. Der Tailnet-Transport ist zwar schon verschlüsselt (WireGuard), HTTPS schützt zusätzlich auf dem
+   Gerät selbst und erlaubt `Secure`-Cookies. Einschalten: Admin-Konsole → DNS → MagicDNS an → **„HTTPS
+   Certificates“ → Enable**; auf dem Knoten `tailscale serve --bg --https=443 http://127.0.0.1:3300` – das
+   Zertifikat kommt von Let’s Encrypt und erneuert sich selbst. Einziger Nebeneffekt: der Hostname
+   `praxis.<fun-name>.ts.net` erscheint in den öffentlichen Zertifikatsprotokollen (nur der Name, kein Zugang).
+   Im Code dann `PRAXIS_URL=https://…` (Herkunftsprüfung) und die Buchungs-URLs im Deploy-Skript.
+4. **Vorbereiten, in dieser Reihenfolge (A31):**
+   1. Lilli: Tailnet anlegen, MagicDNS + HTTPS einschalten, Christian einladen, fun name wählen (§5a 1–2).
+   2. Christian: ACL/Tags, Auth-Key, Sidecar-Deployment für `praxis` und `praxis-test`, HTTPS auf 443,
+      `deploy/strato-dev.sh` auf die neuen Namen umstellen, Prüfbrowser gegen beide Adressen (§5a 3–6, A09b).
+   3. Sicherung **vor** den ersten echten Daten: nächtlicher `pg_dump` verschlüsselt an einen zweiten Ort (E16,
+      A25); Tresor-Notfallkopie in den Praxis-Safe (E26); Wiederherstellung einmal geprobt.
+   4. Datenschutz-Papiere (A24): AVV, Verarbeitungsverzeichnis, TOM – bevor Patientendaten in den Tresor gehen.
+   5. Produktion füllen: `deploy/strato-dev.sh prod` (bringt den Lexware-Schlüssel mit), Outlook-Kategorien
+      (`npm run kategorien -- --ausfuehren`), Ordner „Posteingang/Terminanfragen“ und die Regel in Outlook,
+      Kontaktordner „Patienten“; dann Kunden aus Lexware verknüpfen/anlegen (W99) und Rechnungen holen (A30).
+      Nie `testdaten` in der Produktion.
+   6. Lillis Geräte: Tailscale-App auf iPhone und Mac, Anmeldung mit der Apple-ID, Safari → „Zum Home-Bildschirm“.
+   7. Abnahme: Lilli geht die Testumgebung (erfundene Patienten) durch, dann erste echte Patienten in der Produktion;
+      Produktionsstände danach nur nach ihrer Abnahme (Arbeitsweise). Funnel (A27) bleibt zu, bis Lilli freigibt.
+   8. Im mondre-Tailnet aufräumen (§5a 7).
+
+---
+
 ## 6. Offene Entscheidungen (E)
 
 | # | Frage | Wer | Empfehlung |
@@ -530,6 +576,7 @@ nicht in den Tresor (N16, N27).
 | E29 | **Terminbuchung von der Website:** Formular-Mail (Prompt 6), Microsoft Bookings oder eigener Endpunkt? | Christian + Lilli | **Stand 26.10.2026 (W94):** lilli-nebel.de ist Christians statische Seite (Apache, Repository `praxis-website`, eigenes `deploy.sh`), **ohne Formular** – nur Telefon und Mail. Wege, abgestuft: **(1) Anfrageformular auf der Website → Mail an praxis@** (empfohlen, sofort): Formular mit Name, Telefon, E-Mail, Wunschtermin, Anliegen und dem **Terminart-Dropdown** (Baustein aus `/konfiguration/terminarten`), Versand über ein kleines PHP-Skript beim Webhoster (SMTP, Honeypot gegen Spam, Datenschutzhinweis, keine Diagnose abfragen) → Ordner „Terminanfragen“ → Anfrage mit Terminart und Dauer; **(1a) ohne Server**: dasselbe Dropdown, Knopf öffnet eine vorausgefüllte Mail (`mailto:`) – null Aufwand, aber auf das Mailprogramm des Patienten angewiesen; **(2) Microsoft Bookings**: Terminarten 1:1 als Bookings-Dienste (Name, Beschreibung, Dauer), Buchungsseite per iframe eingebettet, zeigt echte freie Zeiten aus Exchange, Buchung landet im Kalender – Lizenz prüfen, Daten bei Microsoft (AVV vorhanden), Abgleich Bookings → Anfrage bauen; **(3) eigene Buchungsseite der Praxis-Assistenz mit freien Zeiten** (gleiche Slot-Berechnung, Reservierung) über Tailscale Funnel – am stärksten integriert, aber öffentlicher Endpunkt: eigener kleiner Dienst ohne Zugriff auf die Kartei, Rate-Limit, Spam-Schutz, Härtung; erst nach (1); **(4) nur Verfügbarkeit zeigen**: Outlook-Kalender „nur frei/gebucht“ veröffentlichen und einbetten, Anfrage weiter per Formular – einfach, aber unschön und zeigt auch private Belegung als „gebucht“; **(5) Fremdanbieter** (Doctolib, Terminland …): nicht empfohlen (doppelte Datenhaltung, Kosten, AVV, Kartei nicht mehr Master). **Entscheidung 26.10.2026 (W96): Weg 3 gebaut** – eigene Buchungsseite als getrennter Dienst; Weg 1 (Formular-Mail) bleibt als Rückfall und für Mails ohne Buchung. Bisherige Empfehlung (W92): **Formular-Mail** als Standard – kein Endpunkt im Netz, läuft über das Postfach, passt zu A15; **Bookings** zusätzlich, wenn Lilli feste buchbare Slots will (Einbettung in die Website, Termine im Exchange-Kalender, Kollisionsprüfung sieht sie). Vorher mit dem Website-Anbieter klären, ob das Formular feste Feldnamen senden kann („Name:“, „Telefon:“, „E-Mail:“, „Wunschtermin:“, „Anliegen:“) |
 | E26 | Tresor-Schlüssel: wo liegt die Notfallkopie, und wer darf sie öffnen? Hat Lilli eine sektorale Heilpraktikererlaubnis (Direktzugang ohne Verordnung)? | Lilli + Christian | Notfallkopie ausgedruckt im Praxis-Safe (Umschlag), zweite Kopie bei Christian offline – **nur für die Produktion** (`praxis`); der Schlüssel von `praxis-test` schützt nur erfundene Daten und wird bei Verlust einfach neu erzeugt (entschieden 24.10.2026). Erlaubnis: Frage 15 an Lilli |
 | E30 | **Rechnungsversand aus dem PPM und Konfliktregel beim Lexware-Abgleich** (Grundprinzip §4d) | Lilli, Christian | **(a) entschieden 27.10.2026 (Christian):** Rechnungen sind die Ausnahme von Leitplanke 3 – zwei Klicks im PPM (W100): Klick 1 nach Lexware, Klick 2 Versand aus der Rechnungskachel über den Standardweg; nie ohne Klick. **(b) offen:** Wer gewinnt bei abweichenden gemeinsamen Feldern (Name, Rechnungsadresse, Mail, Telefon)? Vorschlag: der PPM führt; Lexware füllt nur leere Felder, Abweichungen werden auf der Patientenseite gezeigt und per Klick übernommen – nie stillschweigend überschrieben, nie gelöscht |
+| E31 | **Produktion im eigenen Tailnet (§5b):** (a) Darf Christian die Produktion mit echten Patientendaten sehen und bedienen? (b) Tailnet-Name: fun name von Tailscale (`praxis.<fun-name>.ts.net`) oder eigener Name `praxis.lilli-nebel.de` (W105)? (c) Sicherungsziel außerhalb des Servers (E16) | Lilli, Christian | Vorschlag 27.10.2026: (a) ja – Betreiber mit AVV, Protokoll mit Namen, Lilli kann ihn jederzeit entfernen; später Rolle „Betreiber ohne Akte“ (W89). (b) fun name jetzt, eigener Name später. (c) verschlüsselter `pg_dump` nächtlich auf HiDrive-Objektspeicher oder einen zweiten Server, vor den ersten echten Daten |
 
 ---
 
@@ -547,6 +594,7 @@ Prompt-Sammlung (#1–#3a) ist in W17–W22 aufgegangen; Webhooks per Tailscale 
 | W93 | Feiertage und Schließtage als Daten importieren und pflegen (A26) | 26.10.2026 | Prompt 6; vor dem ersten Jahreswechsel |
 | W96b | Buchungsseite: Preise anzeigen (Selbstzahler, Wellness), Bestätigungs-Mail automatisch an den Patienten (Leitplanke 3 prüfen: nur „Wunsch angekommen“, kein Termin), Absage durch den Patienten über einen Link, Schriften der Website (Playfair/Montserrat per CORS von lilli-nebel.de) | 26.10.2026 | nach A27 |
 | W98 | Lexware-Schlüssel läuft nach höchstens 24 Monaten ab (erstellt 27.10.2026 → vor 27.10.2028 verlängern); Hinweis im Cockpit/Statusseite, sobald `lexware:pruefen` scheitert; Tausch gegen Expertenschlüssel mit minimalen Rechten | 27.10.2026 | A13 |
+| W105 | Eigener Name für die Produktion (`praxis.lilli-nebel.de`): öffentlicher DNS-Eintrag auf die Tailnet-Adresse, Zertifikat per DNS-01 (z. B. acme.sh mit dem DNS-Anbieter), Erneuerung als Cron im Cluster; nur, wenn der fun name stört | 27.10.2026 | nach A31 |
 | W103b | Lexware-Rechnungen ohne Kontakt (94 Stück, freie Adresse in Lexware): über den Namen auf der Rechnung einem Patienten vorschlagen, Lilli bestätigt; Rechnungskachel später mit Rezept und Behandlung verknüpfen (fall_id, verordnung_id sind vorbereitet); Rechnungsseite für Lexware-Rechnungen ohne PPM-Schritte | 27.10.2026 | nach A30 |
 | W99b | Lexware-Kunden, zweiter Schritt (Grundprinzip §4d): Sammelübernahme gesichteter Kunden auf einen Klick; **Abgleich** verknüpfter Patienten über die gemeinsamen Felder (Name, Anrede, Rechnungsadresse, Mail, Telefon) – Lexware füllt Lücken, Abweichungen werden gezeigt, Manager-eigene Felder bleiben immer; Rückweg Kartei → Lexware (Patient ohne Kunden in Lexware anlegen, nur die Felder der Rechnung) zusammen mit E28; Kundennummer in den Stammdaten bearbeitbar; Attrappe durch einen Lexware-Testmandanten ersetzen, sobald es einen gibt | 27.10.2026 | nach W99, mit E28 und E30 |
 | W94b | Terminarten mit Preis (aus Preisliste bzw. Wellness-Katalog) und mit Bookings-Diensten abgleichen; Baustein automatisch in die Website übernehmen (deploy.sh von praxis-website zieht ihn) | 26.10.2026 | nach E29 |
