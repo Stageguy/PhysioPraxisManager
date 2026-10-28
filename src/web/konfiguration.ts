@@ -4,6 +4,7 @@
  */
 import { AUTOMATISCH_TEXT, WIRKUNG_TEXT, type Textbaustein } from '../kartei/konfiguration.ts';
 import { FREIE_TAG_ART_TEXT, WOCHENTAG_KURZ, type FreieTageDaten } from '../kartei/freie-tage.ts';
+import { REGELZEIT_QUELLE_TEXT, type Regelzeit } from '../kartei/regelzeiten.ts';
 import { wochentag } from '../anfragen/slots.ts';
 import { datumText } from '../format.ts';
 import { esc, seite } from './layout.ts';
@@ -42,7 +43,29 @@ function freieTageAbschnitt(ft: FreieTageDaten, einstellungen: Record<string, st
 `;
 }
 
-export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellungen: Record<string, string>; freieTage: FreieTageDaten }, o: Rahmen): string {
+/** Abschnitt „Regelbehandlungszeiten“ (W110) – je Leistungsnummer die Minuten aus der GKV-Liste, von Hand änderbar */
+function regelzeitenAbschnitt(liste: Regelzeit[], jahr: number): string {
+  const formRz = (aktion: string, inhalt: string, klasse = 'inline') => karteiFormular(aktion, inhalt, { zurueck: `/konfiguration?jahr=${jahr}`, klasse });
+  const minuten = (name: string, wert: number | null, pflicht: boolean) =>
+    `<input name="${name}" value="${wert ?? ''}" inputmode="numeric" class="kurz" aria-label="${name === 'von_min' ? 'von' : 'bis'} Minuten"${pflicht ? ' required' : ''}>`;
+  return `<h2 id="regelzeiten">Regelbehandlungszeiten</h2>
+<div class="tafel" data-hilfe="konfiguration.regelzeiten">
+  <p class="hint">Rezepte nennen die Anzahl der Behandlungen, nicht die Minuten. Die Dauer je Heilmittel kommt aus der Heilmittel-Richtlinie – hier als Regelbehandlungszeit je Leistungsnummer, übernommen aus der GKV-Vergütungsliste („15–25 Minuten“). Terminvorschläge zu einem Rezept nehmen die obere Grenze, auf 5 Minuten gerundet (W110). Werte von Hand bleiben beim Übernehmen stehen.</p>
+  ${formRz('regelzeiten_uebernehmen', `<button class="knopf klein" data-hilfe="konfiguration.regelzeiten-uebernehmen">${symbol('rezept', { groesse: 16 })} Aus der GKV-Liste übernehmen</button>`)}
+  ${liste.length ? `<div class="tabelle"><table class="regelzeiten"><thead><tr><th>Nr.</th><th>Leistung</th><th>Regelzeit (Minuten)</th><th>Quelle</th></tr></thead><tbody>${liste.map((r) => `<tr>
+      <td>${esc(r.nummer)}</td><td>${esc(r.bezeichnung)}</td>
+      <td>${formRz('regelzeit_setzen', `<input type="hidden" name="nummer" value="${esc(r.nummer)}">${minuten('von_min', r.vonMin, false)} – ${minuten('bis_min', r.bisMin, true)}<button class="knopf klein" data-hilfe="konfiguration.regelzeit-speichern">Speichern</button>`)}</td>
+      <td>${esc(REGELZEIT_QUELLE_TEXT[r.quelle] ?? r.quelle)} · ${datumText(r.geaendertAm.slice(0, 10))}</td></tr>`).join('')}</tbody></table></div>`
+    : '<p class="leer">Noch keine Regelbehandlungszeiten – aus der GKV-Liste übernehmen oder unten eintragen.</p>'}
+  <h3>Regelzeit eintragen</h3>
+  ${formRz('regelzeit_setzen', `<div class="zwei"><label>Leistungsnummer<input name="nummer" required maxlength="12" placeholder="z. B. 20501" class="kurz"></label><label>Bezeichnung<input name="bezeichnung" maxlength="80" placeholder="z. B. Krankengymnastik"></label></div>
+    <div class="zwei"><label>von (Minuten, optional)<input name="von_min" inputmode="numeric" class="kurz"></label><label>bis (Minuten)<input name="bis_min" inputmode="numeric" class="kurz" required></label></div>
+    <button class="knopf klein" data-hilfe="konfiguration.regelzeit-neu">Regelzeit eintragen</button>`, 'formular')}
+</div>
+`;
+}
+
+export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellungen: Record<string, string>; freieTage: FreieTageDaten; regelzeiten: Regelzeit[] }, o: Rahmen): string {
   const kacheln = d.textbausteine.map((b) => `<article class="tbk${b.aktiv ? '' : ' ab'}" data-hilfe="konfiguration.textbaustein">
     <header><span class="tbk-code">${esc(b.code)}</span><b>${esc(b.kurzname)}</b></header>
     <p class="rz-marken"><span class="marke${b.wirkung === 'keine' ? '' : ' jetzt'}">${esc(WIRKUNG_TEXT[b.wirkung])}</span><span class="marke">${esc(AUTOMATISCH_TEXT[b.automatisch])}</span></p>
@@ -103,6 +126,7 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
 </div>
 
 ${freieTageAbschnitt(d.freieTage, d.einstellungen)}
+${regelzeitenAbschnitt(d.regelzeiten, d.freieTage.jahr)}
 <h2>Termine und Terminanfragen</h2>
 <div class="tafel">
   <p><a class="knopf primaer" href="/konfiguration/terminarten" data-hilfe="konfiguration.terminarten">${symbol('kalender', { groesse: 18 })} Terminarten für die Online-Anfrage (Kacheln)</a></p>

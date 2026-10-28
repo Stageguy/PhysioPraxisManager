@@ -31,6 +31,7 @@ import { attrappeKunden, lexwareKunden } from '../lexware/kunden.ts';
 import { attrappeRechnungen, lexwareRechnungen } from '../lexware/rechnungen.ts';
 import { umgebung } from '../umgebung.ts';
 import { feiertageSicherstellen } from '../kartei/freie-tage.ts';
+import { regelzeitenSicherstellen } from '../kartei/regelzeiten.ts';
 
 const env = loadEnv();
 const port = Number(process.env.PORT ?? 3300);
@@ -63,6 +64,13 @@ if (db) {
     if (neu.length) console.log(`Feiertage eingetragen für ${neu.join(', ')}`);
   } catch (err) {
     console.warn(`Feiertage: ${(err as Error).message.slice(0, 160)}`);
+  }
+  // Regelbehandlungszeiten (W110): beim ersten Start aus der GKV-Liste übernehmen
+  try {
+    const n = await regelzeitenSicherstellen(db);
+    if (n) console.log(`Regelbehandlungszeiten übernommen: ${n}`);
+  } catch (err) {
+    console.warn(`Regelbehandlungszeiten: ${(err as Error).message.slice(0, 160)}`);
   }
 }
 const lokalerZugang = process.env.LOKALER_ZUGANG || undefined;

@@ -33,6 +33,8 @@ import type { LexwareKunde, LexwareKunden } from '../lexware/kunden.ts';
 import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
 import { bankverbindung, girocodeDataUri } from '../rechnungen/girocode.ts';
 import { brueckentageSetzen, feiertageImportieren, freierTagLoeschen, freierTagSperren, freieTageDaten, freieTageZeitraum, schliesstageAnlegen, type FreieTageDaten } from './freie-tage.ts';
+import { regelzeiten, regelzeitenUebernehmen, regelzeitSetzen, type Regelzeit } from './regelzeiten.ts';
+import { rezeptTermineDaten, terminWerte, type RezeptTermineDaten } from './rezept-termine.ts';
 
 /** GiroCode für offene Rechnungen aus Lexware (W102) – nur mit hinterlegter Bankverbindung und Rechnungsnummer */
 async function girocodeFuer(db: Db, r: Rechnung): Promise<string | null> {
@@ -115,10 +117,12 @@ export interface KarteiDienst {
   /** Unterschriftsbild einer Behandlung (W107a), jedes Ansehen im Protokoll */
   unterschrift(patientId: string, behandlungId: string, wer: string): Promise<{ daten: Uint8Array; mime: string } | undefined>;
   neuAktion(id: string): Promise<NeuAktionDaten | undefined>;
+  /** Terminvorschläge zu einem Rezept (W110): Anzahl offen, Frequenz, Dauer aus der Regelbehandlungszeit */
+  rezeptTermine(patientId: string, verordnungId: string, o?: { ab?: string; proWoche?: number; dauerMin?: number; tageszeit?: string }): Promise<RezeptTermineDaten | undefined>;
   rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
   rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[]; preislisteAktuell: { id: string; name: string } | null; lexware: boolean; postfach: boolean; girocode: string | null } | undefined>;
   rechnungPdf(patientId: string, rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
-  konfiguration(o?: { jahr?: number }): Promise<{ textbausteine: Textbaustein[]; einstellungen: Record<string, string>; freieTage: FreieTageDaten }>;
+  konfiguration(o?: { jahr?: number }): Promise<{ textbausteine: Textbaustein[]; einstellungen: Record<string, string>; freieTage: FreieTageDaten; regelzeiten: Regelzeit[] }>;
   /** Freie Tage eines Zeitraums für die Kalenderseite (Datum → Name) */
   freieTage(von: string, bis: string): Promise<Record<string, string>>;
   kalender(vonIso: string, bisIso: string): Promise<TerminKalender[]>;
@@ -145,7 +149,7 @@ const kontaktart = (s: string | null): Kontaktart => (ARTEN.includes(s as Kontak
 const ganz = (s: string | null, standard = 0) => (s && /^\d+$/.test(s.trim()) ? Number(s) : standard);
 
 export function karteiDienst(q: {
-  db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete' | 'postOhneAntwort'>; whatsapp?: WhatsAppCloud; buchung?: { url: string; oeffentlich: boolean };
+  db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete' | 'postOhneAntwort' | 'paginate'>; whatsapp?: WhatsAppCloud; buchung?: { url: string; oeffentlich: boolean };
   /** Kunden aus Lexware (W99) */
   lexware?: LexwareKunden;
   /** Rechnungen aus Lexware (W103) */
@@ -216,6 +220,10 @@ export function karteiDienst(q: {
         termine: await termine(db, id), wellness: await wellnessLeistungen(db), terminarten: await terminarten(db),
       };
     },
+    async rezeptTermine(patientId, verordnungId, o = {}) {
+      if (!istId(patientId) || !istId(verordnungId)) return undefined;
+      return rezeptTermineDaten(db, q.graph, t, patientId, verordnungId, o);
+    },
     async rezepte(filter) {
       return { verordnungen: await verordnungen(db, { nurAktiv: filter === 'aktiv' }), serien: await serien(db, t, { nurOffen: filter === 'aktiv' }), filter };
     },
@@ -236,7 +244,7 @@ export function karteiDienst(q: {
       };
     },
     rechnungPdf: (patientId, rechnungId) => rechnungPdf(db, t, patientId, rechnungId),
-    async konfiguration(o = {}) { return { textbausteine: await textbausteine(db, { alle: true }), einstellungen: await einstellungen(db), freieTage: await freieTageDaten(db, o.jahr) }; },
+    async konfiguration(o = {}) { return { textbausteine: await textbausteine(db, { alle: true }), einstellungen: await einstellungen(db), freieTage: await freieTageDaten(db, o.jahr), regelzeiten: await regelzeiten(db) }; },
     freieTage: (von, bis) => freieTageZeitraum(db, von, bis),
     kalender: (von, bis) => termineZeitraum(db, von, bis),
     steuer: (jahr, maskiert) => steuerfreieUmsaetze(db, { jahr, maskiert }),
@@ -321,6 +329,15 @@ export function karteiDienst(q: {
       if (aktion === 'feiertage_importieren') {
         const e = await feiertageImportieren(db, ganz(f.get('jahr')), wer, { abruf: q.abruf });
         return nach(`/konfiguration?jahr=${e.jahr}#freie-tage`, `${e.anzahl} Feiertage ${e.jahr} eingetragen (Quelle: ${e.quelle}).`);
+      }
+      // Regelbehandlungszeiten (W110) – ohne Patient
+      if (aktion === 'regelzeiten_uebernehmen') {
+        const e = await regelzeitenUebernehmen(db, wer);
+        return nach('/konfiguration#regelzeiten', `${e.uebernommen} Regelbehandlungszeit${e.uebernommen === 1 ? '' : 'en'} übernommen (${e.vorhanden} Positionen mit Angabe).`);
+      }
+      if (aktion === 'regelzeit_setzen') {
+        await regelzeitSetzen(db, { nummer: g('nummer') ?? '', bezeichnung: g('bezeichnung'), vonMin: g('von_min')?.trim() ? ganz(f.get('von_min')) : null, bisMin: ganz(f.get('bis_min')) }, wer);
+        return nach('/konfiguration#regelzeiten', 'Regelbehandlungszeit gespeichert.');
       }
       if (aktion === 'brueckentage_setzen') {
         const jahr = ganz(f.get('jahr'));
@@ -429,14 +446,33 @@ export function karteiDienst(q: {
         case 'termin_status':
           await terminStatus(db, id, g('termin_id') ?? '', g('status') ?? '', wer);
           return nach(`${seite}#termine`, `Termin geändert.${await spiegeln(g('termin_id') ?? '', wer)}`);
+        case 'rezept_termine_anlegen': {
+          // Terminserie zum Rezept (W110): nur angehakte Vorschläge, nie mehr als noch offen sind
+          const vid = g('verordnung_id') ?? '';
+          const v = (await verordnungen(db, { patientId: id })).find((x) => x.id === vid);
+          if (!v) throw new KarteiFehler('Dieses Rezept gibt es nicht');
+          if (v.status !== 'aktiv') throw new KarteiFehler('Termine lassen sich nur zu aktiven Rezepten planen');
+          const werte = terminWerte(f.getAll('termin'), ganz(f.get('dauer_min')));
+          const offen = v.anzahlVerordnet - v.abgehakt - v.geplant;
+          if (werte.length > offen) throw new KarteiFehler(`Auf dem Rezept ${offen <= 0 ? 'ist keine Behandlung mehr' : `sind nur noch ${offen} Behandlung${offen === 1 ? '' : 'en'}`} offen – ${werte.length} Termine gewählt`);
+          const hinweise = new Set<string>();
+          for (const w of werte) {
+            const terminId = await terminAnlegen(db, id, { ...w, verordnungId: vid, fallId: v.fallId ?? undefined, leistungNummer: v.leistungNummer ?? undefined }, wer);
+            const h = await spiegeln(terminId, wer);
+            if (h) hinweise.add(h);
+          }
+          return nach(`${seite}#termine`, `${werte.length} Termin${werte.length === 1 ? '' : 'e'} zum Rezept angelegt.${[...hinweise].join('')}`);
+        }
         case 'verordnung_anlegen': {
           const art = g('art') ?? 'erst';
-          await verordnungAnlegen(db, t, id, {
+          const vid = await verordnungAnlegen(db, t, id, {
             ausgestelltAm: g('ausgestellt_am') ?? '', arzt: g('arzt'), massnahme: g('massnahme') ?? '', leistungNummer: g('leistung_nummer'), anzahl: ganz(f.get('anzahl')),
             frequenz: g('frequenz'), diagnose: g('diagnose'), gueltigBis: g('gueltig_bis'), fallId: g('fall_id') || undefined,
             art, langzeit: f.has('langzeit'), vorgaengerId: art === 'erst' ? undefined : g('vorgaenger_id') || undefined, notiz: g('notiz'),
           }, wer);
-          return nach(`${seite}#rezepte`, art === 'korrektur' ? 'Korrektur angelegt – das alte Rezept gilt als ersetzt, seine Haken zählen weiter.' : 'Rezept angelegt.');
+          if (art === 'korrektur') return nach(`${seite}#rezepte`, 'Korrektur angelegt – das alte Rezept gilt als ersetzt, seine Haken zählen weiter.');
+          // Gleich weiter zu den Terminvorschlägen (W110)
+          return nach(`/patienten/${id}/rezepte/${vid}/termine`, 'Rezept angelegt – hier die Termine dazu planen.');
         }
         case 'zweitschrift':
           await zweitschriftVermerken(db, id, g('verordnung_id') ?? '', g('datum'), wer);

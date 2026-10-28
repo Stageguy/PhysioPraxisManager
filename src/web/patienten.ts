@@ -423,7 +423,7 @@ ${faelle || '<p class="leer">Die Akte ist noch leer – mit „Behandlung erfass
 }
 
 // ── „+“-Aktionen ────────────────────────────────────────────────────────────
-const kopfzeile = (p: Patient, titel: string, sym: Symbol) =>
+export const kopfzeile = (p: Patient, titel: string, sym: Symbol) =>
   `<p class="hint"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}">${esc(name(p))}</a> › ${esc(titel)}</p><h1>${symbol(sym, { groesse: 26 })} ${esc(titel)} <span class="hint">${esc(name(p))}</span></h1>`;
 
 /** Auswahl aller Terminarten, je Sektion eine Gruppe; inaktive sind gekennzeichnet (für Lilli intern wählbar) */

@@ -27,6 +27,7 @@ import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from './web/rechnung.ts';
 import { konfigurationSeite } from './web/konfiguration.ts';
+import { rezeptTermineSeite } from './web/rezept-termine.ts';
 import { terminartenSeite } from './web/terminarten.ts';
 import { kalenderSeite } from './web/kalender.ts';
 import { steuerSeite } from './web/steuer.ts';
@@ -495,6 +496,14 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (!pdf) return senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
       dateiKopf(res, 'application/pdf', pdf.name);
       return void res.end(Buffer.from(pdf.daten));
+    }
+    // Terminvorschläge zu einem Rezept (W110)
+    const rt = /^\/patienten\/(\d+)\/rezepte\/(\d+)\/termine$/.exec(pfad);
+    if (rt) {
+      const q = (name: string) => adresse.searchParams.get(name) ?? undefined;
+      const zahl = (name: string) => (/^\d{1,3}$/.test(q(name) ?? '') ? Number(q(name)) : undefined);
+      const daten = await d.rezeptTermine(rt[1]!, rt[2]!, { ab: q('ab'), proWoche: zahl('pro_woche'), dauerMin: zahl('dauer_min'), tageszeit: q('tageszeit') });
+      return daten ? senden(res, 200, 'text/html', rezeptTermineSeite(daten, r)) : senden(res, 404, 'text/plain', 'Dieses Rezept gibt es nicht');
     }
     const m = /^\/patienten\/(\d+)(?:\/(akte)|\/neu\/(termin|behandlung|rezept|direktzugang|wellness))?$/.exec(pfad);
     if (!m) return senden(res, 404, 'text/plain', 'Nicht gefunden');

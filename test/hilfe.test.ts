@@ -13,6 +13,7 @@ import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, ueber
 import { akteSeite, behandlungNeuSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
 import type { LexwareKundeStand } from '../src/kartei/lexware-kunden.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from '../src/web/rezepte.ts';
+import { rezeptTermineSeite } from '../src/web/rezept-termine.ts';
 import { rueckmeldungenSeite } from '../src/web/rueckmeldung.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from '../src/web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from '../src/web/rechnung.ts';
@@ -48,7 +49,7 @@ const PAT: Patient = {
   bezugspersonen: [{ id: '1', rolle: 'notfallkontakt', name: 'Max', beziehung: 'Bruder', berechtigungsgrund: null, telefon: null, email: null }], versicherungen: [],
 };
 const VERORDNUNG = { id: '1', patientId: '1', patientName: 'Anna Test', art: 'erst' as const, langzeit: true, ausgestelltAm: '2026-10-01', gueltigBis: '2026-12-31', massnahme: 'MT', leistungNummer: '21201', frequenz: '2×/Woche',
-  anzahlVerordnet: 6, abgehakt: 2, bestaetigt: 1, status: 'aktiv', arzt: 'Dr. B', fallId: '1', fallNummer: 1, vorgaengerId: null, zweitschriftAm: '2026-10-05', notiz: 'x' };
+  anzahlVerordnet: 6, abgehakt: 2, bestaetigt: 1, geplant: 1, status: 'aktiv', arzt: 'Dr. B', fallId: '1', fallNummer: 1, vorgaengerId: null, zweitschriftAm: '2026-10-05', notiz: 'x' };
 const SERIE = { id: '2', patientId: '1', patientName: 'Anna Test', nummer: 2, grundlage: 'praevention' as const, bezeichnung: 'Entspannung', wellness: { id: '1', bezeichnung: 'Wellnessmassage 60', preis: 65 }, begonnenAm: '2026-10-01', abgeschlossenAm: null, behandlungen: 2, letzteAm: '2026-10-20' };
 const WELLNESS = { id: '1', code: 'WM60', bezeichnung: 'Wellnessmassage 60', dauerMin: 60, preis: 65, aktiv: true };
 const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true };
@@ -173,6 +174,8 @@ const seiten = () => [
   patientSeite({ ...PATIENT_DATEN, patient: { ...PAT, status: 'archiviert', lexwareKundennummer: null }, lexwareRechnungen: false, lexwareAbgleich: null, lexwareKundeAnlegbar: true }, R),
   akteSeite(AKTE, R),
   terminNeuSeite(NEU_AKTION, R),
+  rezeptTermineSeite({ patient: PAT, verordnung: VERORDNUNG, geplant: [TERMIN], offen: 3, dauerMin: 25, dauerHerkunft: 'Regelbehandlungszeit 15–25 Min. (MT, Position 21201)', proWoche: 2, frequenzErkannt: true, ab: '2026-11-02', tageszeit: null,
+    vorschlaege: [{ beginn: '2026-11-02T07:00:00Z', ende: '2026-11-02T07:25:00Z' }, { beginn: '2026-11-05T07:00:00Z', ende: '2026-11-05T07:25:00Z' }, { beginn: '2026-11-09T07:00:00Z', ende: '2026-11-09T07:25:00Z' }] }, R),
   behandlungNeuSeite(NEU_AKTION, R),
   rezeptNeuSeite(NEU_AKTION, { ...R, vorgaenger: '1' }),
   rezepteSeite({ verordnungen: [VERORDNUNG], serien: [SERIE], filter: 'aktiv' }, R),
@@ -191,7 +194,7 @@ const seiten = () => [
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'in_lexware', nummer: 'RE-2026-001' } }, R),
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, lexware: false, postfach: false, rechnung: { ...RGE, status: 'freigegeben' } }, R),
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'gesendet', nummer: 'RE-2026-001' } }, R),
-  konfigurationSeite({ freieTage: FREIE_TAGE, textbausteine: [TB, { ...TB, id: '2', code: 'R2', aktiv: false, wirkung: 'kleinunternehmer' as const, automatisch: 'wellness' as const }], einstellungen: { kleinunternehmer: 'ja', ust_satz_wellness: '19' } }, R),
+  konfigurationSeite({ freieTage: FREIE_TAGE, regelzeiten: [{ nummer: '20501', bezeichnung: 'Krankengymnastik', vonMin: 15, bisMin: 25, quelle: 'gkv', geaendertAm: '2026-10-28T10:00:00Z' }],textbausteine: [TB, { ...TB, id: '2', code: 'R2', aktiv: false, wirkung: 'kleinunternehmer' as const, automatisch: 'wellness' as const }], einstellungen: { kleinunternehmer: 'ja', ust_satz_wellness: '19' } }, R),
   kalenderSeite({ tag: '2026-10-26', ansicht: 'tag', termine: [KT], namenZeigen: false, heute: '2026-10-26', freieTage: { '2026-10-26': 'Brückentag (Test)' } }, R),
   kalenderSeite({ tag: '2026-10-26', ansicht: 'woche', termine: [KT, { ...KT, id: '8', rezept: false, imKalender: true, status: 'erledigt', sektion: 'wellness' as const }, { ...KT, id: '9', rezept: false, sektion: null }, { ...KT, id: '10', rezept: false, sektion: 'selbstzahler' as const }], namenZeigen: true, heute: '2026-10-25' }, R),
   steuerSeite({ jahr: 2026, jahre: [2026, 2025], maskiert: true, rechnungen: [{ id: '1', nummer: 'RE-2026-0001', datum: '2026-10-01', status: 'bezahlt', befreiung: '§ 4 Nr. 14 UStG', patientennummer: 'P-1001', name: 'A*** Test', betrag: 92.54, bezahltAm: '2026-10-20', storniertAm: null,

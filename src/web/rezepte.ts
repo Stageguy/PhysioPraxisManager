@@ -19,6 +19,8 @@ const STATUS: Record<string, [string, string]> = { aktiv: ['aktiv', 'preset4'], 
 export function rezeptKachel(v: VerordnungKurz, o: { mitPatient?: boolean; zurueck: string }): string {
   const [st, farbe] = STATUS[v.status] ?? [v.status, 'preset12'];
   const punkte = Array.from({ length: Math.min(v.anzahlVerordnet, 30) }, (_, i) => `<i class="${i < v.abgehakt ? 'voll' : ''}"></i>`).join('');
+  // Noch nicht geplante Behandlungen (W110): verordnet minus erledigt minus kommende Termine
+  const offen = v.anzahlVerordnet - v.abgehakt - v.geplant;
   const aktionen = v.status === 'aktiv' ? `<details class="rz-mehr"><summary class="knopf klein" data-hilfe="rezept.mehr">mehr …</summary><div class="rz-aktionen">
       ${form('zweitschrift', `<input type="hidden" name="verordnung_id" value="${v.id}"><button class="knopf klein" data-hilfe="rezept.zweitschrift">Zweitschrift vermerken</button>`, { id: v.patientId, zurueck: o.zurueck })}
       ${form('verordnung_abbrechen', `<input type="hidden" name="verordnung_id" value="${v.id}"><input name="grund" placeholder="Grund (Pflicht)" required maxlength="200"><button class="knopf klein warnend" data-hilfe="rezept.abbrechen">Rezept abbrechen</button>`, { id: v.patientId, zurueck: o.zurueck })}
@@ -35,7 +37,8 @@ export function rezeptKachel(v: VerordnungKurz, o: { mitPatient?: boolean; zurue
       ${v.fallNummer ? `<dt>Fall</dt><dd>Fall ${v.fallNummer}</dd>` : ''}
       ${v.notiz ? `<dt>Notiz</dt><dd>${esc(v.notiz)}</dd>` : ''}
     </dl>
-    <div class="stempel" aria-label="${v.abgehakt} von ${v.anzahlVerordnet}">${punkte}<span>${v.abgehakt} von ${v.anzahlVerordnet}${v.bestaetigt ? ` · ✓ ${v.bestaetigt} bestätigt` : ''}</span></div>
+    <div class="stempel" aria-label="${v.abgehakt} von ${v.anzahlVerordnet}">${punkte}<span>${v.abgehakt} von ${v.anzahlVerordnet}${v.bestaetigt ? ` · ✓ ${v.bestaetigt} bestätigt` : ''}${v.geplant ? ` · ${v.geplant} geplant` : ''}</span></div>
+    ${v.status === 'aktiv' && offen > 0 ? `<a class="knopf klein" href="/patienten/${v.patientId}/rezepte/${v.id}/termine" data-hilfe="rezept.termine">${symbol('kalender', { groesse: 16 })} Termine planen (${offen} offen)</a>` : ''}
     ${aktionen}
   </article>`;
 }

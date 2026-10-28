@@ -155,6 +155,8 @@ export interface VerordnungKurz {
   abgehakt: number;
   /** Behandlungen auf diesem Rezept, die der Patient bestätigt hat (W107a) */
   bestaetigt: number;
+  /** Kommende Termine auf diesem Rezept (bestätigt oder vorgeschlagen), W110 */
+  geplant: number;
   status: string;
   arzt: string | null;
   fallId: string | null;
@@ -575,7 +577,7 @@ export async function termine(db: Db, patientId: string, o: { kommend?: boolean 
 }
 
 export async function terminAnlegen(
-  db: Db, patientId: string, d: { datum: string; zeit: string; dauerMin: number; art?: string; verordnungId?: string; fallId?: string; terminartId?: string }, wer: string,
+  db: Db, patientId: string, d: { datum: string; zeit: string; dauerMin: number; art?: string; verordnungId?: string; fallId?: string; terminartId?: string; leistungNummer?: string }, wer: string,
 ): Promise<string> {
   const tagText = datumPruefen(d.datum, 'Datum');
   if (!tagText || !/^\d{2}:\d{2}$/.test(d.zeit)) throw new KarteiFehler('Datum und Uhrzeit sind nötig');
@@ -583,8 +585,8 @@ export async function terminAnlegen(
   const beginn = new Date(berlinZeitUtc(tagText, d.zeit)).getTime();
   const ende = beginn + d.dauerMin * 60_000;
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO termin (patient_id, fall_id, verordnung_id, art, beginn, ende, erstellt_von, terminart_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id::text`,
-    [patientId, d.fallId || null, d.verordnungId || null, d.art ?? 'behandlung', new Date(beginn).toISOString(), new Date(ende).toISOString(), wer, d.terminartId && /^\d+$/.test(d.terminartId) ? d.terminartId : null],
+    `INSERT INTO termin (patient_id, fall_id, verordnung_id, art, beginn, ende, erstellt_von, terminart_id, leistung_nummer) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id::text`,
+    [patientId, d.fallId || null, d.verordnungId || null, d.art ?? 'behandlung', new Date(beginn).toISOString(), new Date(ende).toISOString(), wer, d.terminartId && /^\d+$/.test(d.terminartId) ? d.terminartId : null, text(d.leistungNummer)],
   );
   await protokolliere(db, { actor: wer, action: 'termin_angelegt', objectType: 'patient', objectId: patientId, details: { rezept: !!d.verordnungId } });
   if (d.verordnungId) await terminZuordnen(db, d.verordnungId, rows[0]!.id, tagText);
@@ -618,14 +620,15 @@ export async function verordnungen(db: Db, o: { patientId?: string; nurAktiv?: b
   const { rows } = await db.query<Record<string, unknown>>(
     `SELECT v.id::text, v.patient_id::text, p.vorname || ' ' || p.nachname AS patient_name, v.art::text, v.langzeit, v.ausgestellt_am, v.gueltig_bis, v.massnahme, v.leistung_nummer, v.frequenz,
        v.anzahl_verordnet, v.status::text, v.fall_id::text, f.nummer AS fall_nummer, a.name AS arzt, v.vorgaenger_id::text, v.zweitschrift_am, v.notiz,
-       ${HAKEN_SQL('v')} AS abgehakt, ${BESTAETIGT_SQL('v')} AS bestaetigt
+       ${HAKEN_SQL('v')} AS abgehakt, ${BESTAETIGT_SQL('v')} AS bestaetigt,
+       (SELECT count(*) FROM termin tm WHERE tm.verordnung_id = v.id AND tm.beginn >= now() AND tm.status IN ('bestaetigt', 'vorgeschlagen')) AS geplant
      FROM verordnung v JOIN patient p ON p.id = v.patient_id LEFT JOIN arzt a ON a.id = v.arzt_id LEFT JOIN behandlungsfall f ON f.id = v.fall_id
      WHERE ${wo} ORDER BY v.status = 'aktiv' DESC, v.ausgestellt_am DESC, v.id DESC LIMIT 300`, o.patientId ? [o.patientId] : [],
   );
   return rows.map((r) => ({
     id: String(r.id), patientId: String(r.patient_id), patientName: String(r.patient_name), art: r.art as VerordnungArt, langzeit: Boolean(r.langzeit),
     ausgestelltAm: tag(r.ausgestellt_am)!, gueltigBis: tag(r.gueltig_bis), massnahme: String(r.massnahme), leistungNummer: text(r.leistung_nummer), frequenz: text(r.frequenz),
-    anzahlVerordnet: Number(r.anzahl_verordnet), abgehakt: Number(r.abgehakt), bestaetigt: Number(r.bestaetigt), status: String(r.status), arzt: text(r.arzt), fallId: text(r.fall_id), fallNummer: zahl(r.fall_nummer),
+    anzahlVerordnet: Number(r.anzahl_verordnet), abgehakt: Number(r.abgehakt), bestaetigt: Number(r.bestaetigt), geplant: Number(r.geplant), status: String(r.status), arzt: text(r.arzt), fallId: text(r.fall_id), fallNummer: zahl(r.fall_nummer),
     vorgaengerId: text(r.vorgaenger_id), zweitschriftAm: tag(r.zweitschrift_am), notiz: text(r.notiz),
   }));
 }

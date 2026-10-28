@@ -1,6 +1,6 @@
 {
   "name": "physio-praxis-manager",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "description": "Praxis Lilli Nebel: Exchange (Mail, Kalender) und OneDrive über MS Graph",
   "private": true,
   "type": "module",
