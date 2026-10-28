@@ -37,11 +37,13 @@ const tageszeitVon = (iso: string): Tageszeit => {
 
 /** Montag der Woche eines Tages */
 const montag = (datum: string): string => tagPlus(datum, 1 - wochentag(datum));
+const tageDiff = (von: string, bis: string): number => Math.round((Date.parse(`${bis}T12:00:00Z`) - Date.parse(`${von}T12:00:00Z`)) / 86_400_000);
 
 /**
- * Eine Serie aus den freien Slots: je Woche `proWoche` Tage mit Abstand, aus der ersten Woche entsteht das Muster
- * (Wochentag + Uhrzeit), das die folgenden Wochen nachbilden – ersatzweise derselbe Tag zu anderer Zeit, sonst ein
- * anderer Tag der Woche.
+ * Eine Serie aus den freien Slots. Das Muster (Wochentag + Uhrzeit je Behandlung der Woche) entsteht ab dem ersten
+ * freien Tag mit Abstand – über die Wochengrenze hinweg, damit „ab Donnerstag, 2× pro Woche“ Montag und Donnerstag
+ * ergibt und nicht Donnerstag und Freitag. Jede Woche bildet das Muster nach: derselbe Tag zur selben Zeit, sonst
+ * derselbe Tag zu einer nahen Zeit, sonst ein Nachbartag.
  */
 export function serieVorschlagen(o: { anzahl: number; proWoche: number; dauerMin: number; ab: string; belegt: Belegt[]; regeln: SlotRegeln; tageszeit?: Tageszeit; wochen?: number }): Slot[] {
   if (o.anzahl <= 0) return [];
@@ -53,58 +55,61 @@ export function serieVorschlagen(o: { anzahl: number; proWoche: number; dauerMin
     const d = datumBerlin(s.beginn);
     jeTag.set(d, [...(jeTag.get(d) ?? []), s]);
   }
+  const tage = [...jeTag.keys()].sort();
+  if (!tage.length) return [];
+  const minuten = (s: Slot) => { const z = zeitBerlin(s.beginn); return Number(z.slice(0, 2)) * 60 + Number(z.slice(3, 5)); };
   const passtZeit = (s: Slot) => !o.tageszeit || tageszeitVon(s.beginn) === o.tageszeit;
   const ersterSlot = (datum: string, zeit?: string): Slot | undefined => {
     const liste = jeTag.get(datum) ?? [];
     if (zeit) {
       const genau = liste.find((s) => zeitBerlin(s.beginn) === zeit);
       if (genau) return genau;
-      // dieselbe Tageszeit zuerst, dann der nächste Slot nach der gewünschten Zeit, dann irgendeiner
+      // dieselbe Tageszeit zuerst, dann die nächstgelegene Zeit
       const ziel = Number(zeit.slice(0, 2)) * 60 + Number(zeit.slice(3, 5));
       const nah = [...liste].sort((a, b) => Math.abs(minuten(a) - ziel) - Math.abs(minuten(b) - ziel));
       return nah.find(passtZeit) ?? nah[0];
     }
     return liste.find(passtZeit) ?? liste[0];
   };
-  const minuten = (s: Slot) => { const z = zeitBerlin(s.beginn); return Number(z.slice(0, 2)) * 60 + Number(z.slice(3, 5)); };
-  const abstand = proWoche >= 5 ? 1 : proWoche === 4 ? 1 : proWoche === 3 ? 2 : proWoche === 2 ? 3 : 7;
+  // Abstand zwischen zwei Behandlungen derselben Woche in Tagen
+  const abstand = proWoche >= 4 ? 1 : proWoche === 3 ? 2 : proWoche === 2 ? 3 : 7;
+  const muster: { wt: number; zeit: string }[] = [];
+  let letzter: string | undefined;
+  for (const d of tage) {
+    if (muster.length >= proWoche || tageDiff(tage[0]!, d) > 13) break;
+    if (letzter && tageDiff(letzter, d) < abstand) continue;
+    if (muster.some((m) => m.wt === wochentag(d))) continue;
+    const s = ersterSlot(d);
+    if (!s) continue;
+    muster.push({ wt: wochentag(d), zeit: zeitBerlin(s.beginn) });
+    letzter = d;
+  }
+  // Reicht der Abstand nicht (z. B. nur zwei Öffnungstage), weitere Wochentage der ersten zwei Wochen nehmen
+  for (const d of tage) {
+    if (muster.length >= proWoche || tageDiff(tage[0]!, d) > 13) break;
+    if (muster.some((m) => m.wt === wochentag(d))) continue;
+    const s = ersterSlot(d);
+    if (s) muster.push({ wt: wochentag(d), zeit: zeitBerlin(s.beginn) });
+  }
+  muster.sort((a, b) => a.wt - b.wt);
   const gewaehlt: Slot[] = [];
-  let muster: { wt: number; zeit: string }[] = [];
   const start = montag(datumBerlin(o.ab));
   for (let w = 0; w < wochen && gewaehlt.length < o.anzahl; w++) {
     const wochenstart = tagPlus(start, w * 7);
-    const tage = Array.from({ length: 7 }, (_, i) => tagPlus(wochenstart, i)).filter((d) => jeTag.has(d));
+    const wochenende = tagPlus(wochenstart, 6);
+    const musterTage = muster.map((m) => tagPlus(wochenstart, m.wt - 1));
+    const benutzt = new Set<string>();
     const picks: Slot[] = [];
-    if (!muster.length) {
-      let letzter = -99;
-      for (const d of tage) {
-        const wt = wochentag(d);
-        if (wt - letzter < abstand) continue;
-        const s = ersterSlot(d);
-        if (!s) continue;
-        picks.push(s);
-        letzter = wt;
-        if (picks.length >= proWoche) break;
+    for (const m of muster) {
+      const d = tagPlus(wochenstart, m.wt - 1);
+      let s = jeTag.has(d) && !benutzt.has(d) ? ersterSlot(d, m.zeit) : undefined;
+      if (!s) {
+        // Nachbartag in derselben Woche, der kein anderer Mustertag ist und noch frei
+        const ersatz = [1, -1, 2, -2].map((k) => tagPlus(d, k))
+          .find((x) => x >= wochenstart && x <= wochenende && jeTag.has(x) && !benutzt.has(x) && !musterTage.includes(x));
+        s = ersatz ? ersterSlot(ersatz, m.zeit) : undefined;
       }
-      // Lücken auffüllen, wenn der Abstand nicht reicht (z. B. nur zwei Öffnungstage)
-      for (const d of tage) {
-        if (picks.length >= proWoche) break;
-        if (picks.some((p) => datumBerlin(p.beginn) === d)) continue;
-        const s = ersterSlot(d);
-        if (s) picks.push(s);
-      }
-      if (picks.length) muster = picks.map((p) => ({ wt: wochentag(datumBerlin(p.beginn)), zeit: zeitBerlin(p.beginn) }));
-    } else {
-      const benutzt = new Set<string>();
-      for (const m of muster) {
-        const d = tagPlus(wochenstart, m.wt - 1);
-        const s = jeTag.has(d) && !benutzt.has(d) ? ersterSlot(d, m.zeit) : undefined;
-        if (s) { picks.push(s); benutzt.add(d); continue; }
-        // Ersatztag: der nächste freie Tag der Woche, der noch nicht genutzt ist
-        const ersatz = tage.find((x) => !benutzt.has(x) && Math.abs(wochentag(x) - m.wt) <= 2);
-        const e = ersatz ? ersterSlot(ersatz, m.zeit) : undefined;
-        if (e) { picks.push(e); benutzt.add(ersatz!); }
-      }
+      if (s) { picks.push(s); benutzt.add(datumBerlin(s.beginn)); }
     }
     for (const p of picks.sort((a, b) => a.beginn.localeCompare(b.beginn))) {
       if (gewaehlt.length >= o.anzahl) break;

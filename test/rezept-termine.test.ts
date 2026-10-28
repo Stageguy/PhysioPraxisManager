@@ -39,6 +39,12 @@ test('Serie: gleiche Wochentage und Uhrzeiten; belegte Zeit weicht auf dieselbe 
   assert.deepEqual(serieVorschlagen({ anzahl: 3, proWoche: 3, dauerMin: 30, ab, belegt: [], regeln }).map(text), ['2026-11-02 08:00', '2026-11-04 08:00', '2026-11-06 08:00']);
   assert.deepEqual(serieVorschlagen({ anzahl: 4, proWoche: 2, dauerMin: 25, ab, belegt, regeln: { ...regeln, gesperrt: new Set(['2026-11-05']) } }).map(text),
     ['2026-11-02 08:00', '2026-11-06 08:00', '2026-11-09 08:30', '2026-11-13 08:00'], 'Donnerstag gesperrt → Freitag wird zum Muster');
+  // Beginn mitten in der Woche: das Muster entsteht über die Wochengrenze (Do, dann Mo) – nicht Do + Fr
+  assert.deepEqual(serieVorschlagen({ anzahl: 5, proWoche: 2, dauerMin: 25, ab: berlinMitternachtUtc('2026-11-05'), belegt, regeln }).map(text),
+    ['2026-11-05 08:00', '2026-11-09 08:30', '2026-11-12 08:00', '2026-11-16 08:30', '2026-11-19 08:00'], 'der erste freie Montag (08:30) prägt die Montagszeit');
+  // Nur zwei Öffnungstage, 3× pro Woche: beide Tage, mehr geht nicht
+  const kurz = { ...regeln, oeffnungszeiten: oeffnungszeitenLesen('Mo 08:00-12:00; Di 08:00-12:00') };
+  assert.deepEqual(serieVorschlagen({ anzahl: 4, proWoche: 3, dauerMin: 30, ab, belegt: [], regeln: kurz }).map(text), ['2026-11-02 08:00', '2026-11-03 08:00', '2026-11-09 08:00', '2026-11-10 08:00']);
   const lang = { ...regeln, oeffnungszeiten: oeffnungszeitenLesen('Mo 08:00-18:00; Di 08:00-18:00') };
   assert.deepEqual(serieVorschlagen({ anzahl: 2, proWoche: 1, dauerMin: 30, ab, belegt: [], regeln: lang, tageszeit: 'nachmittag' }).map(text), ['2026-11-02 12:00', '2026-11-09 12:00']);
   assert.deepEqual(serieVorschlagen({ anzahl: 0, proWoche: 2, dauerMin: 30, ab, belegt: [], regeln }), []);

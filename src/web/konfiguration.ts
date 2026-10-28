@@ -52,10 +52,11 @@ function regelzeitenAbschnitt(liste: Regelzeit[], jahr: number): string {
 <div class="tafel" data-hilfe="konfiguration.regelzeiten">
   <p class="hint">Rezepte nennen die Anzahl der Behandlungen, nicht die Minuten. Die Dauer je Heilmittel kommt aus der Heilmittel-Richtlinie – hier als Regelbehandlungszeit je Leistungsnummer, übernommen aus der GKV-Vergütungsliste („15–25 Minuten“). Terminvorschläge zu einem Rezept nehmen die obere Grenze, auf 5 Minuten gerundet (W110). Werte von Hand bleiben beim Übernehmen stehen.</p>
   ${formRz('regelzeiten_uebernehmen', `<button class="knopf klein" data-hilfe="konfiguration.regelzeiten-uebernehmen">${symbol('rezept', { groesse: 16 })} Aus der GKV-Liste übernehmen</button>`)}
-  ${liste.length ? `<div class="tabelle"><table class="regelzeiten"><thead><tr><th>Nr.</th><th>Leistung</th><th>Regelzeit (Minuten)</th><th>Quelle</th></tr></thead><tbody>${liste.map((r) => `<tr>
+  ${liste.length ? `<details class="regelzeiten-liste"><summary class="knopf klein" data-hilfe="konfiguration.regelzeiten-liste">${liste.length} Regelbehandlungszeiten anzeigen</summary>
+    <div class="tabelle"><table class="regelzeiten"><thead><tr><th>Nr.</th><th>Leistung</th><th>Regelzeit (Minuten)</th><th>Quelle</th></tr></thead><tbody>${liste.map((r) => `<tr>
       <td>${esc(r.nummer)}</td><td>${esc(r.bezeichnung)}</td>
       <td>${formRz('regelzeit_setzen', `<input type="hidden" name="nummer" value="${esc(r.nummer)}">${minuten('von_min', r.vonMin, false)} – ${minuten('bis_min', r.bisMin, true)}<button class="knopf klein" data-hilfe="konfiguration.regelzeit-speichern">Speichern</button>`)}</td>
-      <td>${esc(REGELZEIT_QUELLE_TEXT[r.quelle] ?? r.quelle)} · ${datumText(r.geaendertAm.slice(0, 10))}</td></tr>`).join('')}</tbody></table></div>`
+      <td>${esc(REGELZEIT_QUELLE_TEXT[r.quelle] ?? r.quelle)} · ${datumText(r.geaendertAm.slice(0, 10))}</td></tr>`).join('')}</tbody></table></div></details>`
     : '<p class="leer">Noch keine Regelbehandlungszeiten – aus der GKV-Liste übernehmen oder unten eintragen.</p>'}
   <h3>Regelzeit eintragen</h3>
   ${formRz('regelzeit_setzen', `<div class="zwei"><label>Leistungsnummer<input name="nummer" required maxlength="12" placeholder="z. B. 20501" class="kurz"></label><label>Bezeichnung<input name="bezeichnung" maxlength="80" placeholder="z. B. Krankengymnastik"></label></div>

@@ -351,7 +351,8 @@ details.stammdaten.tafel[open]>summary{margin-bottom:8px}
 .tv-wochen{list-style:none;padding:0;margin:8px 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
 .tv-wochen>li{background:var(--karte);border:1px solid var(--rand);border-radius:14px;padding:10px 12px}.tv-wochen>li>b{display:block;margin-bottom:4px}
 .tv-wochen ul{list-style:none;padding:0;margin:0}.tv-wochen label.haken{min-height:32px}
-table.regelzeiten td input.kurz{width:64px;min-height:32px}table.regelzeiten form.inline{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+table.regelzeiten td input.kurz{width:64px;min-height:32px}table.regelzeiten form.inline{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+table.regelzeiten td:nth-child(3){white-space:nowrap}details.regelzeiten-liste>summary{margin:8px 0}
 .rz{display:flex;flex-direction:column;gap:6px;background:var(--karte);border:1px solid var(--rand);border-radius:14px;padding:12px 14px;min-width:0}
 .rz.aktiv{border-color:var(--ok)}.rz.ersetzt,.rz.abgebrochen{opacity:.7}
 .rz-kopf{display:flex;gap:8px;align-items:center;color:var(--akzent);flex-wrap:wrap}.rz-kopf b{color:var(--fg);flex:1;min-width:0;overflow-wrap:anywhere}

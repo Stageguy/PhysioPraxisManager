@@ -1,0 +1,13 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "rezept-termine", "pfad": "/patienten/86/rezepte/84/termine" },
+    { "name": "rezept-termine-3x", "pfad": "/patienten/107/rezepte/105/termine?pro_woche=3&tageszeit=nachmittag" },
+    { "name": "patient-kachel", "pfad": "/patienten/86" },
+    { "name": "konfiguration", "pfad": "/konfiguration" }
+  ]
+}
