@@ -3,8 +3,8 @@
  * Dropdown), Langbeschreibung (unter dem Dropdown) und Dauer; Haken „aktiv“ = im Dropdown der
  * Online-Terminanfrage. Oben die Vorschau des Dropdowns, unten der HTML-Baustein für die Website.
  */
-import { SEKTION_REIHE, SEKTIONEN, websiteBaustein, type Terminart } from '../kartei/terminarten.ts';
-import { karteiFormular, meldungen, plusKachel, SEKTION_SYMBOL, sektionLegende, stift, type Rahmen } from './bausteine.ts';
+import { SEKTION_REIHE, SEKTIONEN, websiteBaustein, type Sektion, type Terminart } from '../kartei/terminarten.ts';
+import { formular, karteiFormular, meldungen, plusKachel, SEKTION_SYMBOL, sektionLegende, stift, type Rahmen } from './bausteine.ts';
 import { esc, seite } from './layout.ts';
 import { symbol } from './symbole.ts';
 
@@ -20,16 +20,29 @@ function kachel(a: Terminart): string {
       ${a.leistungNummer ? `<span class="marke" data-hilfe="terminart.gkv" tabindex="0">GKV ${esc(a.leistungNummer)}${a.regelzeit ? ` · ${esc(a.regelzeit)}` : ''}</span>` : ''}
       ${form('terminart_aktiv', `<input type="hidden" name="terminart_id" value="${a.id}"><input type="hidden" name="aktiv" value="${a.aktiv ? '0' : '1'}"><label class="haken" data-hilfe="terminart.aktiv"><input type="checkbox"${a.aktiv ? ' checked' : ''} data-auto-senden> aktiv</label><button class="knopf klein nur-ohne-js">${a.aktiv ? 'ausschalten' : 'aktivieren'}</button>`, 'ta-aktiv')}
     </div>
-    ${stift(`#ta-${a.id}-bearbeiten`, 'terminart.bearbeiten', { oeffnet: `ta-${a.id}-bearbeiten`, text: 'Terminart bearbeiten' })}
-    <details id="ta-${a.id}-bearbeiten"><summary class="hint nur-ohne-js" data-hilfe="terminart.bearbeiten">bearbeiten</summary>
-      ${form('terminart_speichern', `<input type="hidden" name="terminart_id" value="${a.id}">
-        <label>Kurzbeschreibung (im Dropdown)<input name="kurz" value="${esc(a.kurz)}" required maxlength="80"></label>
-        <label>Langbeschreibung (unter dem Dropdown)<textarea name="lang" rows="3" maxlength="600">${esc(a.lang ?? '')}</textarea></label>
-        <div class="zwei"><label>Dauer in Minuten<input name="dauer_min" value="${a.dauerMin}" inputmode="numeric" class="kurz" required></label>
-        <label>GKV-Nummer (optional)<input name="leistung_nummer" value="${esc(a.leistungNummer ?? '')}" inputmode="numeric" class="kurz" maxlength="5"></label></div>
-        <button class="knopf primaer">Speichern</button>`, 'formular')}
-    </details>
+    ${stift(`/konfiguration/terminarten/${a.id}`, 'terminart.bearbeiten', { fenster: 'Terminart bearbeiten', text: 'Terminart bearbeiten' })}
   </article>`;
+}
+
+/** Ein Formular für Anlegen und Bearbeiten (W115): ohne Terminart = neu in der Sektion */
+export function terminartFormularSeite(d: { terminart?: Terminart; sektion: Sektion }, o: Rahmen): string {
+  const a = d.terminart;
+  const s = a?.sektion ?? d.sektion;
+  const titel = a ? `${a.code} bearbeiten` : `Neue Terminart (${SEKTIONEN[s].name})`;
+  return seite({
+    titel, aktiv: 'hilfe', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
+    inhalt: formular({
+      pfad: [{ href: '/konfiguration', text: 'Konfiguration' }, { href: ZURUECK, text: 'Terminarten' }], titel, symbol: 'kalender', aktion: 'terminart_speichern',
+      zurueck: a ? `/konfiguration/terminarten/${a.id}` : `/konfiguration/terminarten/neu?sektion=${s}`, abbrechen: `${ZURUECK}#sektion-${s}`,
+      hilfe: 'terminart.formular', knopf: a ? 'Speichern' : 'Anlegen', knopfHilfe: 'terminart.speichern', oben: meldungen(o),
+      felder: `${a ? `<input type="hidden" name="terminart_id" value="${a.id}">` : `<input type="hidden" name="sektion" value="${s}">`}
+  <label>Kurzbeschreibung (im Dropdown)<input name="kurz" value="${esc(a?.kurz ?? '')}" required maxlength="80"></label>
+  <label>Langbeschreibung (unter dem Dropdown)<textarea name="lang" rows="3" maxlength="600">${esc(a?.lang ?? '')}</textarea></label>
+  <div class="zwei"><label>Dauer in Minuten<input name="dauer_min" value="${a?.dauerMin ?? 30}" inputmode="numeric" class="kurz" required></label>
+  <label>GKV-Nummer (optional)<input name="leistung_nummer" value="${esc(a?.leistungNummer ?? '')}" inputmode="numeric" class="kurz" maxlength="5"></label></div>`,
+      hinweis: a ? 'Sektion und Kennung bleiben. Keine Diagnosen in den Texten – sie stehen öffentlich auf der Website.' : 'Die Kennung vergibt das System; neue Terminarten sind zunächst inaktiv.',
+    }),
+  });
 }
 
 export function terminartenSeite(d: { terminarten: Terminart[]; buchung?: { url: string; oeffentlich: boolean } }, o: Rahmen): string {
@@ -39,12 +52,7 @@ export function terminartenSeite(d: { terminarten: Terminart[]; buchung?: { url:
     return `<section class="ta-sektion sek-${s}" id="sektion-${s}" data-hilfe="terminart.sektion.${s}">
   <h2><span class="sek-sym sek-${s}">${symbol(SEKTION_SYMBOL[s], { groesse: 22 })}</span> ${esc(SEKTIONEN[s].name)} <span class="hint">${liste.filter((a) => a.aktiv).length} von ${liste.length} aktiv</span></h2>
   <p class="hint">${esc(SEKTIONEN[s].text)}</p>
-  <div class="ta-raster">${plusKachel({ text: 'Neue Terminart', titel: `Neue Terminart (${SEKTIONEN[s].buchstabe} …)`, hilfe: 'terminart.neu', klasse: `sek-${s}`, inhalt: form('terminart_speichern', `<input type="hidden" name="sektion" value="${s}">
-        <label>Kurzbeschreibung<input name="kurz" required maxlength="80"></label>
-        <label>Langbeschreibung<textarea name="lang" rows="3" maxlength="600"></textarea></label>
-        <div class="zwei"><label>Dauer in Minuten<input name="dauer_min" value="30" inputmode="numeric" class="kurz" required></label>
-        <label>GKV-Nummer (optional)<input name="leistung_nummer" inputmode="numeric" class="kurz" maxlength="5"></label></div>
-        <p class="hint">Die Kennung vergibt das System; neue Terminarten sind zunächst inaktiv.</p><button class="knopf primaer">Anlegen</button>`, 'formular') })}${liste.map(kachel).join('')}</div>
+  <div class="ta-raster">${plusKachel({ text: 'Neue Terminart', hilfe: 'terminart.neu', klasse: `sek-${s}`, href: `/konfiguration/terminarten/neu?sektion=${s}` })}${liste.map(kachel).join('')}</div>
 </section>`;
   }).join('');
   const optionen = SEKTION_REIHE.map((s) => {

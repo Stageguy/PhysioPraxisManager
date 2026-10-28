@@ -11,7 +11,8 @@ import { terminSpiegeln } from './kalender.ts';
 import {
   adresseLoeschen, adresseSpeichern, akte, anrufBeginnen, behandlungErfassen, BESTAETIGUNG_TEXT, bestaetigungBild, bestaetigungSpeichern, fallAnlegen, gespraechsgruende, KarteiFehler, kontaktLoeschen, kontaktSpeichern, kontaktverlauf,
   offeneFaelle, patientAnlegen, patientenListe, patientLesen, rechnungen, rechnungsadresseSetzen, serieAbschliessen, serien, stammdatenSpeichern, statusSetzen, terminAnlegen,
-  terminStatus, termine, verlaufAbschliessen, verlaufEintragen, verlaufVerwerfen, verordnungAbbrechen, verordnungAnlegen, verordnungen, wellnessAktiv, wellnessLeistungen,
+  terminAendern, terminLesen, terminStatus, termine, verlaufAbschliessen, verlaufEintragen, verlaufVerwerfen, verordnungAbbrechen, verordnungAnlegen, verordnungen, wellnessAktiv, wellnessLeistungen,
+  type TerminDetail,
   wellnessSpeichern, zweitschriftVermerken,
   type Fall, type Gespraechsgrund, type Kontaktart, type Patient, type PatientKurz, type RechnungKurz, type Serie, type TerminKurz, type VerlaufEintrag, type VerordnungKurz,
   type WellnessLeistung,
@@ -129,6 +130,8 @@ export interface KarteiDienst {
   /** Unterschriftsbild einer Behandlung (W107a), jedes Ansehen im Protokoll */
   unterschrift(patientId: string, behandlungId: string, wer: string): Promise<{ daten: Uint8Array; mime: string } | undefined>;
   neuAktion(id: string): Promise<NeuAktionDaten | undefined>;
+  /** Termin bearbeiten (W115): dieselben Daten wie „Neuer Termin“ plus der Termin – nur solange er bestätigt oder vorgeschlagen ist */
+  terminBearbeiten(patientId: string, terminId: string): Promise<(NeuAktionDaten & { termin: TerminDetail }) | undefined>;
   /** Terminvorschläge zu einem Rezept (W110): Anzahl offen, Frequenz, Dauer aus der Regelbehandlungszeit */
   rezeptTermine(patientId: string, verordnungId: string, o?: { ab?: string; proWoche?: number; dauerMin?: number; tageszeit?: string }): Promise<RezeptTermineDaten | undefined>;
   rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
@@ -234,6 +237,12 @@ export function karteiDienst(q: {
         termine: await termine(db, id), wellness: await wellnessLeistungen(db), terminarten: await terminarten(db),
       };
     },
+    async terminBearbeiten(patientId, terminId) {
+      if (!istId(patientId) || !istId(terminId)) return undefined;
+      const daten = await this.neuAktion(patientId);
+      const termin = daten && await terminLesen(db, patientId, terminId);
+      return daten && termin && ['vorgeschlagen', 'bestaetigt'].includes(termin.status) ? { ...daten, termin } : undefined;
+    },
     async rezeptTermine(patientId, verordnungId, o = {}) {
       if (!istId(patientId) || !istId(verordnungId)) return undefined;
       return rezeptTermineDaten(db, q.graph, t, patientId, verordnungId, o);
@@ -316,6 +325,7 @@ export function karteiDienst(q: {
         const neu = await patientAnlegen(db, t, {
           anrede: g('anrede'), titel: g('titel'), vorname: g('vorname') ?? '', nachname: g('nachname') ?? '', geburtsdatum: g('geburtsdatum'), patientSeit: g('patient_seit'),
           ansprache: g('ansprache'), besonderheiten: g('besonderheiten'), sprache: g('sprache'), kontakte,
+          geburtsname: g('geburtsname'), kommunikationshilfe: g('kommunikationshilfe'), berufBelastung: g('beruf_belastung'), notiz: g('notiz'),
           adresse: { bezeichnung: g('adresse_bezeichnung') ?? 'Zuhause', zusatz: null, strasse: g('strasse') ?? null, hausnummer: g('hausnummer') ?? null, plz: g('plz') ?? null, ort: g('ort') ?? null, land: g('land') },
         }, wer);
         if (lexwareNummer) {
@@ -485,6 +495,11 @@ export function karteiDienst(q: {
         case 'termin_status':
           await terminStatus(db, id, g('termin_id') ?? '', g('status') ?? '', wer);
           return nach(`${seite}#termine`, `Termin geändert.${await spiegeln(g('termin_id') ?? '', wer)}`);
+        case 'termin_aendern': {
+          const terminId = g('termin_id') ?? '';
+          await terminAendern(db, id, terminId, { datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), terminartId: g('terminart_id') }, wer);
+          return nach(`${seite}#termine`, `Termin geändert.${await spiegeln(terminId, wer)}`);
+        }
         case 'rezept_termine_anlegen': {
           // Terminserie zum Rezept (W110): nur angehakte Vorschläge, nie mehr als noch offen sind
           const vid = g('verordnung_id') ?? '';

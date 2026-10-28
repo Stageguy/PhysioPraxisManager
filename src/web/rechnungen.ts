@@ -399,6 +399,14 @@ export const PRAXIS_SKRIPT = String.raw`
       } catch (x) { /* fremde Seite im Rahmen */ }
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pdfFenster.hidden) pdfSchliessen(); });
+    // „Abbrechen“ in einem Formular im Fenster meldet sich beim Rahmen – das Fenster geht zu (W115)
+    window.addEventListener('message', function (e) { if (e.origin === location.origin && e.data === 'fenster-schliessen') pdfSchliessen(); });
+  }
+  if (imFenster) {
+    document.addEventListener('click', function (e) {
+      var ab = e.target.closest && e.target.closest('[data-abbrechen]');
+      if (ab) { e.preventDefault(); window.parent.postMessage('fenster-schliessen', location.origin); }
+    });
   }
   // „+“-Kachel mit Popup (W114): Schließen-Knopf, Escape oder Klick auf den Hintergrund schließen es
   document.addEventListener('click', function (e) {

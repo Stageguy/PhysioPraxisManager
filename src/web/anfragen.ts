@@ -7,7 +7,7 @@ import type { AnfrageSeiteDaten, AnfragenFilter } from '../anfragen/dienst.ts';
 import { ANLIEGEN_TEXT, QUELLE_TEXT, STATUS_TEXT, type Anfrage } from '../anfragen/anfragen.ts';
 import { datumText, datumZeitText } from '../format.ts';
 import { heuteBerlin } from '../zeit.ts';
-import { aktionsFormular, chip, meldungen, plusKachel, sektionMarke, type Rahmen } from './bausteine.ts';
+import { aktionsFormular, chip, formular, meldungen, plusKachel, sektionMarke, type Rahmen } from './bausteine.ts';
 import type { Terminart } from '../kartei/terminarten.ts';
 import { terminartOptionen } from './patienten.ts';
 import { esc, seite } from './layout.ts';
@@ -36,14 +36,26 @@ export function anfragenSeite(d: { anfragen: Anfrage[]; filter: AnfragenFilter; 
     inhalt: `<p class="hint"><a href="/">Cockpit</a> › Terminanfragen</p>
 <h1>${symbol('anfrage', { groesse: 26 })} Terminanfragen <span class="hint">${d.stand.neu} neu · ${d.stand.vorgeschlagen} mit Vorschlag</span></h1>${meldungen(o)}
 <div class="knopfreihe">${filter('offen', 'Offen')}${filter('bestaetigt', 'Termin steht')}${filter('erledigt', 'Erledigt')}${filter('alle', 'Alle')}</div>
-<div class="an-raster">${plusKachel({ text: 'Anfrage von Hand', titel: 'Anfrage von Hand eintragen (Telefon, WhatsApp, persönlich)', hilfe: 'anfragen.neu', inhalt: form('neu', `<div class="zwei"><label>Weg<select name="quelle" data-hilfe="anfragen.neu.quelle"><option value="telefon">Telefon</option><option value="whatsapp">WhatsApp</option><option value="hand">persönlich / sonstiges</option></select></label>
+<div class="an-raster">${plusKachel({ text: 'Anfrage von Hand', hilfe: 'anfragen.neu', href: '/anfragen/neu' })}${d.anfragen.map(kachel).join('')}</div>
+${d.anfragen.length ? '' : '<p class="leer">Keine Anfragen in dieser Auswahl. Mails landen hier aus dem Ordner „Terminanfragen“ des Postfachs; Telefon und WhatsApp trägt man über „+“ ein.</p>'}`,
+  });
+}
+
+/** Anfrage von Hand (Telefon, WhatsApp, persönlich) – Formularseite nach W115, öffnet aus der „+“-Kachel im Seitenfenster */
+export function anfrageNeuSeite(d: { terminarten: Terminart[] }, o: Rahmen): string {
+  return seite({
+    titel: 'Anfrage von Hand', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
+    inhalt: formular({
+      action: '/anfragen/aktion', pfad: [{ href: '/', text: 'Cockpit' }, { href: '/anfragen', text: 'Terminanfragen' }], titel: 'Anfrage von Hand', symbol: 'telefon', aktion: 'neu',
+      zurueck: '/anfragen/neu', abbrechen: '/anfragen', hilfe: 'anfragen.neu.formular', knopf: 'Anfrage anlegen', knopfHilfe: 'anfragen.neu.anlegen', oben: meldungen(o),
+      felder: `<div class="zwei"><label>Weg<select name="quelle" data-hilfe="anfragen.neu.quelle"><option value="telefon">Telefon</option><option value="whatsapp">WhatsApp</option><option value="hand">persönlich / sonstiges</option></select></label>
     <label>Anliegen<select name="anliegen">${Object.entries(ANLIEGEN_TEXT).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label></div>
     <div class="zwei"><label>Name<input name="name" maxlength="120" required></label><label>Telefon<input name="telefon" inputmode="tel"></label></div>
     <label>E-Mail<input name="email" type="email"></label>
     <label>Terminart<select name="terminart_id" data-hilfe="anfragen.neu.terminart"><option value="">– noch offen –</option>${terminartOptionen(d.terminarten)}</select></label>
-    <label>Wunsch und Anliegen <span class="hint">(z. B. „dienstags vormittags, Rezept liegt vor“)</span><textarea name="text" rows="3" maxlength="2000"></textarea></label>
-    <div class="knopfreihe"><button class="knopf primaer">Anfrage anlegen</button></div>`, { zurueck: '/anfragen', klasse: 'formular' }) })}${d.anfragen.map(kachel).join('')}</div>
-${d.anfragen.length ? '' : '<p class="leer">Keine Anfragen in dieser Auswahl. Mails landen hier aus dem Ordner „Terminanfragen“ des Postfachs; Telefon und WhatsApp trägt man über „+“ ein.</p>'}`,
+    <label>Wunsch und Anliegen <span class="hint">(z. B. „dienstags vormittags, Rezept liegt vor“)</span><textarea name="text" rows="3" maxlength="2000"></textarea></label>`,
+      hinweis: 'Ist Mailadresse oder Nummer in der Kartei bekannt, wird der Patient gleich zugeordnet.',
+    }),
   });
 }
 

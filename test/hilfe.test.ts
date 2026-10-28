@@ -10,18 +10,18 @@ import type { CockpitDaten } from '../src/cockpit/daten.ts';
 import type { Position, Preisliste, QuelleKurz } from '../src/preise/preislisten.ts';
 import { menueStand } from '../src/web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from '../src/web/preislisten.ts';
-import { akteSeite, behandlungNeuSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
+import { adresseFormularSeite, akteSeite, bearbeitenSeite as patientBearbeitenSeite, behandlungNeuSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rechnungNeuSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
 import type { LexwareKundeStand } from '../src/kartei/lexware-kunden.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from '../src/web/rezepte.ts';
 import { rezeptTermineSeite } from '../src/web/rezept-termine.ts';
 import { rueckmeldungenSeite } from '../src/web/rueckmeldung.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from '../src/web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from '../src/web/rechnung.ts';
-import { konfigurationSeite } from '../src/web/konfiguration.ts';
+import { konfigurationSeite, textbausteinFormularSeite } from '../src/web/konfiguration.ts';
 import { kalenderSeite } from '../src/web/kalender.ts';
 import { steuerSeite } from '../src/web/steuer.ts';
-import { anfrageSeite, anfragenSeite } from '../src/web/anfragen.ts';
-import { terminartenSeite } from '../src/web/terminarten.ts';
+import { anfrageNeuSeite, anfrageSeite, anfragenSeite } from '../src/web/anfragen.ts';
+import { terminartenSeite, terminartFormularSeite } from '../src/web/terminarten.ts';
 import type { Anfrage } from '../src/anfragen/anfragen.ts';
 import type { Karte } from '../src/kartei/pinnwand.ts';
 import type { Patient } from '../src/kartei/patienten.ts';
@@ -174,6 +174,18 @@ const seiten = () => [
   patientSeite({ ...PATIENT_DATEN, patient: { ...PAT, status: 'archiviert', lexwareKundennummer: null }, lexwareRechnungen: false, lexwareAbgleich: null, lexwareKundeAnlegbar: true }, R),
   akteSeite(AKTE, R),
   terminNeuSeite(NEU_AKTION, R),
+  // Ein Formular für Anlegen und Bearbeiten (W115)
+  terminNeuSeite(NEU_AKTION, { ...R, termin: { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', fallId: '1', terminartId: '1', leistungNummer: null } }),
+  patientBearbeitenSeite({ patient: PAT, preislisten: [PL()] }, R),
+  patientBearbeitenSeite({ patient: { ...PAT, status: 'archiviert' }, preislisten: [] }, R),
+  adresseFormularSeite(PAT, PAT.adressen[0], R),
+  adresseFormularSeite(PAT, undefined, R),
+  rechnungNeuSeite(PAT, R),
+  terminartFormularSeite({ terminart: TERMINARTEN[0], sektion: 'rezept' }, R),
+  terminartFormularSeite({ sektion: 'wellness' }, R),
+  textbausteinFormularSeite(TB, R),
+  textbausteinFormularSeite(undefined, R),
+  anfrageNeuSeite({ terminarten: TERMINARTEN }, R),
   rezeptTermineSeite({ patient: PAT, verordnung: VERORDNUNG, geplant: [TERMIN], offen: 3, dauerMin: 25, dauerHerkunft: 'Regelbehandlungszeit 15–25 Min. (MT, Position 21201)', proWoche: 2, frequenzErkannt: true, ab: '2026-11-02', tageszeit: null,
     vorschlaege: [{ beginn: '2026-11-02T07:00:00Z', ende: '2026-11-02T07:25:00Z' }, { beginn: '2026-11-05T07:00:00Z', ende: '2026-11-05T07:25:00Z' }, { beginn: '2026-11-09T07:00:00Z', ende: '2026-11-09T07:25:00Z' }] }, R),
   behandlungNeuSeite(NEU_AKTION, R),

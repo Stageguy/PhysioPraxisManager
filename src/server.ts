@@ -20,15 +20,16 @@ import type { RechnungsDienst } from './rechnungen/dienst.ts';
 import { PreislisteFehler, type PreislistenDienst } from './preise/dienst.ts';
 import { KarteiFehler, type KarteiDienst } from './kartei/dienst.ts';
 import type { AnfragenDienst, AnfragenFilter } from './anfragen/dienst.ts';
-import { anfrageSeite, anfragenSeite } from './web/anfragen.ts';
+import { anfrageNeuSeite, anfrageSeite, anfragenSeite } from './web/anfragen.ts';
 import { cockpitSeite } from './web/cockpit.ts';
-import { akteSeite, behandlungNeuSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rezeptNeuSeite, terminNeuSeite, vorbelegungAusLexware } from './web/patienten.ts';
+import { adresseFormularSeite, akteSeite, bearbeitenSeite as patientBearbeitenSeite, behandlungNeuSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rechnungNeuSeite, rezeptNeuSeite, terminNeuSeite, vorbelegungAusLexware } from './web/patienten.ts';
+import { SEKTION_REIHE } from './kartei/terminarten.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from './web/rechnung.ts';
-import { konfigurationSeite } from './web/konfiguration.ts';
+import { konfigurationSeite, textbausteinFormularSeite } from './web/konfiguration.ts';
 import { rezeptTermineSeite } from './web/rezept-termine.ts';
-import { terminartenSeite } from './web/terminarten.ts';
+import { terminartenSeite, terminartFormularSeite } from './web/terminarten.ts';
 import { kalenderSeite } from './web/kalender.ts';
 import { steuerSeite } from './web/steuer.ts';
 import { steuerCsv, steuerPdf } from './kartei/steuer.ts';
@@ -321,7 +322,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (pfad === '/anfragen/aktion') {
       if (fremdeHerkunft(req, res)) return;
       const f = await formular(req);
-      const zurueck = /^\/anfragen(\/\d+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/anfragen';
+      const zurueck = /^\/anfragen(\/\d+|\/neu)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/anfragen';
       try {
         const e = await d.aktion(f, wer);
         const [pfadTeil, anker] = e.ziel.split('#');
@@ -331,8 +332,9 @@ export function praxisDienst(opt: DienstOptionen): Server {
         throw err;
       }
     }
+    if (pfad === '/anfragen/neu') return senden(res, 200, 'text/html', anfrageNeuSeite({ terminarten: await d.terminarten() }, r));
     if (pfad === '/anfragen') {
-      const filter = (['offen', 'alle', 'neu', 'vorgeschlagen', 'bestaetigt', 'abgesagt', 'erledigt', 'verworfen'] as AnfragenFilter[]).find((x) => x === adresse.searchParams.get('filter')) ?? 'offen';
+      const filter =(['offen', 'alle', 'neu', 'vorgeschlagen', 'bestaetigt', 'abgesagt', 'erledigt', 'verworfen'] as AnfragenFilter[]).find((x) => x === adresse.searchParams.get('filter')) ?? 'offen';
       const stand = await d.stand();
       return senden(res, 200, 'text/html', anfragenSeite({ anfragen: await d.liste(filter), filter, stand, terminarten: await d.terminarten() }, r));
     }
@@ -431,6 +433,18 @@ export function praxisDienst(opt: DienstOptionen): Server {
     }
     if (pfad === '/konfiguration') return senden(res, 200, 'text/html', konfigurationSeite(await d.konfiguration({ jahr: /^\d{4}$/.test(adresse.searchParams.get('jahr') ?? '') ? Number(adresse.searchParams.get('jahr')) : undefined }), r));
     if (pfad === '/konfiguration/terminarten') return senden(res, 200, 'text/html', terminartenSeite({ terminarten: await d.terminarten(), buchung: d.buchung() }, r));
+    // Ein Formular für Anlegen und Bearbeiten (W115): Terminart, Textbaustein
+    const kt = /^\/konfiguration\/terminarten\/(neu|\d+)$/.exec(pfad);
+    if (kt) {
+      const a = kt[1] === 'neu' ? undefined : (await d.terminarten()).find((x) => x.id === kt[1]);
+      const sektion = SEKTION_REIHE.find((s) => s === adresse.searchParams.get('sektion')) ?? 'rezept';
+      return kt[1] === 'neu' || a ? senden(res, 200, 'text/html', terminartFormularSeite({ terminart: a, sektion }, r)) : senden(res, 404, 'text/plain', 'Diese Terminart gibt es nicht');
+    }
+    const kb = /^\/konfiguration\/textbausteine\/(neu|\d+)$/.exec(pfad);
+    if (kb) {
+      const b = kb[1] === 'neu' ? undefined : (await d.konfiguration()).textbausteine.find((x) => x.id === kb[1]);
+      return kb[1] === 'neu' || b ? senden(res, 200, 'text/html', textbausteinFormularSeite(b, r)) : senden(res, 404, 'text/plain', 'Diesen Textbaustein gibt es nicht');
+    }
     if (pfad === '/kalender') {
       const heuteTag = heuteBerlin();
       const tagParam = adresse.searchParams.get('tag') ?? '';
@@ -498,6 +512,23 @@ export function praxisDienst(opt: DienstOptionen): Server {
       dateiKopf(res, 'application/pdf', pdf.name);
       return void res.end(Buffer.from(pdf.daten));
     }
+    // Formularseiten zum Bearbeiten (W115) – dieselben Formulare wie beim Anlegen: Stammdaten, Adresse, Termin
+    const pb = /^\/patienten\/(\d+)\/bearbeiten$/.exec(pfad);
+    if (pb) {
+      const p = await d.patient(pb[1]!);
+      return p ? senden(res, 200, 'text/html', patientBearbeitenSeite({ patient: p.patient, preislisten: p.preislisten }, r)) : senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
+    }
+    const pa = /^\/patienten\/(\d+)\/adressen\/(neu|\d+)$/.exec(pfad);
+    if (pa) {
+      const p = await d.patient(pa[1]!);
+      const a = pa[2] === 'neu' ? undefined : p?.patient.adressen.find((x) => x.id === pa[2]);
+      return p && (pa[2] === 'neu' || a) ? senden(res, 200, 'text/html', adresseFormularSeite(p.patient, a, r)) : senden(res, 404, 'text/plain', 'Diese Adresse gibt es nicht');
+    }
+    const pt = /^\/patienten\/(\d+)\/termine\/(\d+)\/bearbeiten$/.exec(pfad);
+    if (pt) {
+      const t = await d.terminBearbeiten(pt[1]!, pt[2]!);
+      return t ? senden(res, 200, 'text/html', terminNeuSeite(t, { ...r, termin: t.termin })) : senden(res, 404, 'text/plain', 'Diesen Termin gibt es nicht oder er lässt sich nicht mehr ändern');
+    }
     // Terminvorschläge zu einem Rezept (W110)
     const rt = /^\/patienten\/(\d+)\/rezepte\/(\d+)\/termine$/.exec(pfad);
     if (rt) {
@@ -506,7 +537,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const daten = await d.rezeptTermine(rt[1]!, rt[2]!, { ab: q('ab'), proWoche: zahl('pro_woche'), dauerMin: zahl('dauer_min'), tageszeit: q('tageszeit') });
       return daten ? senden(res, 200, 'text/html', rezeptTermineSeite(daten, r)) : senden(res, 404, 'text/plain', 'Dieses Rezept gibt es nicht');
     }
-    const m = /^\/patienten\/(\d+)(?:\/(akte)|\/neu\/(termin|behandlung|rezept|direktzugang|wellness))?$/.exec(pfad);
+    const m = /^\/patienten\/(\d+)(?:\/(akte)|\/neu\/(termin|behandlung|rezept|direktzugang|wellness|rechnung))?$/.exec(pfad);
     if (!m) return senden(res, 404, 'text/plain', 'Nicht gefunden');
     const [, id, akte, neu] = m as unknown as [string, string, string | undefined, string | undefined];
     if (akte) {
@@ -518,6 +549,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (!n) return senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
       const html = neu === 'termin' ? terminNeuSeite(n, r) : neu === 'behandlung' ? behandlungNeuSeite(n, r)
         : neu === 'direktzugang' ? serieNeuSeite(n, 'direktzugang', r) : neu === 'wellness' ? serieNeuSeite(n, 'praevention', r)
+        : neu === 'rechnung' ? rechnungNeuSeite(n.patient, r)
         : rezeptNeuSeite(n, { ...r, vorgaenger: adresse.searchParams.get('vorgaenger') ?? undefined });
       return senden(res, 200, 'text/html', html);
     }

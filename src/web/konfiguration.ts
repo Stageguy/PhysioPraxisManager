@@ -8,7 +8,7 @@ import { REGELZEIT_QUELLE_TEXT, type Regelzeit } from '../kartei/regelzeiten.ts'
 import { oeffnungszeitenJeTag, oeffnungszeitenLesen, wochentag, type OeffnungsTag } from '../anfragen/slots.ts';
 import { datumText } from '../format.ts';
 import { esc, seite } from './layout.ts';
-import { karteiFormular, meldungen, plusKachel, stift, type Rahmen } from './bausteine.ts';
+import { formular, karteiFormular, meldungen, plusKachel, stift, type Rahmen } from './bausteine.ts';
 import { symbol } from './symbole.ts';
 
 const form = (aktion: string, inhalt: string, klasse = 'inline') => karteiFormular(aktion, inhalt, { zurueck: '/konfiguration', klasse });
@@ -96,19 +96,30 @@ function regelzeitenAbschnitt(liste: Regelzeit[], jahr: number): string {
 `;
 }
 
+/** Ein Formular für Anlegen und Bearbeiten (W115) */
+export function textbausteinFormularSeite(b: Textbaustein | undefined, o: Rahmen): string {
+  const titel = b ? `Textbaustein ${b.code} bearbeiten` : 'Neuer Textbaustein';
+  return seite({
+    titel, aktiv: 'hilfe', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
+    inhalt: formular({
+      pfad: [{ href: '/konfiguration', text: 'Konfiguration' }], titel, symbol: 'protokoll', aktion: 'textbaustein_speichern',
+      zurueck: b ? `/konfiguration/textbausteine/${b.id}` : '/konfiguration/textbausteine/neu', abbrechen: '/konfiguration',
+      hilfe: 'textbaustein.formular', knopf: b ? 'Speichern' : 'Anlegen', knopfHilfe: 'textbaustein.speichern', oben: meldungen(o),
+      felder: `${b ? `<input type="hidden" name="textbaustein_id" value="${b.id}">` : ''}
+  <label>Kurzname (oben auf der Kachel)<input name="kurzname" value="${esc(b?.kurzname ?? '')}" required maxlength="60" placeholder="z. B. Dank"></label>
+  <label>Text (steht unter den Positionen der Rechnung)<textarea name="text" rows="4" required>${esc(b?.text ?? '')}</textarea></label>
+  <div class="zwei"><label>Wirkung${wahl('wirkung', WIRKUNG_TEXT, b?.wirkung ?? 'keine')}</label><label>Automatisch dabei${wahl('automatisch', AUTOMATISCH_TEXT, b?.automatisch ?? 'nie')}</label></div>`,
+      hinweis: b ? 'Bestehende Rechnungen behalten ihre Kopie des Textes.' : 'Die Kennung (R + Nummer) vergibt das System.',
+    }),
+  });
+}
+
 export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellungen: Record<string, string>; freieTage: FreieTageDaten; regelzeiten: Regelzeit[] }, o: Rahmen): string {
   const kacheln = d.textbausteine.map((b) => `<article class="tbk${b.aktiv ? '' : ' ab'}" data-hilfe="konfiguration.textbaustein">
     <header><span class="tbk-code">${esc(b.code)}</span><b>${esc(b.kurzname)}</b></header>
     <p class="rz-marken"><span class="marke${b.wirkung === 'keine' ? '' : ' jetzt'}">${esc(WIRKUNG_TEXT[b.wirkung])}</span><span class="marke">${esc(AUTOMATISCH_TEXT[b.automatisch])}</span></p>
-    ${stift(`#tb-${b.id}`, 'konfiguration.textbaustein.bearbeiten', { oeffnet: `tb-${b.id}`, text: 'Textbaustein bearbeiten' })}
-    <details id="tb-${b.id}"><summary class="knopf klein nur-ohne-js" data-hilfe="konfiguration.textbaustein.bearbeiten">Bearbeiten</summary>
-      ${form('textbaustein_speichern', `<input type="hidden" name="textbaustein_id" value="${b.id}">
-        <label>Kurzname (oben auf der Kachel)<input name="kurzname" value="${esc(b.kurzname)}" required maxlength="60"></label>
-        <label>Text (steht unter den Positionen der Rechnung)<textarea name="text" rows="4" required>${esc(b.text)}</textarea></label>
-        <div class="zwei"><label>Wirkung${wahl('wirkung', WIRKUNG_TEXT, b.wirkung)}</label><label>Automatisch dabei${wahl('automatisch', AUTOMATISCH_TEXT, b.automatisch)}</label></div>
-        <div class="knopfreihe"><button class="knopf primaer">Speichern</button></div>`, 'formular')}
-      ${form('textbaustein_aktiv', `<input type="hidden" name="textbaustein_id" value="${b.id}"><input type="hidden" name="aktiv" value="${b.aktiv ? '0' : '1'}"><button class="knopf klein" data-hilfe="konfiguration.textbaustein.aktiv">${b.aktiv ? 'ausblenden' : 'wieder anbieten'}</button>`)}
-    </details>
+    ${stift(`/konfiguration/textbausteine/${b.id}`, 'konfiguration.textbaustein.bearbeiten', { fenster: 'Textbaustein bearbeiten', text: 'Textbaustein bearbeiten' })}
+    ${form('textbaustein_aktiv', `<input type="hidden" name="textbaustein_id" value="${b.id}"><input type="hidden" name="aktiv" value="${b.aktiv ? '0' : '1'}"><button class="knopf klein" data-hilfe="konfiguration.textbaustein.aktiv">${b.aktiv ? 'ausblenden' : 'anbieten'}</button>`)}
     <p class="tbk-text">${esc(b.text)}</p>
   </article>`).join('');
   const ku = d.einstellungen.kleinunternehmer === 'ja';
@@ -123,10 +134,7 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
 </div>
 
 <h2>Textbausteine für Rechnungen</h2>
-<div class="tbk-raster">${plusKachel({ text: 'Neuer Textbaustein', hilfe: 'konfiguration.textbaustein.neu', inhalt: form('textbaustein_speichern', `<label>Kurzname<input name="kurzname" required maxlength="60" placeholder="z. B. Dank"></label>
-      <label>Text<textarea name="text" rows="4" required></textarea></label>
-      <div class="zwei"><label>Wirkung${wahl('wirkung', WIRKUNG_TEXT, 'keine')}</label><label>Automatisch dabei${wahl('automatisch', AUTOMATISCH_TEXT, 'nie')}</label></div>
-      <p class="hint">Die Kennung (R + Nummer) vergibt das System.</p><button class="knopf primaer">Anlegen</button>`, 'formular') })}${kacheln}</div>
+<div class="tbk-raster">${plusKachel({ text: 'Neuer Textbaustein', hilfe: 'konfiguration.textbaustein.neu', href: '/konfiguration/textbausteine/neu' })}${kacheln}</div>
 
 <h2>Steuer</h2>
 <div class="tafel">

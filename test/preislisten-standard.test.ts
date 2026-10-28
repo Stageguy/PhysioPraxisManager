@@ -78,13 +78,13 @@ test('Stammdaten: Standard oder aktive Liste wählbar; inaktive Zuordnung fällt
   await db.query('UPDATE preisliste SET aktiv = true WHERE id = $1', [tagesgast]);
   const p = await post({ aktion: 'anlegen', vorname: 'Theo', nachname: 'Tagesgast' });
   const pid = /\/patienten\/(\d+)/.exec(ziel(p))![1]!;
-  let html = await seite(`/patienten/${pid}`);
+  let html = await seite(`/patienten/${pid}/bearbeiten`);
   assert.match(html, new RegExp(`<option value="" selected>Standard \\(zurzeit „${standard.name}“\\)</option>`));
   assert.match(html, /<option value="\d+">Tagesgast<\/option>/);
   assert.match(html, new RegExp(`Es gilt: ${standard.name} \\(Standard\\)`));
   // Stammdaten speichern mit Tagesgast
   await post({ aktion: 'stammdaten', id: pid, vorname: 'Theo', nachname: 'Tagesgast', preisliste_id: tagesgast });
-  html = await seite(`/patienten/${pid}`);
+  html = await seite(`/patienten/${pid}/bearbeiten`);
   assert.match(html, /<option value="\d+" selected>Tagesgast<\/option>/);
   assert.match(html, /Es gilt: Tagesgast</);
   await verordnungAnlegen(db, t, pid, { ausgestelltAm: '2026-10-01', massnahme: 'Manuelle Therapie', leistungNummer: '21201', anzahl: 1 }, 'x');
@@ -92,7 +92,7 @@ test('Stammdaten: Standard oder aktive Liste wählbar; inaktive Zuordnung fällt
   assert.equal((await rechnungLesen(db, pid, re))!.positionen[0]!.einzelpreis, 80, 'Tagesgast-Preis');
   // Tagesgast deaktivieren: Zuordnung bleibt, es gilt der Standard
   await db.query('UPDATE preisliste SET aktiv = false WHERE id = $1', [tagesgast]);
-  html = await seite(`/patienten/${pid}`);
+  html = await seite(`/patienten/${pid}/bearbeiten`);
   assert.match(html, /Tagesgast \(nicht mehr aktiv – es gilt der Standard\)/);
   assert.match(html, new RegExp(`Es gilt: ${standard.name}`));
   // Zurück auf Standard (leere Wahl)

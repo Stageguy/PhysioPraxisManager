@@ -7,14 +7,14 @@
 import type { AkteDaten, LexwareKundenDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
 import type { KundeStand, LexwareKundeStand } from '../kartei/lexware-kunden.ts';
 import { kundenName, type LexwareKunde } from '../lexware/kunden.ts';
-import { BESTAETIGUNG_TEXT, VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz, type RechnungKurz } from '../kartei/patienten.ts';
+import { BESTAETIGUNG_TEXT, VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz, type RechnungKurz, type TerminDetail } from '../kartei/patienten.ts';
 import { VORLAGEN } from '../nachrichten/vorlagen.ts';
 import { SEKTION_REIHE, SEKTIONEN, type Terminart } from '../kartei/terminarten.ts';
 import { rezeptKachel, serieKachel, serienPlus } from './rezepte.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText, zeitText } from '../format.ts';
-import { heuteBerlin } from '../zeit.ts';
-import { karteiFormular as form, meldungen, plusKachel, plusMenue, stift, type Rahmen } from './bausteine.ts';
+import { datumBerlin, heuteBerlin, zeitBerlin } from '../zeit.ts';
+import { formular, karteiFormular as form, meldungen, PLUS_ZEICHEN, plusKachel, plusMenue, stift, type Rahmen } from './bausteine.ts';
 import { symbol, type Symbol } from './symbole.ts';
 
 
@@ -45,7 +45,7 @@ const standChip = (p: PatientKurz) =>
     : p.rechnungsstand === 'gelb' ? `<span class="chip preset3" data-hilfe="kachel.status" tabindex="0">Rechnung überfällig</span>` : '';
 
 function patientMenue(p: Pick<PatientKurz, 'id'>): string {
-  return `<details class="plus" data-hilfe="kachel.plus"><summary aria-label="Neue Aktivität">+</summary><div class="plus-menue">
+  return `<details class="plus" data-hilfe="kachel.plus"><summary aria-label="Neue Aktivität">${PLUS_ZEICHEN}</summary><div class="plus-menue">
     <a href="/patienten/${p.id}/neu/termin" data-hilfe="plus.termin">${symbol('kalender', { groesse: 18 })} Neuer Termin</a>
     <a href="/patienten/${p.id}/neu/behandlung" data-hilfe="plus.behandlung">${symbol('protokoll', { groesse: 18 })} Neue Behandlung</a>
     <a href="/patienten/${p.id}/neu/rezept" data-hilfe="plus.rezept">${symbol('rezept', { groesse: 18 })} Neues Rezept</a>
@@ -71,7 +71,7 @@ export function kachel(p: PatientKurz, o: { kopf?: boolean } = {}): string {
     </header>
     ${p.ansprache || p.besonderheiten ? `<p class="pat-hinweise">${p.ansprache ? `<span class="marke">${esc(p.ansprache)}</span> ` : ''}${p.besonderheiten ? `<span class="marke warn-marke">${esc(p.besonderheiten)}</span>` : ''}</p>` : ''}
     <div class="pat-kontakte">${kontaktLink(p, p.telefon, 'telefon')}${kontaktLink(p, p.whatsapp, 'whatsapp', { klein: true })}${kontaktLink(p, p.email, 'email', { klein: true })}</div>
-    ${o.kopf ? stift('#stammdaten', 'patient.stammdaten', { oeffnet: 'stammdaten', text: 'Stammdaten bearbeiten' }) : stift(`/patienten/${p.id}#stammdaten`, 'kachel.stift', { text: 'Stammdaten bearbeiten' })}
+    ${stift(`/patienten/${p.id}/bearbeiten`, o.kopf ? 'patient.stammdaten' : 'kachel.stift', { fenster: 'Stammdaten bearbeiten', text: 'Stammdaten bearbeiten' })}
     <dl class="liste-dl klein">
       <dt>Patient seit</dt><dd>${datumText(p.patientSeit)}</dd>
       <dt>Letzte Behandlung</dt><dd>${behandlung}</dd>
@@ -192,19 +192,33 @@ export interface Vorbelegung {
   firma?: boolean;
 }
 
+/** Felder der Person – dieselben für „Neuer Patient“ und „Stammdaten bearbeiten“ (W115) */
+function personFelder(v: Partial<Pick<Patient, 'anrede' | 'titel' | 'vorname' | 'nachname' | 'geburtsname' | 'geburtsdatum' | 'patientSeit' | 'sprache' | 'ansprache' | 'besonderheiten' | 'kommunikationshilfe' | 'berufBelastung' | 'notiz'>>, neu: boolean): string {
+  const feld = (label: string, attr: string, wert: string | null | undefined, typ = 'text', extra = '') => `<label>${label}<input type="${typ}" name="${attr}" value="${esc(wert ?? '')}"${extra}></label>`;
+  return `<fieldset><legend>Person</legend>
+    <div class="zwei">${feld('Anrede', 'anrede', v.anrede, 'text', ' maxlength="40" placeholder="Frau / Herr / –"')}${feld('Titel', 'titel', v.titel, 'text', ' maxlength="40"')}</div>
+    <div class="zwei">${feld('Vorname', 'vorname', v.vorname, 'text', ' required maxlength="80" autocomplete="off"')}${feld('Nachname', 'nachname', v.nachname, 'text', ' required maxlength="80" autocomplete="off"')}</div>
+    <div class="zwei">${feld('Geburtsname', 'geburtsname', v.geburtsname, 'text', ' maxlength="80"')}${feld('Geburtsdatum', 'geburtsdatum', v.geburtsdatum, 'date')}</div>
+    <div class="zwei">${feld('Patient seit', 'patient_seit', v.patientSeit ?? (neu ? heuteBerlin() : ''), 'date')}${feld('Sprache', 'sprache', v.sprache, 'text', ' maxlength="40"')}</div>
+    ${feld('Ansprache (nur auf Wunsch, z. B. Pronomen)', 'ansprache', v.ansprache, 'text', ' maxlength="120"')}
+    ${feld('Besonderheiten für die Kachel', 'besonderheiten', v.besonderheiten, 'text', ' maxlength="200" placeholder="z. B. Hörgerät, kommt mit Begleitung"')}
+    ${feld('Unterstützung bei der Verständigung', 'kommunikationshilfe', v.kommunikationshilfe, 'text', ' maxlength="200"')}
+    <label>Beruf und Belastung im Alltag<textarea name="beruf_belastung" rows="2">${esc(v.berufBelastung ?? '')}</textarea></label>
+    <label>Notiz<textarea name="notiz" rows="2">${esc(v.notiz ?? '')}</textarea></label>
+  </fieldset>`;
+}
+
 export function neuSeite(o: Rahmen & { vorbelegung?: Vorbelegung }): string {
   const v = o.vorbelegung ?? {};
   const zurueck = v.lexwareKundennummer ? `/patienten/neu?lexware=${esc(v.lexwareKundennummer)}` : '/patienten/neu';
+  const oben = `${meldungen(o)}${v.anfrageId ? `<p class="meldung ok">${symbol('anfrage', { groesse: 18 })} Aus <a href="/anfragen/${esc(v.anfrageId)}">Terminanfrage ${esc(v.anfrageId)}</a> – nach dem Anlegen ist der Patient der Anfrage zugeordnet.</p>` : ''}${v.lexwareKundennummer ? `<p class="meldung ok">${symbol('euro', { groesse: 18 })} Aus <a href="/patienten/lexware#lx-${esc(v.lexwareKundennummer)}">Lexware-Kunde ${esc(v.lexwareKundennummer)}</a> „${esc(v.lexwareName ?? '')}“ – bitte prüfen und ergänzen; nach dem Anlegen ist der Patient mit dem Kunden verknüpft.${v.firma ? ' In Lexware ist das eine Firma – Vor- und Nachname sind geraten.' : ''}</p>` : ''}`;
   return seite({
     titel: 'Neuer Patient', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
-    inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › Neu</p><h1>${symbol('patient', { groesse: 26 })} Neuer Patient</h1>${meldungen(o)}
-${v.anfrageId ? `<p class="meldung ok">${symbol('anfrage', { groesse: 18 })} Aus <a href="/anfragen/${esc(v.anfrageId)}">Terminanfrage ${esc(v.anfrageId)}</a> – nach dem Anlegen ist der Patient der Anfrage zugeordnet.</p>` : ''}
-${v.lexwareKundennummer ? `<p class="meldung ok">${symbol('euro', { groesse: 18 })} Aus <a href="/patienten/lexware#lx-${esc(v.lexwareKundennummer)}">Lexware-Kunde ${esc(v.lexwareKundennummer)}</a> „${esc(v.lexwareName ?? '')}“ – bitte prüfen und ergänzen; nach dem Anlegen trägt der Patient diese Kundennummer.${v.firma ? ' In Lexware ist das eine Firma – Vor- und Nachname sind geraten.' : ''}</p>` : ''}
-<form method="post" action="/patienten/aktion" class="tafel formular" data-hilfe="patient.neu.formular">
-  <input type="hidden" name="aktion" value="anlegen"><input type="hidden" name="zurueck" value="${zurueck}">${v.anfrageId ? `<input type="hidden" name="anfrage_id" value="${esc(v.anfrageId)}">` : ''}${v.lexwareKundennummer ? `<input type="hidden" name="lexware_kundennummer" value="${esc(v.lexwareKundennummer)}"><input type="hidden" name="lexware_kontakt_id" value="${esc(v.lexwareKontaktId ?? '')}">` : ''}
-  <div class="zwei"><label>Anrede<input name="anrede" maxlength="40" placeholder="Frau / Herr / –" value="${esc(v.anrede ?? '')}"></label><label>Titel<input name="titel" maxlength="40"></label></div>
-  <div class="zwei"><label>Vorname<input name="vorname" required maxlength="80" autocomplete="off" value="${esc(v.vorname ?? '')}"></label><label>Nachname<input name="nachname" required maxlength="80" autocomplete="off" value="${esc(v.nachname ?? '')}"></label></div>
-  <div class="zwei"><label>Geburtsdatum<input type="date" name="geburtsdatum"></label><label>Patient seit<input type="date" name="patient_seit" value="${heuteBerlin()}"></label></div>
+    inhalt: formular({
+      pfad: [{ href: '/patienten', text: 'Patienten' }], titel: 'Neuer Patient', symbol: 'patient', aktion: 'anlegen', zurueck, abbrechen: '/patienten',
+      hilfe: 'patient.neu.formular', knopf: 'Patient anlegen', knopfHilfe: 'patient.anlegen', oben,
+      felder: `${v.anfrageId ? `<input type="hidden" name="anfrage_id" value="${esc(v.anfrageId)}">` : ''}${v.lexwareKundennummer ? `<input type="hidden" name="lexware_kundennummer" value="${esc(v.lexwareKundennummer)}"><input type="hidden" name="lexware_kontakt_id" value="${esc(v.lexwareKontaktId ?? '')}">` : ''}
+  ${personFelder({ anrede: v.anrede, vorname: v.vorname, nachname: v.nachname }, true)}
   <fieldset><legend>Kontaktwege</legend>
     <label>Mobil<input name="mobil" inputmode="tel" placeholder="0151 …" value="${esc(v.mobil ?? '')}"></label>
     <label class="haken"><input type="checkbox" name="whatsapp_wie_mobil" value="1" checked> WhatsApp unter der Mobilnummer</label>
@@ -214,12 +228,67 @@ ${v.lexwareKundennummer ? `<p class="meldung ok">${symbol('euro', { groesse: 18 
   <fieldset><legend>Adresse (wird Rechnungsadresse)</legend>
     <div class="zwei"><label>Straße<input name="strasse" value="${esc(v.strasse ?? '')}"></label><label>Nr.<input name="hausnummer" class="kurz" value="${esc(v.hausnummer ?? '')}"></label></div>
     <div class="zwei"><label>PLZ<input name="plz" inputmode="numeric" class="kurz" value="${esc(v.plz ?? '')}"></label><label>Ort<input name="ort" value="${esc(v.ort ?? '')}"></label></div>
-  </fieldset>
-  <label>Ansprache (nur auf Wunsch, z. B. Pronomen)<input name="ansprache" maxlength="120"></label>
-  <label>Besonderheiten für die Kachel<input name="besonderheiten" maxlength="200" placeholder="z. B. Hörgerät, kommt mit Begleitung"></label>
-  <label>Sprache<input name="sprache" maxlength="40"></label>
-  <button class="knopf primaer" data-hilfe="patient.anlegen">Patient anlegen</button>
-</form>`,
+  </fieldset>`,
+    }),
+  });
+}
+
+/** Stammdaten bearbeiten – dasselbe Formular wie „Neuer Patient“, dazu Abrechnung und Archiv (W115) */
+export function bearbeitenSeite(d: { patient: Patient; preislisten: PatientSeiteDaten['preislisten'] }, o: Rahmen): string {
+  const p = d.patient;
+  const standard = d.preislisten.find((l) => l.standard);
+  return seite({
+    titel: `Stammdaten – ${name(p)}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
+    inhalt: formular({
+      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel: 'Stammdaten bearbeiten', symbol: 'patient', aktion: 'stammdaten', id: p.id,
+      zurueck: `/patienten/${p.id}/bearbeiten`, abbrechen: `/patienten/${p.id}`, hilfe: 'patient.bearbeiten.formular', knopf: 'Speichern', knopfHilfe: 'patient.speichern', oben: meldungen(o),
+      felder: `${personFelder(p, false)}
+  <fieldset><legend>Abrechnung</legend>
+    <div class="zwei"><label>Preisliste<select name="preisliste_id" data-hilfe="patient.preisliste"><option value=""${!p.preisliste ? ' selected' : ''}>Standard${standard ? ` (zurzeit „${esc(standard.name)}“)` : ''}</option>${d.preislisten.map((l) => `<option value="${l.id}"${p.preisliste?.id === l.id ? ' selected' : ''}>${esc(l.name)}${l.standard ? ' – Standard' : ''}</option>`).join('')}${p.preisliste && !d.preislisten.some((l) => l.id === p.preisliste!.id) ? `<option value="${p.preisliste.id}" selected>${esc(p.preisliste.name)} (nicht mehr aktiv – es gilt der Standard)</option>` : ''}</select><span class="hint">${p.preislisteGilt ? `Es gilt: ${esc(p.preislisteGilt.name)}${p.preislisteGilt.standard && !p.preisliste ? ' (Standard)' : ''}` : 'Keine Standard-Preisliste – bitte unter Preislisten eine setzen'}</span></label>
+      <label>Rechnungen erhält der Patient<select name="rechnungsversand" data-hilfe="patient.rechnungsversand"><option value="email"${p.rechnungsversand === 'email' ? ' selected' : ''}>per Mail</option><option value="post"${p.rechnungsversand === 'post' ? ' selected' : ''}>per Post (drucken)</option><option value="beides"${p.rechnungsversand === 'beides' ? ' selected' : ''}>per Mail und Post</option></select></label></div>
+    <p class="hint">Nummer ${esc(p.patientennummer)} · Abrechnung ${esc(p.abrechnungsmodus)}${p.lexwareKundennummer ? ` · Lexware ${esc(p.lexwareKundennummer)}` : ''}${p.exchangeKontaktId ? ' · im Postfach als Kontakt' : ' · noch nicht als Kontakt im Postfach'}</p>
+  </fieldset>`,
+      weitere: p.status === 'archiviert'
+        ? `<button class="knopf" name="aktion" value="reaktivieren" data-hilfe="patient.reaktivieren">Wieder aktiv</button>`
+        : `<button class="knopf warnend" name="aktion" value="archivieren" data-hilfe="patient.archivieren">Archivieren</button>`,
+    }),
+  });
+}
+
+/** Adresse anlegen oder bearbeiten – ein Formular (W115) */
+export function adresseFormularSeite(p: Patient, a: Adresse | undefined, o: Rahmen): string {
+  const titel = a ? 'Adresse bearbeiten' : 'Neue Adresse';
+  const wert = (s: string | null | undefined) => esc(s ?? '');
+  return seite({
+    titel, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
+    inhalt: formular({
+      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel, symbol: 'ordner', aktion: 'adresse_speichern', id: p.id,
+      zurueck: a ? `/patienten/${p.id}/adressen/${a.id}` : `/patienten/${p.id}/adressen/neu`, abbrechen: `/patienten/${p.id}#adressen`,
+      hilfe: 'adresse.formular', knopf: 'Adresse speichern', knopfHilfe: 'adresse.speichern', oben: meldungen(o),
+      felder: `${a ? `<input type="hidden" name="adresse_id" value="${a.id}">` : ''}
+  <div class="zwei"><label>Bezeichnung<input name="bezeichnung" value="${wert(a?.bezeichnung)}" placeholder="Zuhause, Arbeit, Eltern …" maxlength="40"></label><label>Zusatz (c/o …)<input name="zusatz" value="${wert(a?.zusatz)}"></label></div>
+  <div class="zwei"><label>Straße<input name="strasse" value="${wert(a?.strasse)}"></label><label>Nr.<input name="hausnummer" class="kurz" value="${wert(a?.hausnummer)}"></label></div>
+  <div class="zwei"><label>PLZ<input name="plz" class="kurz" inputmode="numeric" value="${wert(a?.plz)}"></label><label>Ort<input name="ort" value="${wert(a?.ort)}"></label></div>
+  <label>Land<input name="land" value="${esc(a?.land ?? 'DE')}" maxlength="2" class="kurz"></label>
+  <label class="haken"><input type="checkbox" name="rechnungsadresse" value="1"${a?.rechnungsadresse ? ' checked' : ''}> Rechnungsadresse</label>`,
+      hinweis: 'Die erste Adresse eines Patienten ist automatisch Rechnungsadresse.',
+    }),
+  });
+}
+
+/** Neue Rechnung: Leistungsgruppe wählen, der Entwurf entsteht beim Anlegen (W115) */
+export function rechnungNeuSeite(p: Patient, o: Rahmen): string {
+  return seite({
+    titel: 'Neue Rechnung', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
+    inhalt: formular({
+      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel: 'Neue Rechnung', symbol: 'euro', aktion: 'rechnung_neu', id: p.id,
+      zurueck: `/patienten/${p.id}/neu/rechnung`, abbrechen: `/patienten/${p.id}#rechnungen`, hilfe: 'rechnung.neu.formular', knopf: 'Rechnungsentwurf anlegen', knopfHilfe: 'rechnung.neu.anlegen', oben: meldungen(o),
+      felder: `<fieldset data-hilfe="rechnung.neu.art"><legend>Leistungsgruppe</legend>
+    <label class="haken"><input type="radio" name="steuerklasse" value="heilbehandlung_steuerfrei" checked> Heilbehandlung – steuerfrei (§ 4 Nr. 14 UStG)</label>
+    <label class="haken"><input type="radio" name="steuerklasse" value="wellness_19"> Wellness – 19 % Umsatzsteuer (bzw. Kleinunternehmer § 19 UStG)</label>
+  </fieldset>`,
+      hinweis: 'Rezepte und Serien legen ihren Entwurf selbst an – hier für Einzelleistungen. Eine Leistungsgruppe je Rechnung; Positionen kommen auf der Rechnungsseite dazu.',
+    }),
   });
 }
 
@@ -229,6 +298,7 @@ function adresseKachel(p: Patient, a: Adresse): string {
   return `<article class="adr${a.rechnungsadresse ? ' aktiv' : ''}" data-hilfe="adresse.kachel">
     <b>${esc(a.bezeichnung ?? 'Adresse')}</b>
     <p>${zeilen.map((z) => esc(z)).join('<br>')}</p>
+    ${stift(`/patienten/${p.id}/adressen/${a.id}`, 'adresse.bearbeiten', { fenster: 'Adresse bearbeiten', text: 'Adresse bearbeiten' })}
     ${form('rechnungsadresse', `<label class="pk-aktiv" data-hilfe="adresse.rechnungsadresse"><input type="radio" name="adresse_id" value="${a.id}"${a.rechnungsadresse ? ' checked' : ''} data-auto-senden> Rechnungsadresse</label><button class="knopf klein nur-ohne-js">setzen</button>`, { id: p.id, zurueck: `/patienten/${p.id}`, klasse: 'adr-fuss' })}
     ${form('adresse_loeschen', `<input type="hidden" name="adresse_id" value="${a.id}"><button class="knopf klein warnend" data-hilfe="adresse.loeschen">entfernen</button>`, { id: p.id, zurueck: `/patienten/${p.id}` })}
   </article>`;
@@ -265,7 +335,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
     return `<article class="tk${t.verordnungId ? ' rezept' : ''}${offen ? ' mit-plus' : ''}" data-hilfe="termine.kachel">
     <b>${datumZeitText(t.beginn, { jahr: true })}</b><span class="hint">bis ${zeitText(t.ende)} · ${esc(t.art)}</span>
     <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}</span>
-    ${menue}
+    ${menue}${offen ? stift(`/patienten/${p.id}/termine/${t.id}/bearbeiten`, 'termin.bearbeiten', { fenster: 'Termin bearbeiten', text: 'Termin bearbeiten' }) : ''}
   </article>`;
   }).join('');
   const ART: Record<string, string> = { einzel: 'Einzelrechnung', zwischenrechnung: 'Zwischenrechnung', abschlussrechnung: 'Abschlussrechnung', monat: 'Monatsrechnung', ausfall: 'Ausfallgebühr' };
@@ -289,16 +359,13 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
   const jahre = [...new Set(d.rechnungen.map(jahrVon))];
   const neuestesJahr = jahre.find((j) => j !== 'Entwürfe');
   // „+“-Kachel (W114) vorn in der ersten (aufgeklappten) Gruppe – ohne Rechnungen ein eigenes Raster
-  const rechnungPlus = plusKachel({ text: 'Neue Rechnung', hilfe: 'rechnung.neu', inhalt: `<p class="hint">Rezepte und Serien legen ihren Entwurf selbst an – hier für Einzelleistungen. Eine Leistungsgruppe je Rechnung.</p>
-    <div class="knopfreihe">${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="heilbehandlung_steuerfrei"><button class="knopf primaer" data-hilfe="rechnung.neu.heil">${symbol('euro', { groesse: 16 })} Heilbehandlung (steuerfrei)</button>`, { id: p.id, zurueck })}
-    ${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="wellness_19"><button class="knopf" data-hilfe="rechnung.neu.wellness">${symbol('wellness', { groesse: 16 })} Wellness (19 % USt)</button>`, { id: p.id, zurueck })}</div>` });
+  const rechnungPlus = plusKachel({ text: 'Neue Rechnung', hilfe: 'rechnung.neu', href: `/patienten/${p.id}/neu/rechnung` });
   const rechnungen = jahre.length ? jahre.map((j, i) => {
     const liste = d.rechnungen.filter((r) => jahrVon(r) === j);
     return `<details class="rk-jahr"${j === 'Entwürfe' || j === neuestesJahr ? ' open' : ''}><summary data-hilfe="patient.rechnung.jahr"><b>${esc(j)}</b> <span class="hint">Anz. Rechnungen: ${liste.length}</span></summary><div class="rk-pat-raster">${i === 0 ? rechnungPlus : ''}${liste.map(rechnungKachel).join('')}</div></details>`;
   }).join('') : `<div class="rk-pat-raster">${rechnungPlus}</div>`;
   const legende = `<span class="rk-legende" data-hilfe="patient.rechnung.legende" tabindex="0"><span><i></i> aus dem PPM</span><span><i class="lexware"></i> aus Lexware</span><span><i class="gelb"></i> überfällig</span><span><i class="rot"></i> gemahnt</span></span>`;
   const bezugspersonen = p.bezugspersonen.map((b) => `<li><span>${symbol('patient', { groesse: 18 })}</span><span><b>${esc(b.name)}</b> <span class="hint">${esc(b.rolle)}${b.beziehung ? ` · ${esc(b.beziehung)}` : ''}${b.berechtigungsgrund ? ` · ${esc(b.berechtigungsgrund)}` : ''}${b.telefon ? ` · ${esc(b.telefon)}` : ''}</span></span></li>`).join('');
-  const feld = (label: string, nameAttr: string, wert: string | null | undefined, typ = 'text', extra = '') => `<label>${label}<input type="${typ}" name="${nameAttr}" value="${esc(wert ?? '')}"${extra}></label>`;
   return seite({
     titel: name(p), aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › ${esc(name(p))}</p>${meldungen(o)}
@@ -306,27 +373,10 @@ ${kachel(p, { kopf: true })}
 <div class="knopfreihe pat-aktionen">
   <a class="knopf primaer" href="/patienten/${p.id}/akte" data-hilfe="patient.akte">${symbol('protokoll', { groesse: 18 })} Akte / Behandlungsverlauf</a>
   <a class="knopf" href="/patienten/${p.id}/neu/behandlung" data-hilfe="plus.behandlung">${symbol('haken', { groesse: 18 })} Behandlung erfassen</a>
-  <a class="knopf" href="#stammdaten" data-oeffnet="stammdaten" data-hilfe="patient.stammdaten">${symbol('patient', { groesse: 18 })} Stammdaten bearbeiten</a>
+  <a class="knopf" href="/patienten/${p.id}/bearbeiten" data-fenster="Stammdaten bearbeiten" data-hilfe="patient.stammdaten">${symbol('patient', { groesse: 18 })} Stammdaten bearbeiten</a>
   ${form('anruf', `<input type="hidden" name="kontakt_id" value="${p.telefon?.id ?? ''}"><button class="knopf" data-hilfe="verlauf.anruf-vermerken">${symbol('telefon', { groesse: 18 })} Anruf vermerken</button>`, { id: p.id, zurueck })}
 </div>
-
-<details class="stammdaten tafel" id="stammdaten"><summary>${symbol('patient', { groesse: 18 })} Stammdaten</summary>
-  ${form('stammdaten', `
-    <div class="zwei">${feld('Anrede', 'anrede', p.anrede)}${feld('Titel', 'titel', p.titel)}</div>
-    <div class="zwei">${feld('Vorname', 'vorname', p.vorname, 'text', ' required')}${feld('Nachname', 'nachname', p.nachname, 'text', ' required')}</div>
-    <div class="zwei">${feld('Geburtsname', 'geburtsname', p.geburtsname)}${feld('Geburtsdatum', 'geburtsdatum', p.geburtsdatum, 'date')}</div>
-    <div class="zwei">${feld('Patient seit', 'patient_seit', p.patientSeit, 'date')}${feld('Sprache', 'sprache', p.sprache)}</div>
-    ${feld('Ansprache (Gendern nur auf Wunsch)', 'ansprache', p.ansprache)}
-    ${feld('Besonderheiten für die Kachel', 'besonderheiten', p.besonderheiten)}
-    ${feld('Unterstützung bei der Verständigung', 'kommunikationshilfe', p.kommunikationshilfe)}
-    <label>Beruf und Belastung im Alltag<textarea name="beruf_belastung" rows="2">${esc(p.berufBelastung ?? '')}</textarea></label>
-    <label>Notiz<textarea name="notiz" rows="2">${esc(p.notiz ?? '')}</textarea></label>
-    <div class="zwei"><label>Preisliste<select name="preisliste_id" data-hilfe="patient.preisliste"><option value=""${!p.preisliste ? ' selected' : ''}>Standard${(() => { const st = d.preislisten.find((l) => l.standard); return st ? ` (zurzeit „${esc(st.name)}“)` : ''; })()}</option>${d.preislisten.map((l) => `<option value="${l.id}"${p.preisliste?.id === l.id ? ' selected' : ''}>${esc(l.name)}${l.standard ? ' – Standard' : ''}</option>`).join('')}${p.preisliste && !d.preislisten.some((l) => l.id === p.preisliste!.id) ? `<option value="${p.preisliste.id}" selected>${esc(p.preisliste.name)} (nicht mehr aktiv – es gilt der Standard)</option>` : ''}</select><span class="hint">${p.preislisteGilt ? `Es gilt: ${esc(p.preislisteGilt.name)}${p.preislisteGilt.standard && !p.preisliste ? ' (Standard)' : ''}` : 'Keine Standard-Preisliste – bitte unter Preislisten eine setzen'}</span></label>
-      <label>Rechnungen erhält der Patient<select name="rechnungsversand" data-hilfe="patient.rechnungsversand"><option value="email"${p.rechnungsversand === 'email' ? ' selected' : ''}>per Mail</option><option value="post"${p.rechnungsversand === 'post' ? ' selected' : ''}>per Post (drucken)</option><option value="beides"${p.rechnungsversand === 'beides' ? ' selected' : ''}>per Mail und Post</option></select></label></div>
-    <p class="hint">Nummer ${esc(p.patientennummer)} · Abrechnung ${esc(p.abrechnungsmodus)}${p.lexwareKundennummer ? ` · Lexware ${esc(p.lexwareKundennummer)}` : ''}${p.exchangeKontaktId ? ' · im Postfach als Kontakt' : ' · noch nicht als Kontakt im Postfach'}</p>
-    <div class="knopfreihe"><button class="knopf primaer" data-hilfe="patient.speichern">Speichern</button>
-    ${p.status === 'archiviert' ? `<button class="knopf" name="aktion" value="reaktivieren" data-hilfe="patient.reaktivieren">Wieder aktiv</button>` : `<button class="knopf warnend" name="aktion" value="archivieren" data-hilfe="patient.archivieren">Archivieren</button>`}</div>`, { id: p.id, zurueck, klasse: 'formular' })}
-</details>
+<p class="hint pat-stand" data-hilfe="patient.stand" tabindex="0">Nummer ${esc(p.patientennummer)} · Abrechnung ${esc(p.abrechnungsmodus)}${p.lexwareKundennummer ? ` · Lexware ${esc(p.lexwareKundennummer)}` : ''} · Preisliste: ${p.preislisteGilt ? `Es gilt: ${esc(p.preislisteGilt.name)}${p.preislisteGilt.standard && !p.preisliste ? ' (Standard)' : ''}` : 'keine Standard-Preisliste – bitte unter Preislisten eine setzen'}${p.exchangeKontaktId ? ' · im Postfach als Kontakt' : ''}</p>
 
 ${offenBox}
 
@@ -377,10 +427,7 @@ ${offenBox}
 </section>
 
 <section class="pat-abschnitt" id="adressen"><h2>${symbol('ordner')} Adressen</h2>
-  <div class="adr-raster">${plusKachel({ text: 'Neue Adresse', hilfe: 'adresse.neu', inhalt: form('adresse_speichern', `<label>Bezeichnung<input name="bezeichnung" placeholder="Zuhause, Arbeit, Eltern …" maxlength="40"></label><label>Zusatz (c/o …)<input name="zusatz"></label>
-      <div class="zwei"><label>Straße<input name="strasse"></label><label>Nr.<input name="hausnummer" class="kurz"></label></div>
-      <div class="zwei"><label>PLZ<input name="plz" class="kurz"></label><label>Ort<input name="ort"></label></div><label>Land<input name="land" value="DE" maxlength="2" class="kurz"></label>
-      <label class="haken"><input type="checkbox" name="rechnungsadresse" value="1"> Rechnungsadresse</label><button class="knopf primaer">Adresse speichern</button>`, { id: p.id, zurueck, klasse: 'formular' }) })}${p.adressen.map((a) => adresseKachel(p, a)).join('')}
+  <div class="adr-raster">${plusKachel({ text: 'Neue Adresse', hilfe: 'adresse.neu', href: `/patienten/${p.id}/adressen/neu` })}${p.adressen.map((a) => adresseKachel(p, a)).join('')}
   </div>
 </section>
 
@@ -433,22 +480,30 @@ export const terminartOptionen = (arten: Terminart[], gewaehlt?: string | null) 
   return liste.length ? `<optgroup label="${esc(SEKTIONEN[s].name)}">${liste.map((a) => `<option value="${a.id}"${a.id === gewaehlt ? ' selected' : ''}>${esc(a.code)} – ${esc(a.kurz)} (${a.dauerMin} Min.)${a.aktiv ? '' : ' · nicht online'}</option>`).join('')}</optgroup>` : '';
 }).join('');
 
-export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
+/** Ein Formular für „Neuer Termin“ und „Termin bearbeiten“ (W115) */
+export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminDetail }): string {
   const p = d.patient;
-  const rezepte = d.verordnungen.map((v) => `<option value="${v.id}">${esc(v.massnahme)} – ${v.abgehakt} von ${v.anzahlVerordnet} (vom ${datumText(v.ausgestelltAm)})</option>`).join('');
+  const t = o.termin;
+  // Beim Bearbeiten auch das Rezept des Termins anbieten, falls es nicht mehr aktiv ist
+  const liste = t?.verordnungId && !d.verordnungen.some((v) => v.id === t.verordnungId) ? [...d.verordnungen, ...d.alleVerordnungen.filter((v) => v.id === t.verordnungId)] : d.verordnungen;
+  const rezepte = liste.map((v) => `<option value="${v.id}"${t?.verordnungId === v.id ? ' selected' : ''}>${esc(v.massnahme)} – ${v.abgehakt} von ${v.anzahlVerordnet} (vom ${datumText(v.ausgestelltAm)})</option>`).join('');
+  const art = (wert: string, text: string) => `<option value="${wert}"${(t?.art ?? 'behandlung') === wert ? ' selected' : ''}>${text}</option>`;
+  const dauer = t ? Math.max(5, Math.round((Date.parse(t.ende) - Date.parse(t.beginn)) / 60_000)) : 30;
+  const titel = t ? 'Termin bearbeiten' : 'Neuer Termin';
   return seite({
-    titel: 'Neuer Termin', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
-    inhalt: `${kopfzeile(p, 'Neuer Termin', 'kalender')}${meldungen(o)}
-<form method="post" action="/patienten/aktion" class="tafel formular" data-hilfe="termin.formular">
-  <input type="hidden" name="aktion" value="termin_anlegen"><input type="hidden" name="id" value="${p.id}"><input type="hidden" name="zurueck" value="/patienten/${p.id}/neu/termin">
-  <div class="zwei"><label>Datum<input type="date" name="datum" required value="${heuteBerlin()}"></label><label>Uhrzeit<input type="time" name="zeit" required step="300"></label></div>
-  <div class="zwei"><label>Dauer (Minuten)<input type="number" name="dauer_min" value="30" min="5" step="5"></label>
-    <label>Art<select name="art"><option value="behandlung">Behandlung</option><option value="erstgespraech">Erstgespräch</option><option value="sonstige">Sonstiges</option></select></label></div>
+    titel, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
+    inhalt: formular({
+      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel, symbol: 'kalender', aktion: t ? 'termin_aendern' : 'termin_anlegen', id: p.id,
+      zurueck: t ? `/patienten/${p.id}/termine/${t.id}/bearbeiten` : `/patienten/${p.id}/neu/termin`, abbrechen: `/patienten/${p.id}#termine`,
+      hilfe: 'termin.formular', knopf: t ? 'Termin speichern' : 'Termin anlegen', knopfHilfe: t ? 'termin.aendern' : 'termin.anlegen', oben: meldungen(o),
+      felder: `${t ? `<input type="hidden" name="termin_id" value="${t.id}">` : ''}
+  <div class="zwei"><label>Datum<input type="date" name="datum" required value="${t ? datumBerlin(t.beginn) : heuteBerlin()}"></label><label>Uhrzeit<input type="time" name="zeit" required value="${t ? zeitBerlin(t.beginn) : ''}"></label></div>
+  <div class="zwei"><label>Dauer (Minuten)<input type="number" name="dauer_min" value="${dauer}" min="5" step="5"></label>
+    <label>Art<select name="art">${art('behandlung', 'Behandlung')}${art('erstgespraech', 'Erstgespräch')}${art('sonstige', 'Sonstiges')}</select></label></div>
   <label>Rezept<select name="verordnung_id"><option value="">kein Rezept (Individualtermin)</option>${rezepte}</select></label>
-  <label>Terminart <span class="hint">(Farbe und Symbol im Kalender)</span><select name="terminart_id" data-hilfe="termin.terminart"><option value="">– aus Rezept bzw. Fall –</option>${terminartOptionen(d.terminarten)}</select></label>
-  <p class="hint">Der Termin steht in der Kartei und wird in den Kalender des Postfachs gespiegelt – dort mit Kategorie „Praxis-Termin“, Betreff nur Initialen und Patientennummer (Testumgebung: Kalender „Praxis-Test“).</p>
-  <button class="knopf primaer" data-hilfe="termin.anlegen">Termin anlegen</button>
-</form>`,
+  <label>Terminart <span class="hint">(Farbe und Symbol im Kalender)</span><select name="terminart_id" data-hilfe="termin.terminart"><option value="">– aus Rezept bzw. Fall –</option>${terminartOptionen(d.terminarten, t?.terminartId)}</select></label>`,
+      hinweis: 'Der Termin steht in der Kartei und wird in den Kalender des Postfachs gespiegelt – dort mit Kategorie „Praxis-Termin“, Betreff nur Initialen und Patientennummer (Testumgebung: Kalender „Praxis-Test“).',
+    }),
   });
 }
 

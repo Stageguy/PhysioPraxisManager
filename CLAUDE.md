@@ -72,9 +72,10 @@ kennt, werden nie gelöscht oder überschrieben. Jobs (z. B. Rechnung zusammenst
   `src/server.ts` (Routen, Zugang, Kopfzeilen), `src/web/*` (HTML). Keine SQL in `src/web`.
 - Fehler für die Oberfläche sind `KarteiFehler`/`PreislisteFehler`/`AktionAbgelehnt` – sie landen als
   Meldung auf der Seite, alles andere ist ein 500 und gehört ins Protokoll.
-- **Kachel-Regeln (W114, requirements §4h):** Wo ein Raster Neues zulässt, ist die erste Kachel `plusKachel()`
-  (Seitenfenster per `href` oder Popup per `inhalt`); bearbeitbare Kacheln tragen `stift()`; mehrere Aktionen
-  stecken in `plusMenue()` oben rechts. Bausteine in `src/web/bausteine.ts`, nichts davon nachbauen.
+- **Kachel-Regeln (W114/W115, requirements §4h):** Wo ein Raster Neues zulässt, ist die erste Kachel `plusKachel()`;
+  bearbeitbare Kacheln tragen `stift()`; mehrere Aktionen stecken in `plusMenue()` oben rechts. Anlegen und
+  Bearbeiten teilen sich **ein** Formular (`formular()` als eigene Seite, öffnet im Seitenfenster); Popups nur für
+  Auswahlen. Bausteine in `src/web/bausteine.ts`, nichts davon nachbauen.
 - Migrationen in `src/db/migrations/NNN_name.sql`, nur vorwärts, mit `IF NOT EXISTS`-freien, eindeutigen
   Namen (Index ≠ Tabellenname).
 - Protokoll (`audit_event`) ohne Patientendaten: Kennungen und Zahlen, keine Namen, keine Texte.

@@ -1,4 +1,4 @@
-/** Kachel-Regeln (W114): „+“-Kachel zuerst, Stift bei bearbeitbaren Kacheln, „+“-Menü bei mehreren Aktionen, Seitenfenster auf jeder Seite */
+/** Kachel-Regeln (W114/W115): „+“-Kachel zuerst, Stift bei bearbeitbaren Kacheln, „+“-Menü bei mehreren Aktionen, Seitenfenster auf jeder Seite, ein Formular für Anlegen und Bearbeiten */
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
@@ -17,21 +17,22 @@ import { heuteBerlin, tagPlus } from '../src/zeit.ts';
 import { testDb } from './testdb.ts';
 
 const R = { wer: 'lilli@example.org', fassung: '0.0.0' };
+const PLUS = '<svg [^>]*><path d="M12 5v14M5 12h14"\\/><\\/svg>';
 
-test('Bausteine: „+“-Kachel als Seitenfenster-Link oder Popup, Stift, „+“-Menü, Popup-Links; Skript gültig', () => {
-  assert.equal(
+test('Bausteine: „+“-Kachel als Seitenfenster-Link oder Popup, Plus als Strichzeichnung mittig, Stift, „+“-Menü, Popup-Links; Skript gültig', () => {
+  assert.match(
     plusKachel({ text: 'Neuer Patient', hilfe: 'patienten.neu', href: '/patienten/neu' }),
-    '<a class="plus-kachel" href="/patienten/neu" data-fenster="Neuer Patient" data-hilfe="patienten.neu"><span class="plus-zeichen" aria-hidden="true">+</span><span class="plus-text">Neuer Patient</span></a>',
+    new RegExp(`^<a class="plus-kachel" href="/patienten/neu" data-fenster="Neuer Patient" data-hilfe="patienten.neu"><span class="plus-zeichen" aria-hidden="true">${PLUS}</span><span class="plus-text">Neuer Patient</span></a>$`),
   );
-  const p = plusKachel({ text: 'Neu', titel: 'Adresse', hilfe: 'adresse.neu', inhalt: '<form>x</form>', klasse: 'sek-rezept' });
-  assert.match(p, /^<details class="plus-kachel sek-rezept"><summary data-hilfe="adresse.neu"><span class="plus-zeichen"/);
-  assert.match(p, /<div class="plus-popup" role="dialog" aria-label="Adresse"><header><b>Adresse<\/b><button type="button" class="knopf klein plus-schliessen" data-hilfe="kachel.popup-schliessen">[\s\S]*<form>x<\/form><\/div><\/details>$/);
-  assert.ok(stift('#tb-1', 'konfiguration.textbaustein.bearbeiten', { oeffnet: 'tb-1', text: 'Bearbeiten' }).startsWith('<a class="kachel-stift" href="#tb-1" data-oeffnet="tb-1" data-hilfe="konfiguration.textbaustein.bearbeiten" aria-label="Bearbeiten" title="Bearbeiten">'));
-  assert.match(plusMenue('<a href="/x">x</a>', 'rezept.plus', { klein: true, label: 'Aktionen' }), /^<details class="plus klein" data-hilfe="rezept.plus"><summary aria-label="Aktionen">\+<\/summary><div class="plus-menue"><a href="\/x">x<\/a><\/div><\/details>$/);
+  const p = plusKachel({ text: 'Neu', titel: 'Auswahl', hilfe: 'plus.rezept-serie', inhalt: '<p>x</p>', klasse: 'sek-rezept' });
+  assert.match(p, /^<details class="plus-kachel sek-rezept"><summary data-hilfe="plus.rezept-serie"><span class="plus-zeichen"/);
+  assert.match(p, /<div class="plus-popup" role="dialog" aria-label="Auswahl"><header><b>Auswahl<\/b><button type="button" class="knopf klein plus-schliessen" data-hilfe="kachel.popup-schliessen">[\s\S]*<p>x<\/p><\/div><\/details>$/);
+  assert.ok(stift('/preislisten/5', 'kachel.stift', { fenster: 'Preisliste', text: 'Bearbeiten' }).startsWith('<a class="kachel-stift" href="/preislisten/5" data-fenster="Preisliste" data-hilfe="kachel.stift" aria-label="Bearbeiten" title="Bearbeiten">'));
+  assert.match(plusMenue('<a href="/x">x</a>', 'rezept.plus', { klein: true, label: 'Aktionen' }), new RegExp(`^<details class="plus klein" data-hilfe="rezept.plus"><summary aria-label="Aktionen">${PLUS}</summary><div class="plus-menue"><a href="/x">x</a></div></details>$`));
   assert.match(popupLinks([{ href: '/a', text: 'A', hilfe: 'h', fenster: 'A' }]), /<a href="\/a" data-fenster="A" data-hilfe="h"> A<\/a>/);
   assert.doesNotThrow(() => new Function(PRAXIS_SKRIPT));
   assert.match(PRAXIS_SKRIPT, /a\[data-pdf\],a\[data-fenster\]/);
-  assert.match(PRAXIS_SKRIPT, /plus-kachel\[open\]/);
+  assert.match(PRAXIS_SKRIPT, /fenster-schliessen/);
 });
 
 let basis = '';
@@ -55,45 +56,47 @@ before(async () => {
 });
 after(() => server.close());
 
-test('Patientenliste: „+“-Kachel zuerst, kein Neu-Knopf mehr, Stift an der Patientenkachel, Archiv ohne „+“, Seitenfenster einmal', async () => {
+test('Patientenliste: „+“-Kachel zuerst, kein Neu-Knopf mehr, Stift öffnet die Stammdaten im Seitenfenster, Archiv ohne „+“, Seitenfenster einmal', async () => {
   const html = await seite('/patienten');
   assert.match(html, /<div class="pat-raster"><a class="plus-kachel" href="\/patienten\/neu" data-fenster="Neuer Patient" data-hilfe="patienten.neu">/);
   assert.doesNotMatch(html, /class="knopf primaer" href="\/patienten\/neu"/);
-  assert.match(html, new RegExp(`<a class="kachel-stift" href="/patienten/${pid}#stammdaten" data-hilfe="kachel.stift"`));
+  assert.match(html, new RegExp(`<a class="kachel-stift" href="/patienten/${pid}/bearbeiten" data-fenster="Stammdaten bearbeiten" data-hilfe="kachel.stift"`));
   assert.equal((html.match(/id="pdf-fenster"/g) ?? []).length, 1, 'Seitenfenster liegt genau einmal im Rahmen');
   assert.doesNotMatch(await seite('/patienten/archiv'), /<a class="plus-kachel"|<details class="plus-kachel"/);
 });
 
-test('Patientenseite: „+“-Kacheln vorn in Rezepten, Terminen, Rechnungen, Adressen; „+“-Menü an Termin und Rezept; Stift am Kopf', async () => {
+test('Patientenseite: „+“-Kacheln vorn; „+“-Menü an Termin und Rezept; Stifte an Kopf, Termin und Adresse führen zu den Formularseiten; kein Klappformular mehr', async () => {
   const html = await seite(`/patienten/${pid}`);
   assert.match(html, /<div class="rz-raster"><details class="plus-kachel"><summary data-hilfe="plus.rezept-serie">/);
   assert.match(html, new RegExp(`<a href="/patienten/${pid}/neu/rezept" data-fenster="Neues Rezept" data-hilfe="plus.rezept">[\\s\\S]*?<a href="/patienten/${pid}/neu/direktzugang" data-fenster="Behandlung ohne Rezept" data-hilfe="plus.direktzugang">[\\s\\S]*?<a href="/patienten/${pid}/neu/wellness" data-fenster="Wellness-Serie" data-hilfe="plus.wellness">`));
   assert.match(html, new RegExp(`<div class="tk-raster"><a class="plus-kachel" href="/patienten/${pid}/neu/termin" data-fenster="Neuer Termin" data-hilfe="plus.termin">`));
-  assert.match(html, /<article class="tk mit-plus" data-hilfe="termine.kachel">[\s\S]*?<details class="plus klein" data-hilfe="termin.plus"><summary aria-label="Aktionen zum Termin">\+<\/summary><div class="plus-menue"><a class="marke wa"[\s\S]*?data-hilfe="termin.whatsapp"[\s\S]*?<select name="status" data-hilfe="termin.status"/);
-  assert.match(html, /<div class="adr-raster"><details class="plus-kachel"><summary data-hilfe="adresse.neu">[\s\S]*?name="strasse"/);
-  assert.match(html, /<div class="rk-pat-raster"><details class="plus-kachel"><summary data-hilfe="rechnung.neu">[\s\S]*?data-hilfe="rechnung.neu.heil"[\s\S]*?data-hilfe="rechnung.neu.wellness"/);
-  assert.equal((html.match(/data-hilfe="rechnung.neu.heil"/g) ?? []).length, 1, 'die Knöpfe gibt es nur noch im Popup');
+  assert.match(html, /<article class="tk mit-plus" data-hilfe="termine.kachel">[\s\S]*?<details class="plus klein" data-hilfe="termin.plus"><summary aria-label="Aktionen zum Termin">[\s\S]*?<\/summary><div class="plus-menue"><a class="marke wa"[\s\S]*?data-hilfe="termin.whatsapp"[\s\S]*?<select name="status" data-hilfe="termin.status"/);
+  assert.match(html, new RegExp(`<a class="kachel-stift" href="/patienten/${pid}/termine/\\d+/bearbeiten" data-fenster="Termin bearbeiten" data-hilfe="termin.bearbeiten"`));
+  assert.match(html, new RegExp(`<div class="adr-raster"><a class="plus-kachel" href="/patienten/${pid}/adressen/neu" data-fenster="Neue Adresse" data-hilfe="adresse.neu">`));
+  assert.match(html, new RegExp(`<a class="kachel-stift" href="/patienten/${pid}/adressen/\\d+" data-fenster="Adresse bearbeiten" data-hilfe="adresse.bearbeiten"`));
+  assert.match(html, new RegExp(`<div class="rk-pat-raster"><a class="plus-kachel" href="/patienten/${pid}/neu/rechnung" data-fenster="Neue Rechnung" data-hilfe="rechnung.neu">`));
   assert.match(html, /<article class="rz aktiv mit-plus"[^>]*>[\s\S]*?<details class="plus klein" data-hilfe="rezept.plus">[\s\S]*?Termine planen \(6 offen\)[\s\S]*?data-hilfe="rezept.folge"[\s\S]*?data-hilfe="rezept.zweitschrift"[\s\S]*?data-hilfe="rezept.abbrechen"/);
-  assert.doesNotMatch(html, /data-hilfe="rezept\.mehr"|class="rz-mehr"|<a class="knopf klein" href="[^"]*\/termine"|<a class="knopf klein" href="[^"]*\/neu\/termin"|<details class="adr neu"/);
-  assert.match(html, /<a class="kachel-stift" href="#stammdaten" data-oeffnet="stammdaten" data-hilfe="patient.stammdaten"/);
+  assert.doesNotMatch(html, /data-hilfe="rezept\.mehr"|class="rz-mehr"|<a class="knopf klein" href="[^"]*\/termine"|<a class="knopf klein" href="[^"]*\/neu\/termin"|<details class="adr neu"|id="stammdaten"|data-hilfe="rechnung.neu.heil"/);
+  assert.match(html, new RegExp(`<a class="kachel-stift" href="/patienten/${pid}/bearbeiten" data-fenster="Stammdaten bearbeiten" data-hilfe="patient.stammdaten"`));
+  assert.match(html, new RegExp(`<a class="knopf" href="/patienten/${pid}/bearbeiten" data-fenster="Stammdaten bearbeiten" data-hilfe="patient.stammdaten">`));
   assert.equal((html.match(/id="pdf-fenster"/g) ?? []).length, 1);
   assert.equal(((await seite(`/patienten/${pid}/akte`)).match(/id="pdf-fenster"/g) ?? []).length, 1, 'Akte: Seitenfenster aus dem Rahmen, nicht doppelt');
 });
 
-test('Terminarten und Konfiguration: „+“-Kachel vorn, Stift klappt das Formular in der Kachel auf', async () => {
+test('Terminarten und Konfiguration: „+“-Kachel und Stift führen zu den Formularseiten, kein Klappformular in der Kachel', async () => {
   const ta = await seite('/konfiguration/terminarten');
-  assert.match(ta, /<div class="ta-raster"><details class="plus-kachel sek-\w+"><summary data-hilfe="terminart.neu">[\s\S]*?name="kurz"/);
-  assert.match(ta, /<a class="kachel-stift" href="#ta-(\d+)-bearbeiten" data-oeffnet="ta-\1-bearbeiten" data-hilfe="terminart.bearbeiten"[\s\S]*?<details id="ta-\1-bearbeiten"><summary class="hint nur-ohne-js"/);
-  assert.doesNotMatch(ta, /ta-kachel neu/);
+  assert.match(ta, /<div class="ta-raster"><a class="plus-kachel sek-\w+" href="\/konfiguration\/terminarten\/neu\?sektion=\w+" data-fenster="Neue Terminart" data-hilfe="terminart.neu">/);
+  assert.match(ta, /<a class="kachel-stift" href="\/konfiguration\/terminarten\/\d+" data-fenster="Terminart bearbeiten" data-hilfe="terminart.bearbeiten"/);
+  assert.doesNotMatch(ta, /ta-kachel neu|<details id="ta-/);
   const k = await seite('/konfiguration');
-  assert.match(k, /<div class="tbk-raster"><details class="plus-kachel"><summary data-hilfe="konfiguration.textbaustein.neu">/);
-  assert.doesNotMatch(k, /class="tbk neu"/);
-  if (/<article class="tbk/.test(k)) assert.match(k, /<a class="kachel-stift" href="#tb-(\d+)" data-oeffnet="tb-\1" data-hilfe="konfiguration.textbaustein.bearbeiten"[\s\S]*?<details id="tb-\1">/);
+  assert.match(k, /<div class="tbk-raster"><a class="plus-kachel" href="\/konfiguration\/textbausteine\/neu" data-fenster="Neuer Textbaustein" data-hilfe="konfiguration.textbaustein.neu">/);
+  assert.doesNotMatch(k, /class="tbk neu"|<details id="tb-/);
+  if (/<article class="tbk/.test(k)) assert.match(k, /<a class="kachel-stift" href="\/konfiguration\/textbausteine\/\d+" data-fenster="Textbaustein bearbeiten" data-hilfe="konfiguration.textbaustein.bearbeiten"/);
 });
 
 test('Anfragen, Pinnwand, Preislisten: „+“-Kachel vorn, alte Knöpfe und Klappformulare weg, Stift an der Preisliste', () => {
   const an = anfragenSeite({ anfragen: [], filter: 'alle', stand: { neu: 0, vorgeschlagen: 0 }, terminarten: [] }, R);
-  assert.match(an, /<div class="an-raster"><details class="plus-kachel"><summary data-hilfe="anfragen.neu">[\s\S]*?name="quelle"/);
+  assert.match(an, /<div class="an-raster"><a class="plus-kachel" href="\/anfragen\/neu" data-fenster="Anfrage von Hand" data-hilfe="anfragen.neu">/);
   assert.doesNotMatch(an, /<details class="tafel mehr-form"/);
   const spalten = [{ phase: 'anfrage', name: 'Anfrage', text: 'x', karten: [] }, { phase: 'behandlung', name: 'Behandlung', text: 'x', karten: [] }] as unknown as Parameters<typeof pinnwandSeite>[0]['spalten'];
   const pw = pinnwandSeite({ spalten, ansicht: 'horizontal', archiv: false }, R);

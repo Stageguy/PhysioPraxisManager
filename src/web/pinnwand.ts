@@ -10,7 +10,7 @@ import { ERKLAERUNG_ARTEN, PHASEN, PHASEN_NAMEN, type FallDetails, type Karte, t
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText } from '../format.ts';
 import { heuteBerlin } from '../zeit.ts';
-import { karteiFormular as form, meldungen, plusKachel, type Rahmen } from './bausteine.ts';
+import { formular, karteiFormular as form, meldungen, PLUS_ZEICHEN, plusKachel, type Rahmen } from './bausteine.ts';
 import { rezeptKachel } from './rezepte.ts';
 import { symbol } from './symbole.ts';
 
@@ -32,7 +32,7 @@ export function fallKarte(k: Karte, o: { ziehbar?: boolean } = {}): string {
       <span class="hint">${k.naechsterTermin ? `Termin ${datumZeitText(k.naechsterTermin)}` : k.letzteBehandlung ? `zuletzt ${datumText(k.letzteBehandlung)}` : 'kein Termin'}</span>
       ${k.warnungen.length ? `<span class="fk-warn">${symbol('warnung', { groesse: 14 })} ${k.warnungen.map(esc).join(' · ')}</span>` : ''}
     </a>
-    <details class="plus klein" data-hilfe="pinnwand.plus"><summary aria-label="Neues zu diesem Fall">+</summary><div class="plus-menue">
+    <details class="plus klein" data-hilfe="pinnwand.plus"><summary aria-label="Neues zu diesem Fall">${PLUS_ZEICHEN}</summary><div class="plus-menue">
       <a href="/patienten/${k.patientId}/neu/behandlung" data-hilfe="plus.behandlung">${symbol('haken', { groesse: 18 })} Behandlung erfassen</a>
       <a href="/patienten/${k.patientId}/neu/termin" data-hilfe="plus.termin">${symbol('kalender', { groesse: 18 })} Termin</a>
       <a href="/patienten/${k.patientId}/neu/rezept" data-hilfe="plus.rezept">${symbol('rezept', { groesse: 18 })} Rezept</a>
@@ -67,17 +67,16 @@ export function pinnwandSeite(d: { spalten: Spalte[]; ansicht: 'horizontal' | 'v
 export function fallNeuSeite(d: { patienten: PatientKurz[]; wellness: { id: string; bezeichnung: string }[] }, o: Rahmen): string {
   return seite({
     titel: 'Neuer Fall', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
-    inhalt: `<p class="hint"><a href="/pinnwand">Pinnwand</a> › Neuer Fall</p><h1>${symbol('pinnwand', { groesse: 26 })} Neuer Fall</h1>${meldungen(o)}
-<form method="post" action="/patienten/aktion" class="tafel formular" data-hilfe="pinnwand.neu.formular">
-  <input type="hidden" name="aktion" value="fall_anlegen"><input type="hidden" name="zurueck" value="/pinnwand/neu">
-  <label>Patient<select name="id" required><option value="">bitte wählen …</option>${d.patienten.map((p) => `<option value="${p.id}">${esc(`${p.nachname}, ${p.vorname}`)} (${esc(p.patientennummer)})</option>`).join('')}</select></label>
+    inhalt: formular({
+      pfad: [{ href: '/pinnwand', text: 'Pinnwand' }], titel: 'Neuer Fall', symbol: 'pinnwand', aktion: 'fall_anlegen', zurueck: '/pinnwand/neu', abbrechen: '/pinnwand',
+      hilfe: 'pinnwand.neu.formular', knopf: 'Fall anlegen (Phase Anfrage)', knopfHilfe: 'pinnwand.neu.anlegen', oben: meldungen(o),
+      felder: `<label>Patient<select name="id" required><option value="">bitte wählen …</option>${d.patienten.map((p) => `<option value="${p.id}">${esc(`${p.nachname}, ${p.vorname}`)} (${esc(p.patientennummer)})</option>`).join('')}</select></label>
   <p class="hint">Noch nicht in der Kartei? Erst unter <a href="/patienten/neu">Patienten › Neu</a> anlegen.</p>
   <label>Grundlage<select name="grundlage"><option value="verordnung">ärztliche Verordnung (Rezept folgt)</option><option value="direktzugang">Direktzugang (Heilpraktikererlaubnis)</option><option value="praevention">Prävention / Wellness</option></select></label>
   <label>Wellness-Leistung (nur bei Wellness)<select name="wellness_id"><option value="">–</option>${d.wellness.map((w) => `<option value="${w.id}">${esc(w.bezeichnung)}</option>`).join('')}</select></label>
   <label>Kurzbezeichnung<input name="bezeichnung" maxlength="80" placeholder="z. B. Schulter rechts"></label>
-  <label>Anlass (aus der Anfrage)<textarea name="anlass" rows="2"></textarea></label>
-  <button class="knopf primaer" data-hilfe="pinnwand.neu.anlegen">Fall anlegen (Phase Anfrage)</button>
-</form>`,
+  <label>Anlass (aus der Anfrage)<textarea name="anlass" rows="2"></textarea></label>`,
+    }),
   });
 }
 

@@ -64,22 +64,61 @@ export const chip = (text: string, farbe: string) => `<span class="chip ${farbe}
 // 2. Eine Kachel, die man bearbeiten darf, zeigt beim Überfahren unten rechts einen Stift (am Handy immer).
 // 3. Mehrere Aktionen zu einer Kachel stecken in einem „+“ oben rechts; eine einzelne Aktion bleibt ein Knopf.
 
+/** Das Pluszeichen als Strichzeichnung – sitzt exakt mittig im Kreis (ein Textzeichen tut das je nach Schrift nicht) */
+export const PLUS_ZEICHEN = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+
 /** „+“-Kachel – immer die erste im Raster */
 export function plusKachel(o: { text: string; hilfe: string; href?: string; inhalt?: string; titel?: string; klasse?: string }): string {
-  const innen = `<span class="plus-zeichen" aria-hidden="true">+</span><span class="plus-text">${esc(o.text)}</span>`;
+  const innen = `<span class="plus-zeichen" aria-hidden="true">${PLUS_ZEICHEN}</span><span class="plus-text">${esc(o.text)}</span>`;
   const klasse = `plus-kachel${o.klasse ? ` ${o.klasse}` : ''}`;
   if (o.href) return `<a class="${klasse}" href="${esc(o.href)}" data-fenster="${esc(o.titel ?? o.text)}" data-hilfe="${o.hilfe}">${innen}</a>`;
   return `<details class="${klasse}"><summary data-hilfe="${o.hilfe}">${innen}</summary>
     <div class="plus-popup" role="dialog" aria-label="${esc(o.titel ?? o.text)}"><header><b>${esc(o.titel ?? o.text)}</b><button type="button" class="knopf klein plus-schliessen" data-hilfe="kachel.popup-schliessen">${symbol('kreuz', { groesse: 16 })} Schließen</button></header>${o.inhalt ?? ''}</div></details>`;
 }
 
-/** Stift unten rechts: diese Kachel darf bearbeitet werden. `oeffnet` = id eines <details>, das /praxis.js aufklappt */
-export const stift = (href: string, hilfe = 'kachel.stift', o: { oeffnet?: string; text?: string } = {}): string =>
-  `<a class="kachel-stift" href="${esc(href)}"${o.oeffnet ? ` data-oeffnet="${esc(o.oeffnet)}"` : ''} data-hilfe="${hilfe}" aria-label="${esc(o.text ?? 'Bearbeiten')}" title="${esc(o.text ?? 'Bearbeiten')}">${symbol('stift', { groesse: 16 })}</a>`;
+/** Stift unten rechts: diese Kachel darf bearbeitet werden. `fenster` = Titel, wenn die Seite im Seitenfenster öffnet; `oeffnet` = id eines <details> */
+export const stift = (href: string, hilfe = 'kachel.stift', o: { oeffnet?: string; fenster?: string; text?: string } = {}): string =>
+  `<a class="kachel-stift" href="${esc(href)}"${o.oeffnet ? ` data-oeffnet="${esc(o.oeffnet)}"` : ''}${o.fenster ? ` data-fenster="${esc(o.fenster)}"` : ''} data-hilfe="${hilfe}" aria-label="${esc(o.text ?? 'Bearbeiten')}" title="${esc(o.text ?? 'Bearbeiten')}">${symbol('stift', { groesse: 16 })}</a>`;
+
+/**
+ * Formularseite (W115): ein Aufbau für Anlegen und Bearbeiten – Pfadzeile, Überschrift, Tafel mit Feldern, Speichern und
+ * Abbrechen. Aus der „+“-Kachel oder vom Stift her öffnet sie im Seitenfenster; „Abbrechen“ schließt es (ohne Skript: Link).
+ */
+export function formular(o: {
+  pfad: { href: string; text: string }[];
+  titel: string;
+  symbol: Symbol;
+  /** Aktionsadresse, Vorgabe die Kartei */
+  action?: string;
+  aktion: string;
+  /** Patient bzw. Objekt der Aktion (verstecktes Feld `id`) */
+  id?: string;
+  /** Wohin bei Fehlern (diese Seite) und wohin „Abbrechen“ führt */
+  zurueck: string;
+  abbrechen: string;
+  hilfe: string;
+  felder: string;
+  hinweis?: string;
+  knopf: string;
+  knopfHilfe: string;
+  /** Weitere Knöpfe in der Knopfreihe (z. B. Archivieren) */
+  weitere?: string;
+  /** Meldungen und Hinweise über dem Formular */
+  oben?: string;
+}): string {
+  return `<p class="hint pfadzeile">${o.pfad.map((p) => `<a href="${esc(p.href)}">${esc(p.text)}</a> › `).join('')}${esc(o.titel)}</p>
+<h1>${symbol(o.symbol, { groesse: 26 })} ${esc(o.titel)}</h1>${o.oben ?? ''}
+<form method="post" action="${o.action ?? '/patienten/aktion'}" class="tafel formular" data-hilfe="${o.hilfe}">
+  <input type="hidden" name="aktion" value="${esc(o.aktion)}">${o.id ? `<input type="hidden" name="id" value="${esc(o.id)}">` : ''}<input type="hidden" name="zurueck" value="${esc(o.zurueck)}">
+  ${o.felder}
+  ${o.hinweis ? `<p class="hint">${o.hinweis}</p>` : ''}
+  <div class="knopfreihe"><button class="knopf primaer" data-hilfe="${o.knopfHilfe}">${esc(o.knopf)}</button><a class="knopf" href="${esc(o.abbrechen)}" data-abbrechen data-hilfe="formular.abbrechen">Abbrechen</a>${o.weitere ?? ''}</div>
+</form>`;
+}
 
 /** „+“ oben rechts an der Kachel: Menü mit den Aktionen (Links oder kleine Formulare) */
 export const plusMenue = (inhalt: string, hilfe: string, o: { klein?: boolean; label?: string } = {}): string =>
-  `<details class="plus${o.klein ? ' klein' : ''}" data-hilfe="${hilfe}"><summary aria-label="${esc(o.label ?? 'Aktionen')}">+</summary><div class="plus-menue">${inhalt}</div></details>`;
+  `<details class="plus${o.klein ? ' klein' : ''}" data-hilfe="${hilfe}"><summary aria-label="${esc(o.label ?? 'Aktionen')}">${PLUS_ZEICHEN}</summary><div class="plus-menue">${inhalt}</div></details>`;
 
 /** Liste von Links in einem „+“-Popup (gleiche Optik wie das Menü oben rechts) */
 export const popupLinks = (links: { href: string; text: string; hilfe: string; symbol?: Symbol; fenster?: string }[]): string =>

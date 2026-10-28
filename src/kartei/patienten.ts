@@ -593,6 +593,46 @@ export async function terminAnlegen(
   return rows[0]!.id;
 }
 
+export interface TerminDetail {
+  id: string;
+  beginn: string;
+  ende: string;
+  art: string;
+  status: string;
+  verordnungId: string | null;
+  fallId: string | null;
+  terminartId: string | null;
+  leistungNummer: string | null;
+}
+
+export async function terminLesen(db: Db, patientId: string, terminId: string): Promise<TerminDetail | undefined> {
+  const r = (await db.query<Record<string, unknown>>(
+    'SELECT id::text, beginn, ende, art::text, status::text, verordnung_id::text, fall_id::text, terminart_id::text, leistung_nummer FROM termin WHERE id = $1 AND patient_id = $2', [terminId, patientId],
+  )).rows[0];
+  return r && {
+    id: String(r.id), beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), verordnungId: text(r.verordnung_id), fallId: text(r.fall_id),
+    terminartId: text(r.terminart_id), leistungNummer: text(r.leistung_nummer),
+  };
+}
+
+/** Termin ändern (W115): Datum, Zeit, Dauer, Art, Rezept, Terminart – solange er bestätigt oder vorgeschlagen ist; der Kalender zieht per Spiegelung nach */
+export async function terminAendern(
+  db: Db, patientId: string, terminId: string, d: { datum: string; zeit: string; dauerMin: number; art?: string; verordnungId?: string; terminartId?: string }, wer: string,
+): Promise<void> {
+  const t = await terminLesen(db, patientId, terminId);
+  if (!t) throw new KarteiFehler('Diesen Termin gibt es nicht');
+  if (!['vorgeschlagen', 'bestaetigt'].includes(t.status)) throw new KarteiFehler('Nur bestätigte oder vorgeschlagene Termine lassen sich ändern');
+  const tagText = datumPruefen(d.datum, 'Datum');
+  if (!tagText || !/^\d{2}:\d{2}$/.test(d.zeit)) throw new KarteiFehler('Datum und Uhrzeit sind nötig');
+  if (!(d.dauerMin > 0)) throw new KarteiFehler('Die Dauer muss größer 0 sein');
+  const beginn = new Date(berlinZeitUtc(tagText, d.zeit)).getTime();
+  await db.query(
+    'UPDATE termin SET beginn = $3, ende = $4, art = $5, verordnung_id = $6, terminart_id = $7, geaendert_am = now() WHERE id = $1 AND patient_id = $2',
+    [terminId, patientId, new Date(beginn).toISOString(), new Date(beginn + d.dauerMin * 60_000).toISOString(), d.art ?? t.art, d.verordnungId || null, d.terminartId && /^\d+$/.test(d.terminartId) ? d.terminartId : null],
+  );
+  await protokolliere(db, { actor: wer, action: 'termin_geaendert', objectType: 'patient', objectId: patientId, details: { terminId } });
+}
+
 export async function terminStatus(db: Db, patientId: string, terminId: string, status: string, wer: string): Promise<void> {
   const erlaubt = ['bestaetigt', 'abgesagt_patient', 'abgesagt_praxis', 'nicht_erschienen'];
   if (!erlaubt.includes(status)) throw new KarteiFehler('Unbekannter Terminstatus');
