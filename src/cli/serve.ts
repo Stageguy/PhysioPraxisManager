@@ -32,6 +32,7 @@ import { attrappeRechnungen, lexwareRechnungen } from '../lexware/rechnungen.ts'
 import { umgebung } from '../umgebung.ts';
 import { feiertageSicherstellen } from '../kartei/freie-tage.ts';
 import { regelzeitenSicherstellen } from '../kartei/regelzeiten.ts';
+import { outlookTermineUebernehmen } from '../kartei/outlook-termine.ts';
 
 const env = loadEnv();
 const port = Number(process.env.PORT ?? 3300);
@@ -139,6 +140,9 @@ if (db && schluessel && anfragen && takt > 0) {
         const bb = await buchungAbgleich(db, schluessel, graph, buchung);
         if (bb.neu || bb.fehler) console.log(`Buchungsseite: ${bb.neu} neue Buchungen, ${bb.fehler} Fehler; Angebot ${bb.angebot.terminarten} Terminarten, ${bb.angebot.tage} Tage`);
       }
+      // Outlook → Kartei (W112): Praxis-Termine mit Patientennummer übernehmen, verschobene Zeiten nachziehen
+      const ot = await outlookTermineUebernehmen(db, graph, 'system');
+      if (ot.neu || ot.verschoben) console.log(`Kalender: ${ot.neu} Outlook-Termine in die Kartei übernommen, ${ot.verschoben} Zeiten nachgezogen${ot.unbekannt ? `, ${ot.unbekannt} ohne bekannte Patientennummer` : ''}`);
     } catch (err) {
       console.warn(`Terminanfragen: ${(err as Error).message.slice(0, 200)}`);
     }

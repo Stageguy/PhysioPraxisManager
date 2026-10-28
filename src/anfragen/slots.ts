@@ -42,6 +42,40 @@ export const oeffnungszeitenText = (liste: Oeffnungszeit[]): string => {
   return [...je.entries()].sort((a, b) => a[0] - b[0]).map(([t, f]) => `${TAG_NAMEN[t]} ${f.join(',')}`).join('; ');
 };
 
+/** Öffnungszeiten je Wochentag für das Formular (W112): ein Fenster oder zwei mit einer Pause dazwischen */
+export interface OeffnungsTag { tag: number; name: string; offen: boolean; von: string; bis: string; pauseVon: string; pauseBis: string }
+
+export function oeffnungszeitenJeTag(liste: Oeffnungszeit[]): OeffnungsTag[] {
+  return [1, 2, 3, 4, 5, 6, 7].map((tag) => {
+    const f = liste.filter((o) => o.tag === tag).sort((a, b) => a.von.localeCompare(b.von));
+    if (!f.length) return { tag, name: TAG_NAMEN[tag]!, offen: false, von: '', bis: '', pauseVon: '', pauseBis: '' };
+    return { tag, name: TAG_NAMEN[tag]!, offen: true, von: f[0]!.von, bis: f[f.length - 1]!.bis, pauseVon: f.length > 1 ? f[0]!.bis : '', pauseBis: f.length > 1 ? f[1]!.von : '' };
+  });
+}
+
+/** Aus dem Formular zurück in Fenster; wirft bei Unsinn (Ende vor Beginn, Pause außerhalb der Öffnungszeit) */
+export function oeffnungszeitenAusTagen(zeilen: OeffnungsTag[]): Oeffnungszeit[] {
+  const liste: Oeffnungszeit[] = [];
+  const zeit = (s: string, was: string, name: string) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+    if (!m) throw new Error(`${name}: ${was} wie 08:00 eintragen`);
+    return `${m[1]!.padStart(2, '0')}:${m[2]}`;
+  };
+  for (const z of zeilen) {
+    if (!z.offen) continue;
+    const von = zeit(z.von, 'Beginn', z.name);
+    const bis = zeit(z.bis, 'Ende', z.name);
+    if (von >= bis) throw new Error(`${z.name}: Ende liegt vor dem Beginn`);
+    if (z.pauseVon.trim() || z.pauseBis.trim()) {
+      const pv = zeit(z.pauseVon, 'Pause von', z.name);
+      const pb = zeit(z.pauseBis, 'Pause bis', z.name);
+      if (!(von < pv && pv < pb && pb < bis)) throw new Error(`${z.name}: die Pause muss innerhalb der Öffnungszeit liegen`);
+      liste.push({ tag: z.tag, von, bis: pv }, { tag: z.tag, von: pb, bis });
+    } else liste.push({ tag: z.tag, von, bis });
+  }
+  return liste;
+}
+
 export interface Belegt {
   beginn: string;
   ende: string;

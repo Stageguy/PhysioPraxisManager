@@ -383,6 +383,9 @@ table.regelzeiten td:nth-child(3){white-space:nowrap}details.regelzeiten-liste>s
 .kal-tag h2{font-size:15px;margin:0 0 6px;display:flex;gap:6px;align-items:center}.kal-tag h2 a{text-decoration:none}
 .kal-termin{display:flex;flex-direction:column;gap:2px;background:var(--karte);border:1px solid var(--rand);border-left:5px solid var(--rand);border-radius:10px;padding:6px 10px;margin-bottom:6px;color:var(--fg);text-decoration:none;font-size:14px}
 .kal-termin.rezept{border-left-color:var(--ok)}
+.kal-termin.block{border-left-color:var(--grau);color:var(--grau);background:color-mix(in srgb,var(--grau) 9%,var(--karte))}.kal-termin.outlook-patient{border-left-color:var(--akzent);border-style:dashed}
+.kal-oeff{margin:-2px 0 6px;font-size:12px;color:var(--grau)}.kal-tag.zu{opacity:.7}
+table.oeffnungszeiten input[type=time]{min-height:34px;width:112px}table.oeffnungszeiten input[type=checkbox]{width:20px;height:20px;accent-color:var(--akzent)}
 /* Sektionen (W95): Teilrahmen links und Symbol in der Farbe der Sektion */
 .kal-termin.sek-rezept{border-left-color:var(--sek-rezept)}.kal-termin.sek-selbstzahler{border-left-color:var(--sek-selbstzahler)}.kal-termin.sek-wellness{border-left-color:var(--sek-wellness)}
 .sek-sym{display:inline-flex;align-items:center;vertical-align:-2px;margin-right:4px}.sek-sym.sek-rezept{color:var(--sek-rezept)}.sek-sym.sek-selbstzahler{color:var(--sek-selbstzahler)}.sek-sym.sek-wellness{color:var(--sek-wellness)}

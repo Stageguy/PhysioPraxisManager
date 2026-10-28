@@ -35,6 +35,18 @@ import { bankverbindung, girocodeDataUri } from '../rechnungen/girocode.ts';
 import { brueckentageSetzen, feiertageImportieren, freierTagLoeschen, freierTagSperren, freieTageDaten, freieTageZeitraum, schliesstageAnlegen, type FreieTageDaten } from './freie-tage.ts';
 import { regelzeiten, regelzeitenUebernehmen, regelzeitSetzen, type Regelzeit } from './regelzeiten.ts';
 import { rezeptTermineDaten, terminWerte, type RezeptTermineDaten } from './rezept-termine.ts';
+import { outlookBloecke, type KalenderBlock } from './outlook-termine.ts';
+import { slotRegeln } from '../anfragen/dienst.ts';
+import { oeffnungszeitenAusTagen, oeffnungszeitenText, type Oeffnungszeit } from '../anfragen/slots.ts';
+import { WOCHENTAG_KURZ } from './freie-tage.ts';
+
+/** Was die Kalenderseite neben den Kartei-Terminen zeigt (W112): Outlook-Blöcke im Öffnungsfenster und die Öffnungszeiten */
+export interface KalenderUmfeld {
+  bloecke: KalenderBlock[];
+  oeffnungszeiten: Oeffnungszeit[];
+  postfach: boolean;
+  fehler?: string;
+}
 
 /** GiroCode für offene Rechnungen aus Lexware (W102) – nur mit hinterlegter Bankverbindung und Rechnungsnummer */
 async function girocodeFuer(db: Db, r: Rechnung): Promise<string | null> {
@@ -126,6 +138,8 @@ export interface KarteiDienst {
   /** Freie Tage eines Zeitraums für die Kalenderseite (Datum → Name) */
   freieTage(von: string, bis: string): Promise<Record<string, string>>;
   kalender(vonIso: string, bisIso: string): Promise<TerminKalender[]>;
+  /** Outlook-Blöcke und Öffnungszeiten für die Kalenderseite (W112) – ohne Postfach nur die Öffnungszeiten */
+  kalenderUmfeld(vonIso: string, bisIso: string): Promise<KalenderUmfeld>;
   steuer(jahr: number, maskiert: boolean): Promise<SteuerListe>;
   wellness(): Promise<WellnessLeistung[]>;
   gruende(): Promise<Gespraechsgrund[]>;
@@ -247,6 +261,16 @@ export function karteiDienst(q: {
     async konfiguration(o = {}) { return { textbausteine: await textbausteine(db, { alle: true }), einstellungen: await einstellungen(db), freieTage: await freieTageDaten(db, o.jahr), regelzeiten: await regelzeiten(db) }; },
     freieTage: (von, bis) => freieTageZeitraum(db, von, bis),
     kalender: (von, bis) => termineZeitraum(db, von, bis),
+    async kalenderUmfeld(von, bis) {
+      const { oeffnungszeiten } = await slotRegeln(db);
+      if (!q.graph) return { bloecke: [], oeffnungszeiten, postfach: false };
+      try {
+        return { bloecke: await outlookBloecke(db, q.graph, von, bis, oeffnungszeiten), oeffnungszeiten, postfach: true };
+      } catch (err) {
+        console.warn(`Kalender: ${(err as Error).message.slice(0, 200)}`);
+        return { bloecke: [], oeffnungszeiten, postfach: true, fehler: 'Der Kalender des Postfachs war nicht erreichbar – Outlook-Termine fehlen in dieser Ansicht.' };
+      }
+    },
     steuer: (jahr, maskiert) => steuerfreieUmsaetze(db, { jahr, maskiert }),
     gruende: () => gespraechsgruende(db),
     terminarten: () => terminarten(db),
@@ -329,6 +353,21 @@ export function karteiDienst(q: {
       if (aktion === 'feiertage_importieren') {
         const e = await feiertageImportieren(db, ganz(f.get('jahr')), wer, { abruf: q.abruf });
         return nach(`/konfiguration?jahr=${e.jahr}#freie-tage`, `${e.anzahl} Feiertage ${e.jahr} eingetragen (Quelle: ${e.quelle}).`);
+      }
+      // Öffnungszeiten und Pausen je Wochentag (W112) – ohne Patient
+      if (aktion === 'oeffnungszeiten_setzen') {
+        const zeilen = [1, 2, 3, 4, 5, 6, 7].map((tag) => ({
+          tag, name: WOCHENTAG_KURZ[tag - 1]!, offen: f.has(`offen_${tag}`), von: g(`von_${tag}`) ?? '', bis: g(`bis_${tag}`) ?? '', pauseVon: g(`pause_von_${tag}`) ?? '', pauseBis: g(`pause_bis_${tag}`) ?? '',
+        }));
+        let text: string;
+        try {
+          text = oeffnungszeitenText(oeffnungszeitenAusTagen(zeilen));
+        } catch (err) {
+          throw new KarteiFehler((err as Error).message);
+        }
+        if (!text) throw new KarteiFehler('Mindestens ein Tag muss geöffnet sein');
+        await einstellungSetzen(db, 'oeffnungszeiten', text, wer);
+        return nach('/konfiguration#oeffnungszeiten', `Öffnungszeiten gespeichert: ${text}`);
       }
       // Regelbehandlungszeiten (W110) – ohne Patient
       if (aktion === 'regelzeiten_uebernehmen') {

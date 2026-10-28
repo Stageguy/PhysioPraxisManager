@@ -5,7 +5,7 @@
 import { AUTOMATISCH_TEXT, WIRKUNG_TEXT, type Textbaustein } from '../kartei/konfiguration.ts';
 import { FREIE_TAG_ART_TEXT, WOCHENTAG_KURZ, type FreieTageDaten } from '../kartei/freie-tage.ts';
 import { REGELZEIT_QUELLE_TEXT, type Regelzeit } from '../kartei/regelzeiten.ts';
-import { wochentag } from '../anfragen/slots.ts';
+import { oeffnungszeitenJeTag, oeffnungszeitenLesen, wochentag, type OeffnungsTag } from '../anfragen/slots.ts';
 import { datumText } from '../format.ts';
 import { esc, seite } from './layout.ts';
 import { karteiFormular, meldungen, type Rahmen } from './bausteine.ts';
@@ -39,6 +39,36 @@ function freieTageAbschnitt(ft: FreieTageDaten, einstellungen: Record<string, st
   ${formFt('schliesstage_anlegen', `<div class="zwei"><label>Von<input type="date" name="von" required></label><label>Bis <span class="hint">(leer = ein Tag)</span><input type="date" name="bis"></label></div>
     <div class="zwei"><label>Bezeichnung<input name="name" maxlength="80" placeholder="z. B. Sommerurlaub"></label><label>Art<select name="art"><option value="urlaub">Urlaub</option><option value="fortbildung">Fortbildung</option><option value="geschlossen">Praxis geschlossen</option></select></label></div>
     <button class="knopf klein" data-hilfe="konfiguration.schliesstag-anlegen">Schließtage eintragen</button>`, 'formular')}
+</div>
+`;
+}
+
+const OEFFNUNG_STANDARD = 'Mo 08:00-18:00; Di 08:00-18:00; Mi 08:00-18:00; Do 08:00-18:00; Fr 08:00-14:00';
+
+/** Abschnitt „Kalender: Öffnungszeiten und Pausen“ (W112) – je Wochentag Beginn, Ende, Pause; als Text für Sonderfälle */
+function oeffnungszeitenAbschnitt(einstellungen: Record<string, string>, jahr: number): string {
+  const text = einstellungen.oeffnungszeiten ?? OEFFNUNG_STANDARD;
+  let tage: OeffnungsTag[];
+  try {
+    tage = oeffnungszeitenJeTag(oeffnungszeitenLesen(text));
+  } catch {
+    tage = oeffnungszeitenJeTag([]);
+  }
+  const formO = (aktion: string, inhalt: string, klasse = 'inline') => karteiFormular(aktion, inhalt, { zurueck: `/konfiguration?jahr=${jahr}`, klasse });
+  const zeit = (name: string, wert: string, label: string) => `<input type="time" name="${name}" value="${wert}" step="300" aria-label="${label}">`;
+  return `<h2 id="oeffnungszeiten">Kalender: Öffnungszeiten und Pausen</h2>
+<div class="tafel">
+  <p class="hint">Nur in diesen Zeiten gibt es Terminvorschläge und Buchungen (W112) – je Wochentag Beginn, Ende und eine Pause. Von Hand lassen sich Termine auch außerhalb anlegen. Outlook-Termine in diesen Fenstern zeigt der Kalender als Block.</p>
+  ${formO('oeffnungszeiten_setzen', `<div class="tabelle"><table class="oeffnungszeiten" data-hilfe="konfiguration.oeffnungszeiten-tabelle"><thead><tr><th>Tag</th><th>geöffnet</th><th>von</th><th>bis</th><th>Pause von</th><th>Pause bis</th></tr></thead><tbody>
+    ${tage.map((t) => `<tr><td>${t.name}</td><td><input type="checkbox" name="offen_${t.tag}" value="1"${t.offen ? ' checked' : ''} aria-label="${t.name} geöffnet"></td><td>${zeit(`von_${t.tag}`, t.von, `${t.name} von`)}</td><td>${zeit(`bis_${t.tag}`, t.bis, `${t.name} bis`)}</td><td>${zeit(`pause_von_${t.tag}`, t.pauseVon, `${t.name} Pause von`)}</td><td>${zeit(`pause_bis_${t.tag}`, t.pauseBis, `${t.name} Pause bis`)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="hint">Derzeit: ${esc(text)}</p>
+    <button class="knopf primaer" data-hilfe="konfiguration.oeffnungszeiten-speichern">Öffnungszeiten speichern</button>`, 'formular')}
+  <details><summary class="knopf klein" data-hilfe="konfiguration.oeffnungszeiten-text">Als Text bearbeiten (mehr als zwei Fenster an einem Tag)</summary>
+    ${form('einstellung', `<input type="hidden" name="schluessel" value="oeffnungszeiten">
+    <label>Öffnungszeiten <span class="hint">(je Wochentag, mehrere Fenster mit Komma, Tage mit Semikolon)</span><input name="wert" value="${esc(text)}" data-hilfe="konfiguration.oeffnungszeiten"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  </details>
 </div>
 `;
 }
@@ -126,14 +156,12 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}
 </div>
 
+${oeffnungszeitenAbschnitt(d.einstellungen, d.freieTage.jahr)}
 ${freieTageAbschnitt(d.freieTage, d.einstellungen)}
 ${regelzeitenAbschnitt(d.regelzeiten, d.freieTage.jahr)}
 <h2>Termine und Terminanfragen</h2>
 <div class="tafel">
   <p><a class="knopf primaer" href="/konfiguration/terminarten" data-hilfe="konfiguration.terminarten">${symbol('kalender', { groesse: 18 })} Terminarten für die Online-Anfrage (Kacheln)</a></p>
-  ${form('einstellung', `<input type="hidden" name="schluessel" value="oeffnungszeiten">
-    <label>Öffnungszeiten <span class="hint">(je Wochentag, mehrere Fenster mit Komma, Tage mit Semikolon)</span><input name="wert" value="${esc(d.einstellungen.oeffnungszeiten ?? 'Mo 08:00-18:00; Di 08:00-18:00; Mi 08:00-18:00; Do 08:00-18:00; Fr 08:00-14:00')}" data-hilfe="konfiguration.oeffnungszeiten"></label>
-    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
   ${form('einstellung', `<input type="hidden" name="schluessel" value="termin_dauer_min">
     <label>Dauer eines Termins in Minuten (Vorgabe für Vorschläge)<input name="wert" value="${esc(d.einstellungen.termin_dauer_min ?? '30')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.termin-dauer"></label>
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}
