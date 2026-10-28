@@ -118,7 +118,7 @@ export const HILFE: Record<string, HilfeEintrag> = {
     ergebnis: 'Die Liste und die Brückentage des gewählten Jahres.', rueckweg: 'Anderes Jahr wählen.' },
   'konfiguration.feiertage-laden': { seite: 'Konfiguration', titel: 'Feiertage neu laden',
     loest_aus: 'Holt die bayerischen Feiertage des Jahres von feiertage-api.de und trägt sie als gesperrte Tage ein; ist die Quelle nicht erreichbar, rechnet der eigene Rechner (Ostern nach Gauß).',
-    bezug: 'Gesetzliche Feiertage in Bayern einschließlich Mariä Himmelfahrt.', aendert: 'Legt fehlende Feiertage an, aktualisiert Namen; ob ein Tag gesperrt oder offen ist, bleibt wie von dir gesetzt.',
+    bezug: 'Gesetzliche Feiertage in Bayern einschließlich Mariä Himmelfahrt. Das Augsburger Friedensfest (nur Augsburg) und der Buß- und Bettag (in Bayern kein Feiertag) kommen mit, stehen aber von vornherein „offen“.', aendert: 'Legt fehlende Feiertage an, aktualisiert Namen; ob ein Tag gesperrt oder offen ist, bleibt wie von dir gesetzt.',
     ergebnis: 'Die Meldung nennt Anzahl und Quelle.', rueckweg: 'Nicht nötig – ein erneuter Klick ändert nichts an deinen Sperren.' },
   'konfiguration.tag-sperren': { seite: 'Konfiguration', titel: 'Tag sperren oder freigeben',
     loest_aus: 'Schaltet den Tag zwischen „gesperrt“ (keine Vorschläge, nicht buchbar) und „offen“ (Termine möglich) um – etwa Mariä Himmelfahrt, wenn du an dem Tag behandelst.',

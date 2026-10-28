@@ -16,8 +16,9 @@ const kaputt = (async () => { throw new Error('offline'); }) as typeof fetch;
 
 test('Import: feiertage-api.de wird gelesen; fällt sie aus, rechnet der eigene Rechner; Sperren von Hand bleiben', async () => {
   const db = await testDb();
-  const abruf = (async () => Response.json({ Neujahrstag: { datum: '2027-01-01', hinweis: '' }, 'Heilige Drei Könige': { datum: '2027-01-06', hinweis: '' }, Quatsch: { datum: 'x' } })) as typeof fetch;
-  assert.deepEqual(await feiertageImportieren(db, 2027, 'x', { abruf }), { jahr: 2027, anzahl: 2, quelle: 'feiertage-api.de' });
+  const abruf = (async () => Response.json({ Neujahrstag: { datum: '2027-01-01', hinweis: '' }, 'Heilige Drei Könige': { datum: '2027-01-06', hinweis: '' }, 'Buß- und Bettag': { datum: '2027-11-17', hinweis: '' }, Quatsch: { datum: 'x' } })) as typeof fetch;
+  assert.deepEqual(await feiertageImportieren(db, 2027, 'x', { abruf }), { jahr: 2027, anzahl: 3, quelle: 'feiertage-api.de' });
+  assert.deepEqual((await freieTageListe(db, 2027)).map((t) => [t.datum, t.gesperrt]), [['2027-01-01', true], ['2027-01-06', true], ['2027-11-17', false]], 'Buß- und Bettag steht drin, aber offen');
   assert.deepEqual(await feiertageImportieren(db, 2026, 'x', { abruf: kaputt }), { jahr: 2026, anzahl: 13, quelle: 'Rechner' });
   const liste = await freieTageListe(db, 2026);
   assert.equal(liste.length, 13);

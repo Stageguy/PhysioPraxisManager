@@ -19,6 +19,8 @@ export const FREIE_TAG_ART_TEXT: Record<FreieTagArt, string> = { feiertag: 'Feie
 export const WOCHENTAG_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
+/** feiertage-api.de liefert für BY auch das Augsburger Friedensfest (nur Stadt Augsburg) und den Buß- und Bettag (kein gesetzlicher Feiertag in Bayern) */
+const NICHT_FREI_IN_BAD_WOERISHOFEN = new Set(['Augsburger Friedensfest', 'Buß- und Bettag']);
 const jahrPruefen = (jahr: number): number => {
   if (!Number.isInteger(jahr) || jahr < 2020 || jahr > 2100) throw new KarteiFehler('Jahr zwischen 2020 und 2100');
   return jahr;
@@ -43,9 +45,10 @@ export async function feiertageImportieren(db: Db, jahr: number, wer: string, o:
     quelle = 'Rechner';
   }
   for (const [datum, name] of liste) {
+    // Die Quelle liefert für Bayern auch Tage, die in Bad Wörishofen nicht frei sind – sie stehen in der Liste, aber offen
     await db.query(
-      `INSERT INTO freier_tag (datum, name, art, gesperrt, quelle, erstellt_von) VALUES ($1, $2, 'feiertag', true, $3, $4)
-       ON CONFLICT (datum) DO UPDATE SET name = EXCLUDED.name, art = 'feiertag', quelle = EXCLUDED.quelle`, [datum, name, quelle, wer],
+      `INSERT INTO freier_tag (datum, name, art, gesperrt, quelle, erstellt_von) VALUES ($1, $2, 'feiertag', $5, $3, $4)
+       ON CONFLICT (datum) DO UPDATE SET name = EXCLUDED.name, art = 'feiertag', quelle = EXCLUDED.quelle`, [datum, name, quelle, wer, !NICHT_FREI_IN_BAD_WOERISHOFEN.has(name)],
     );
   }
   await protokolliere(db, { actor: wer, action: 'feiertage_importiert', details: { jahr, anzahl: liste.length, quelle } });
