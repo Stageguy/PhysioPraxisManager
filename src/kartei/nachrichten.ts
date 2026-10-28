@@ -14,6 +14,7 @@ import { pruefeEmpfaenger, SchrankeVerletzt } from '../umgebung.ts';
 import { waLink, WhatsAppFehler, type EingehendeNachricht, type WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
 import { KarteiFehler, patientLesen, rechnungen, termine, type Patient, type RechnungKurz, type TerminKurz } from './patienten.ts';
 import { rechnungLesen, rechnungPdf, rechnungStatus } from './rechnungen.ts';
+import { bankverbindung, epcText, girocodePng } from '../rechnungen/girocode.ts';
 
 export interface DokumentKurz {
   id: string;
@@ -57,6 +58,12 @@ export async function rechnungSenden(
     if (!pdf) throw new KarteiFehler('Für diese Rechnung liegt noch kein PDF aus Lexware vor');
     const { betreff, text } = nachrichtText('email', 'rechnung_info', patient, { rechnung: kurz });
     const mail: NeueMail = { an: [patient.email.normiert], betreff, text, anhaenge: [{ name: pdf.name, mime: 'application/pdf', daten: pdf.daten }] };
+    // GiroCode (W102): Banking-App liest IBAN, Betrag und Rechnungsnummer – nur mit hinterlegter Bankverbindung
+    const bank = await bankverbindung(db);
+    if (bank && kurz.nummer && (kurz.betrag ?? 0) > 0) {
+      mail.anhaenge!.push({ name: `GiroCode-${kurz.nummer}.png`, mime: 'image/png', daten: await girocodePng(epcText({ bank, betrag: kurz.betrag!, verwendungszweck: kurz.nummer })) });
+      mail.text += '\n\nPS: Mit dem beigefügten GiroCode überweisen Sie per Banking-App – scannen, prüfen, bestätigen; Betrag und Rechnungsnummer sind vorbelegt.';
+    }
     try {
       pruefeMail(mail);
       pruefeEmpfaenger(mail.an);

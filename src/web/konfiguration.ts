@@ -58,6 +58,20 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
   <p class="hint">Heilbehandlungen sind unabhängig davon steuerfrei (§ 4 Nr. 14 Buchst. a UStG). Kleinunternehmer: bis 25.000 € Umsatz im Vorjahr und 100.000 € im laufenden Jahr (Stand 2025); die Rechnung braucht den Hinweis auf § 19 UStG (§ 34a UStDV).</p>
 </div>
 
+<h2>Bankverbindung für den GiroCode</h2>
+<div class="tafel">
+  <p class="hint">Mit IBAN entsteht zu jeder Rechnung aus Lexware ein GiroCode: Der Patient scannt ihn mit der Banking-App, IBAN, Betrag und Rechnungsnummer sind vorbelegt – so ordnet Lexware die Zahlung automatisch zu (W102). Der Code steht auf der Rechnungsseite und hängt an der Rechnungs-Mail.</p>
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="bank_inhaber">
+    <label>Kontoinhaber<input name="wert" value="${esc(d.einstellungen.bank_inhaber ?? '')}" maxlength="70" placeholder="Praxis Lilli Nebel" data-hilfe="konfiguration.bank-inhaber"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="bank_iban">
+    <label>IBAN<input name="wert" value="${esc(d.einstellungen.bank_iban ?? '')}" maxlength="42" placeholder="DE.." autocomplete="off" data-hilfe="konfiguration.bank-iban"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="bank_bic">
+    <label>BIC (optional)<input name="wert" value="${esc(d.einstellungen.bank_bic ?? '')}" maxlength="11" class="kurz" autocomplete="off" data-hilfe="konfiguration.bank-bic"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+</div>
+
 <h2>Termine und Terminanfragen</h2>
 <div class="tafel">
   <p><a class="knopf primaer" href="/konfiguration/terminarten" data-hilfe="konfiguration.terminarten">${symbol('kalender', { groesse: 18 })} Terminarten für die Online-Anfrage (Kacheln)</a></p>

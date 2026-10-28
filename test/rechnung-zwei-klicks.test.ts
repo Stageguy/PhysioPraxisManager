@@ -8,6 +8,7 @@ import { verordnungAnlegen } from '../src/kartei/patienten.ts';
 import { LexwareClient } from '../src/lexware/client.ts';
 import { attrappeKunden } from '../src/lexware/kunden.ts';
 import { attrappeRechnungen, kontaktKoerper, lexwareDatum, lexwareRechnungen, rechnungKoerper } from '../src/lexware/rechnungen.ts';
+import { einstellungSetzen } from '../src/kartei/konfiguration.ts';
 import { standardSetzen } from '../src/preise/preislisten.ts';
 import { praxisDienst } from '../src/server.ts';
 import { neuerHauptschluessel, tresor } from '../src/tresor.ts';
@@ -61,6 +62,9 @@ before(async () => {
   const liste = (await db.query<{ id: string }>("INSERT INTO preisliste (name, status, freigegeben_am) VALUES ('Preise 2026', 'freigegeben', now()) RETURNING id::text")).rows[0]!.id;
   await db.query("INSERT INTO preisliste_position (preisliste_id, reihenfolge, nummer, bezeichnung, gkv_preis, eigener_preis, uebernehmen) VALUES ($1, 1, '21201', 'Manuelle Therapie', 35.59, 40, true)", [liste]);
   await standardSetzen(db, liste, 'x');
+  // Bankverbindung für den GiroCode (W102) – die bekannte Beispiel-IBAN mit gültiger Prüfziffer
+  await einstellungSetzen(db, 'bank_inhaber', 'Praxis Lilli Nebel', 'x');
+  await einstellungSetzen(db, 'bank_iban', 'DE89 3704 0044 0532 0130 00', 'x');
   server = praxisDienst({ erlaubt: ['lilli@example.org'], fassung: 't', angemeldet: async () => true, pruefen: async () => [], kartei: karteiDienst({ db, tresor: t, graph, lexware: attrappeKunden(), lexwareRechnungen: lexware }) });
   await new Promise<void>((f) => server.listen(0, '127.0.0.1', f));
   basis = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -90,6 +94,7 @@ test('Klick 1 „Nach Lexware“: Entwurf wird fertig, Kunde in Lexware angelegt
   html = await seite(`/patienten/${pid}/rechnungen/${rid}`);
   assert.match(html, /data-hilfe="rechnung.versand-art"[\s\S]{0,300}data-hilfe="rechnung.versenden"/);
   assert.match(html, /data-hilfe="ausgang.pdf"/);
+  assert.match(html, /<figure class="girocode" data-hilfe="rechnung.girocode"[^>]*><img src="data:image\/png;base64,[A-Za-z0-9+/=]+" alt="GiroCode zum Bezahlen"/, 'GiroCode auf der Rechnungsseite (W102)');
   // Noch einmal: schon in Lexware
   assert.match(ziel(await post({ aktion: 'rechnung_lexware', id: pid, rechnung_id: rid, zurueck: `/patienten/${pid}` })), /fehler=Die Rechnung ist schon in Lexware/);
   // Die neue Rechnung steht in der Lexware-Belegliste und ist beim Abgleich „unverändert“
@@ -109,6 +114,11 @@ test('Klick 2 „Versenden“: Mail sofort aus dem Postfach mit PDF-Anhang, Stat
   assert.match(m.message.attachments[0]!.name, /^RE-\d{4}-9001\.pdf$/);
   assert.equal(m.message.attachments[0]!.contentType, 'application/pdf');
   assert.match(m.message.body.content, /Verwendungszweck nur die Rechnungsnummer RE-\d{4}-9001/);
+  // GiroCode (W102) hängt als PNG an, der Text sagt es
+  assert.match(m.message.attachments[1]!.name, /^GiroCode-RE-\d{4}-9001\.png$/);
+  assert.equal(m.message.attachments[1]!.contentType, 'image/png');
+  assert.equal(Buffer.from((m.message.attachments[1] as unknown as { contentBytes: string }).contentBytes, 'base64').subarray(1, 4).toString(), 'PNG');
+  assert.match(m.message.body.content, /PS: Mit dem beigefügten GiroCode/);
   const zeile = (await db.query<Record<string, unknown>>('SELECT status::text, versand_art, versendet_am::text FROM rechnung WHERE id = $1', [rid])).rows[0]!;
   assert.deepEqual([zeile.status, zeile.versand_art, Boolean(zeile.versendet_am)], ['gesendet', 'email', true]);
   const html = await seite(`/patienten/${pid}`);

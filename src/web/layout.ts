@@ -335,6 +335,7 @@ details.rk-jahr summary b{color:var(--fg);font-size:16px}
 .pdf-fenster[hidden]{display:none}.pdf-fenster header{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--rand);color:var(--akzent)}
 .pdf-fenster header b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}.pdf-fenster iframe{flex:1;border:0;width:100%;background:#fff}
 body.pdf-offen{overflow:hidden}
+figure.girocode{margin:10px 0 0;display:flex;gap:12px;align-items:center}figure.girocode img{border:1px solid var(--rand);border-radius:8px;background:#fff;flex:none}figure.girocode figcaption{font-size:13px;color:var(--grau)}
 .verlauf-fenster{max-height:360px;overflow:auto;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:4px 14px}
 details.stammdaten.tafel{padding:10px 16px;margin:0 0 12px}details.stammdaten.tafel>summary{display:inline-flex;gap:6px;align-items:center;min-height:36px;color:var(--akzent);font-weight:600}
 details.stammdaten.tafel[open]>summary{margin-bottom:8px}

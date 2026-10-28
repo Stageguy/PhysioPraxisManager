@@ -68,9 +68,32 @@ export async function einstellungen(db: Db): Promise<Record<string, string>> {
 
 export const kleinunternehmer = async (db: Db): Promise<boolean> => (await einstellungen(db)).kleinunternehmer === 'ja';
 
+/** IBAN ohne Leerzeichen, groß; prüft Aufbau und Prüfziffer (ISO 7064, mod 97) – null, wenn ungültig */
+export function ibanNormieren(eingabe: string): string | null {
+  const iban = eingabe.replace(/\s+/g, '').toUpperCase();
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) return null;
+  const umgestellt = iban.slice(4) + iban.slice(0, 4);
+  let rest = 0;
+  for (const zeichen of umgestellt) {
+    const wert = /\d/.test(zeichen) ? zeichen : String(zeichen.charCodeAt(0) - 55);
+    for (const ziffer of wert) rest = (rest * 10 + Number(ziffer)) % 97;
+  }
+  return rest === 1 ? iban : null;
+}
+
 export async function einstellungSetzen(db: Db, schluessel: string, wert: string, wer: string): Promise<void> {
-  if (!['kleinunternehmer', 'ust_satz_wellness', 'oeffnungszeiten', 'termin_dauer_min', 'termin_puffer_min', 'anfragen_mailordner', 'buchung_vorlauf_stunden', 'buchung_tage', 'buchung_hinweis', 'buchung_letzte_nr'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
+  if (!['kleinunternehmer', 'ust_satz_wellness', 'oeffnungszeiten', 'termin_dauer_min', 'termin_puffer_min', 'anfragen_mailordner', 'buchung_vorlauf_stunden', 'buchung_tage', 'buchung_hinweis', 'buchung_letzte_nr', 'bank_inhaber', 'bank_iban', 'bank_bic'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
   if (schluessel === 'kleinunternehmer' && !['ja', 'nein'].includes(wert)) throw new KarteiFehler('Kleinunternehmer: ja oder nein');
+  // Bankverbindung für den GiroCode (W102): IBAN mit Prüfziffer, BIC 8 oder 11 Zeichen oder leer
+  if (schluessel === 'bank_iban' && wert) {
+    const iban = ibanNormieren(wert);
+    if (!iban) throw new KarteiFehler('Die IBAN ist nicht gültig (Prüfziffer) – bitte noch einmal abschreiben');
+    wert = iban;
+  }
+  if (schluessel === 'bank_bic') {
+    wert = wert.replace(/\s+/g, '').toUpperCase();
+    if (wert && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(wert)) throw new KarteiFehler('Die BIC hat 8 oder 11 Zeichen – oder bleibt leer');
+  }
   if (schluessel === 'ust_satz_wellness' && !/^\d{1,2}$/.test(wert)) throw new KarteiFehler('Steuersatz als ganze Zahl, z. B. 19');
   if (schluessel === 'oeffnungszeiten') {
     try {

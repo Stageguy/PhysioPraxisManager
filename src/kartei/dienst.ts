@@ -31,6 +31,14 @@ import { kundenAbgleich, lexwareLoesen, lexwareNummerFrei, lexwareVerknuepfen, t
 import { kontaktIdNachtragen, rechnungenUebernehmen, rechnungNachLexware, uebernahmeText } from './lexware-rechnungen.ts';
 import type { LexwareKunde, LexwareKunden } from '../lexware/kunden.ts';
 import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
+import { bankverbindung, girocodeDataUri } from '../rechnungen/girocode.ts';
+
+/** GiroCode für offene Rechnungen aus Lexware (W102) – nur mit hinterlegter Bankverbindung und Rechnungsnummer */
+async function girocodeFuer(db: Db, r: Rechnung): Promise<string | null> {
+  if (!['in_lexware', 'gesendet'].includes(r.status) || !r.nummer || !(r.betrag > 0)) return null;
+  const bank = await bankverbindung(db);
+  return bank ? girocodeDataUri({ bank, betrag: r.betrag, verwendungszweck: r.nummer }) : null;
+}
 import type { EingehendeNachricht, WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
 
 export { KarteiFehler };
@@ -101,7 +109,7 @@ export interface KarteiDienst {
   aktePdf(id: string, wer: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
   neuAktion(id: string): Promise<NeuAktionDaten | undefined>;
   rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
-  rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[]; preislisteAktuell: { id: string; name: string } | null; lexware: boolean; postfach: boolean } | undefined>;
+  rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[]; preislisteAktuell: { id: string; name: string } | null; lexware: boolean; postfach: boolean; girocode: string | null } | undefined>;
   rechnungPdf(patientId: string, rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
   konfiguration(): Promise<{ textbausteine: Textbaustein[]; einstellungen: Record<string, string> }>;
   kalender(vonIso: string, bisIso: string): Promise<TerminKalender[]>;
@@ -201,6 +209,7 @@ export function karteiDienst(q: {
         patient, rechnung, textbausteine: await textbausteine(db), preislistePositionen: positionen, wellness: await wellnessLeistungen(db),
         preislisteAktuell: patient.preislisteGilt ? { id: patient.preislisteGilt.id, name: patient.preislisteGilt.name } : null,
         lexware: Boolean(q.lexwareRechnungen), postfach: Boolean(q.graph),
+        girocode: await girocodeFuer(db, rechnung),
       };
     },
     rechnungPdf: (patientId, rechnungId) => rechnungPdf(db, t, patientId, rechnungId),

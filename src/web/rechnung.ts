@@ -26,6 +26,8 @@ export interface RechnungSeiteDaten {
   lexware: boolean;
   /** Postfach verbunden – Klick 2 „Versenden“ per Mail */
   postfach: boolean;
+  /** GiroCode als data:-Bild (W102) – bei offenen Rechnungen mit hinterlegter Bankverbindung */
+  girocode: string | null;
 }
 
 
@@ -111,7 +113,8 @@ ${meldungen(o)}
     ${r.lexware.status ? `<dt>Lexware</dt><dd>${esc(r.lexware.status)}${r.lexware.geprueftAm ? ` · geprüft ${datumText(r.lexware.geprueftAm)}` : ''}${r.lexware.invoiceId ? ` · <a href="https://app.lexware.de/permalink/invoices/view/${esc(r.lexware.invoiceId)}" target="_blank" rel="noopener" data-hilfe="rechnung.lexware-link">in Lexware öffnen</a>` : ''}</dd>` : ''}
     ${r.zahlungen.map((z) => `<dt>Zahlung</dt><dd>${z.datum ? datumText(z.datum) : '–'} · ${euroText(z.betrag)} · ${esc(z.art)}</dd>`).join('')}
     ${r.stornoGrund ? `<dt>Storno</dt><dd>${datumText(r.storniertAm)} · ${esc(r.stornoGrund)}</dd>` : ''}
-  </dl>${r.lexware.pdfAm ? `<a class="knopf klein" href="/patienten/${p.id}/rechnungen/${r.id}/pdf" data-pdf="${esc(r.nummer ?? 'Rechnung')}" data-hilfe="ausgang.pdf">${symbol('rechnung', { groesse: 16 })} PDF aus Lexware</a>` : ''}</div>
+  </dl>${r.lexware.pdfAm ? `<a class="knopf klein" href="/patienten/${p.id}/rechnungen/${r.id}/pdf" data-pdf="${esc(r.nummer ?? 'Rechnung')}" data-hilfe="ausgang.pdf">${symbol('rechnung', { groesse: 16 })} PDF aus Lexware</a>` : ''}
+  ${d.girocode ? `<figure class="girocode" data-hilfe="rechnung.girocode" tabindex="0"><img src="${d.girocode}" alt="GiroCode zum Bezahlen" width="150" height="150"><figcaption>GiroCode – mit der Banking-App scannen: ${euroText(r.betrag)}, Verwendungszweck ${esc(r.nummer ?? '')}</figcaption></figure>` : ''}</div>
 </div>
 
 <h2>Positionen</h2>
