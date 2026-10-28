@@ -32,6 +32,7 @@ import { kontaktIdNachtragen, rechnungenUebernehmen, rechnungNachLexware, uebern
 import type { LexwareKunde, LexwareKunden } from '../lexware/kunden.ts';
 import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
 import { bankverbindung, girocodeDataUri } from '../rechnungen/girocode.ts';
+import { brueckentageSetzen, feiertageImportieren, freierTagLoeschen, freierTagSperren, freieTageDaten, freieTageZeitraum, schliesstageAnlegen, type FreieTageDaten } from './freie-tage.ts';
 
 /** GiroCode für offene Rechnungen aus Lexware (W102) – nur mit hinterlegter Bankverbindung und Rechnungsnummer */
 async function girocodeFuer(db: Db, r: Rechnung): Promise<string | null> {
@@ -117,7 +118,9 @@ export interface KarteiDienst {
   rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
   rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[]; preislisteAktuell: { id: string; name: string } | null; lexware: boolean; postfach: boolean; girocode: string | null } | undefined>;
   rechnungPdf(patientId: string, rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
-  konfiguration(): Promise<{ textbausteine: Textbaustein[]; einstellungen: Record<string, string> }>;
+  konfiguration(o?: { jahr?: number }): Promise<{ textbausteine: Textbaustein[]; einstellungen: Record<string, string>; freieTage: FreieTageDaten }>;
+  /** Freie Tage eines Zeitraums für die Kalenderseite (Datum → Name) */
+  freieTage(von: string, bis: string): Promise<Record<string, string>>;
   kalender(vonIso: string, bisIso: string): Promise<TerminKalender[]>;
   steuer(jahr: number, maskiert: boolean): Promise<SteuerListe>;
   wellness(): Promise<WellnessLeistung[]>;
@@ -147,6 +150,8 @@ export function karteiDienst(q: {
   lexware?: LexwareKunden;
   /** Rechnungen aus Lexware (W103) */
   lexwareRechnungen?: LexwareRechnungen;
+  /** Abruf für Dienste im Netz (feiertage-api.de) – Tests geben eine Attrappe */
+  abruf?: typeof fetch;
 }): KarteiDienst {
   const { db, tresor: t } = q;
   /** Termin in den Kalender spiegeln; scheitert der Kalender, bleibt der Termin in der Kartei und die Meldung sagt es */
@@ -231,7 +236,8 @@ export function karteiDienst(q: {
       };
     },
     rechnungPdf: (patientId, rechnungId) => rechnungPdf(db, t, patientId, rechnungId),
-    async konfiguration() { return { textbausteine: await textbausteine(db, { alle: true }), einstellungen: await einstellungen(db) }; },
+    async konfiguration(o = {}) { return { textbausteine: await textbausteine(db, { alle: true }), einstellungen: await einstellungen(db), freieTage: await freieTageDaten(db, o.jahr) }; },
+    freieTage: (von, bis) => freieTageZeitraum(db, von, bis),
     kalender: (von, bis) => termineZeitraum(db, von, bis),
     steuer: (jahr, maskiert) => steuerfreieUmsaetze(db, { jahr, maskiert }),
     gruende: () => gespraechsgruende(db),
@@ -308,8 +314,28 @@ export function karteiDienst(q: {
       }
       if (aktion === 'einstellung') {
         const schluessel = g('schluessel') ?? '';
-        await einstellungSetzen(db, schluessel, schluessel === 'kleinunternehmer' ? (f.has('wert_ja') ? 'ja' : 'nein') : (g('wert') ?? '').trim(), wer);
-        return nach('/konfiguration', 'Einstellung gespeichert.');
+        await einstellungSetzen(db, schluessel, schluessel === 'kleinunternehmer' ? (f.has('wert_ja') ? 'ja' : 'nein') : schluessel === 'kalender_wochenende' ? (f.has('wert_gesperrt') ? 'gesperrt' : 'offen') : (g('wert') ?? '').trim(), wer);
+        return nach(schluessel === 'kalender_wochenende' ? '/konfiguration#freie-tage' : '/konfiguration', 'Einstellung gespeichert.');
+      }
+      // Freie Tage (A26/W111) – ohne Patient
+      if (aktion === 'feiertage_importieren') {
+        const e = await feiertageImportieren(db, ganz(f.get('jahr')), wer, { abruf: q.abruf });
+        return nach(`/konfiguration?jahr=${e.jahr}#freie-tage`, `${e.anzahl} Feiertage ${e.jahr} eingetragen (Quelle: ${e.quelle}).`);
+      }
+      if (aktion === 'brueckentage_setzen') {
+        const jahr = ganz(f.get('jahr'));
+        const e = await brueckentageSetzen(db, jahr, f.getAll('tag'), wer);
+        return nach(`/konfiguration?jahr=${jahr}#freie-tage`, `${e.gesperrt} Brückentag${e.gesperrt === 1 ? '' : 'e'} ${jahr} gesperrt.`);
+      }
+      if (aktion === 'schliesstage_anlegen') {
+        const e = await schliesstageAnlegen(db, { von: g('von') ?? '', bis: g('bis'), name: g('name'), art: g('art') ?? '' }, wer);
+        return nach(`/konfiguration?jahr=${(g('von') ?? '').slice(0, 4)}#freie-tage`, `${e.tage} Schließtag${e.tage === 1 ? '' : 'e'} eingetragen.`);
+      }
+      if (aktion === 'freier_tag_sperren' || aktion === 'freier_tag_loeschen') {
+        const datum = g('datum') ?? '';
+        if (aktion === 'freier_tag_loeschen') await freierTagLoeschen(db, datum, wer);
+        else await freierTagSperren(db, datum, g('gesperrt') === 'ja', wer);
+        return nach(`/konfiguration?jahr=${datum.slice(0, 4)}#freie-tage`, aktion === 'freier_tag_loeschen' ? 'Tag entfernt.' : g('gesperrt') === 'ja' ? 'Tag gesperrt.' : 'Tag freigegeben – an diesem Tag sind Termine möglich.');
       }
       // Terminarten der Online-Anfrage (W94) – ohne Patient
       if (aktion === 'terminart_speichern') {

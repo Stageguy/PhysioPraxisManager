@@ -22,6 +22,7 @@ import type { Anliegen } from './erkennung.ts';
 import { terminarten, type Terminart } from '../kartei/terminarten.ts';
 import { belegteZeiten, reservieren, reservierungenLoeschen } from './kalender.ts';
 import { oeffnungszeitenLesen, vorschlaege as vorschlaegeBerechnen, type SlotRegeln } from './slots.ts';
+import { gesperrteTage } from '../kartei/freie-tage.ts';
 
 export type AnfragenGraph = Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete' | 'paginate'>;
 
@@ -60,7 +61,12 @@ const ANLIEGEN: Anliegen[] = ['termin', 'verschieben', 'absagen', 'unklar'];
 export async function slotRegeln(db: Db): Promise<SlotRegeln & { oeffnungszeitenText: string }> {
   const e = await einstellungen(db);
   const text = e.oeffnungszeiten ?? 'Mo 08:00-18:00; Di 08:00-18:00; Mi 08:00-18:00; Do 08:00-18:00; Fr 08:00-14:00';
-  return { oeffnungszeiten: oeffnungszeitenLesen(text), oeffnungszeitenText: text, dauerMin: Number(e.termin_dauer_min ?? 30) || 30, pufferMin: Number(e.termin_puffer_min ?? 0) || 0 };
+  // Gesperrte Tage (A26/W111): Feiertage, Brückentage, Schließtage aus der Tabelle – ein halbes Jahr voraus; Wochenende laut Einstellung
+  const heute = heuteBerlin();
+  return {
+    oeffnungszeiten: oeffnungszeitenLesen(text), oeffnungszeitenText: text, dauerMin: Number(e.termin_dauer_min ?? 30) || 30, pufferMin: Number(e.termin_puffer_min ?? 0) || 0,
+    gesperrt: await gesperrteTage(db, tagPlus(heute, -1), tagPlus(heute, 200)), wochenendeGesperrt: (e.kalender_wochenende ?? 'gesperrt') !== 'offen',
+  };
 }
 
 export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGraph }): AnfragenDienst {

@@ -428,7 +428,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
         throw err;
       }
     }
-    if (pfad === '/konfiguration') return senden(res, 200, 'text/html', konfigurationSeite(await d.konfiguration(), r));
+    if (pfad === '/konfiguration') return senden(res, 200, 'text/html', konfigurationSeite(await d.konfiguration({ jahr: /^\d{4}$/.test(adresse.searchParams.get('jahr') ?? '') ? Number(adresse.searchParams.get('jahr')) : undefined }), r));
     if (pfad === '/konfiguration/terminarten') return senden(res, 200, 'text/html', terminartenSeite({ terminarten: await d.terminarten(), buchung: d.buchung() }, r));
     if (pfad === '/kalender') {
       const heuteTag = heuteBerlin();
@@ -437,7 +437,8 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const ansicht = adresse.searchParams.get('ansicht') === 'woche' ? 'woche' : 'tag';
       const tage = ansicht === 'woche' ? wocheUm(tag) : [tag];
       const termine = await d.kalender(berlinMitternachtUtc(tage[0]!), berlinMitternachtUtc(tagPlus(tage[tage.length - 1]!, 1)));
-      return senden(res, 200, 'text/html', kalenderSeite({ tag, ansicht, termine, namenZeigen: adresse.searchParams.get('namen') === '1', heute: heuteTag }, r));
+      const freieTage = await d.freieTage(tage[0]!, tage[tage.length - 1]!);
+      return senden(res, 200, 'text/html', kalenderSeite({ tag, ansicht, termine, namenZeigen: adresse.searchParams.get('namen') === '1', heute: heuteTag, freieTage }, r));
     }
     const rm = /^\/patienten\/(\d+)\/rechnungen\/(\d+)(\/pdf)?$/.exec(pfad);
     if (rm) {

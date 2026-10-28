@@ -3,6 +3,9 @@
  * Verweise auf Preislisten und Wellness-Katalog. Für den Rechner – am Handy ist der Link ausgeblendet.
  */
 import { AUTOMATISCH_TEXT, WIRKUNG_TEXT, type Textbaustein } from '../kartei/konfiguration.ts';
+import { FREIE_TAG_ART_TEXT, WOCHENTAG_KURZ, type FreieTageDaten } from '../kartei/freie-tage.ts';
+import { wochentag } from '../anfragen/slots.ts';
+import { datumText } from '../format.ts';
 import { esc, seite } from './layout.ts';
 import { karteiFormular, meldungen, type Rahmen } from './bausteine.ts';
 import { symbol } from './symbole.ts';
@@ -12,7 +15,34 @@ const form = (aktion: string, inhalt: string, klasse = 'inline') => karteiFormul
 const wahl = (name: string, werte: Record<string, string>, aktuell: string) =>
   `<select name="${name}">${Object.entries(werte).map(([k, t]) => `<option value="${k}"${k === aktuell ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
 
-export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellungen: Record<string, string> }, o: Rahmen): string {
+/** Abschnitt „Kalender: freie Tage“ (A26/W111) – Jahr, Feiertage, Brückentage mit Haken, Wochenende, Schließtage */
+function freieTageAbschnitt(ft: FreieTageDaten, einstellungen: Record<string, string>): string {
+  // Eigenes Rücksprungziel mit Jahr, damit die Aktionen auf dem gewählten Jahr landen
+  const formFt = (aktion: string, inhalt: string, klasse = 'inline') => karteiFormular(aktion, inhalt, { zurueck: `/konfiguration?jahr=${ft.jahr}`, klasse });
+  const wt = (datum: string) => WOCHENTAG_KURZ[wochentag(datum) - 1];
+  return `<h2 id="freie-tage">Kalender: freie Tage</h2>
+<div class="tafel">
+  <p class="hint">Gesperrte Tage bekommen keine Terminvorschläge und sind auf der Buchungsseite nicht wählbar (W111). Feiertage kommen von feiertage-api.de (Bayern), ersatzweise aus dem eigenen Rechner; beim Start des Dienstes stehen das laufende und das nächste Jahr drin.</p>
+  <p class="jahre">Jahr: ${ft.jahre.map((j) => (j === ft.jahr ? `<b>${j}</b>` : `<a href="/konfiguration?jahr=${j}#freie-tage" data-hilfe="konfiguration.jahr">${j}</a>`)).join(' · ')}
+    ${formFt('feiertage_importieren', `<input type="hidden" name="jahr" value="${ft.jahr}"><button class="knopf klein" data-hilfe="konfiguration.feiertage-laden">${symbol('kalender', { groesse: 16 })} Feiertage ${ft.jahr} neu laden</button>`)}</p>
+  ${ft.liste.length ? `<div class="tabelle"><table class="freie-tage"><thead><tr><th>Tag</th><th>Name</th><th>Art</th><th>Buchbar?</th><th></th></tr></thead><tbody>${ft.liste.map((t) => `<tr${t.gesperrt ? '' : ' class="offen"'}>
+      <td>${wt(t.datum)} ${datumText(t.datum)}</td><td>${esc(t.name)}</td><td>${FREIE_TAG_ART_TEXT[t.art]}</td>
+      <td>${formFt('freier_tag_sperren', `<input type="hidden" name="datum" value="${t.datum}"><input type="hidden" name="gesperrt" value="${t.gesperrt ? 'nein' : 'ja'}"><button class="knopf klein" data-hilfe="konfiguration.tag-sperren">${t.gesperrt ? 'gesperrt – freigeben' : 'offen – sperren'}</button>`)}</td>
+      <td>${t.art === 'feiertag' ? '' : formFt('freier_tag_loeschen', `<input type="hidden" name="datum" value="${t.datum}"><button class="knopf klein warnend" data-hilfe="konfiguration.tag-loeschen">entfernen</button>`)}</td></tr>`).join('')}</tbody></table></div>` : `<p class="leer">Noch keine freien Tage für ${ft.jahr} – „Feiertage neu laden“.</p>`}
+  <h3>Brückentage ${ft.jahr}</h3>
+  ${ft.brueckentage.length
+    ? formFt('brueckentage_setzen', `<input type="hidden" name="jahr" value="${ft.jahr}">${ft.brueckentage.map((b) => `<label class="haken"><input type="checkbox" name="tag" value="${b.datum}"${b.gesperrt ? ' checked' : ''} data-hilfe="konfiguration.brueckentag"> ${wt(b.datum)} ${datumText(b.datum)} <span class="hint">wegen ${esc(b.wegen)}</span></label>`).join('')}<button class="knopf klein" data-hilfe="konfiguration.brueckentage-speichern">Angehakte Brückentage sperren</button>`, 'formular')
+    : '<p class="hint">Keine Brückentage in diesem Jahr.</p>'}
+  ${formFt('einstellung', `<input type="hidden" name="schluessel" value="kalender_wochenende"><label class="haken" data-hilfe="konfiguration.wochenende"><input type="checkbox" name="wert_gesperrt" value="1"${(einstellungen.kalender_wochenende ?? 'gesperrt') !== 'offen' ? ' checked' : ''}> Wochenenden nicht buchbar</label><button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  <h3>Schließtage eintragen</h3>
+  ${formFt('schliesstage_anlegen', `<div class="zwei"><label>Von<input type="date" name="von" required></label><label>Bis <span class="hint">(leer = ein Tag)</span><input type="date" name="bis"></label></div>
+    <div class="zwei"><label>Bezeichnung<input name="name" maxlength="80" placeholder="z. B. Sommerurlaub"></label><label>Art<select name="art"><option value="urlaub">Urlaub</option><option value="fortbildung">Fortbildung</option><option value="geschlossen">Praxis geschlossen</option></select></label></div>
+    <button class="knopf klein" data-hilfe="konfiguration.schliesstag-anlegen">Schließtage eintragen</button>`, 'formular')}
+</div>
+`;
+}
+
+export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellungen: Record<string, string>; freieTage: FreieTageDaten }, o: Rahmen): string {
   const kacheln = d.textbausteine.map((b) => `<article class="tbk${b.aktiv ? '' : ' ab'}" data-hilfe="konfiguration.textbaustein">
     <header><span class="tbk-code">${esc(b.code)}</span><b>${esc(b.kurzname)}</b></header>
     <p class="rz-marken"><span class="marke${b.wirkung === 'keine' ? '' : ' jetzt'}">${esc(WIRKUNG_TEXT[b.wirkung])}</span><span class="marke">${esc(AUTOMATISCH_TEXT[b.automatisch])}</span></p>
@@ -72,6 +102,7 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}
 </div>
 
+${freieTageAbschnitt(d.freieTage, d.einstellungen)}
 <h2>Termine und Terminanfragen</h2>
 <div class="tafel">
   <p><a class="knopf primaer" href="/konfiguration/terminarten" data-hilfe="konfiguration.terminarten">${symbol('kalender', { groesse: 18 })} Terminarten für die Online-Anfrage (Kacheln)</a></p>

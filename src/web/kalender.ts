@@ -11,13 +11,13 @@ import { symbol } from './symbole.ts';
 
 const tagText = (tag: string, lang = false) => new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, weekday: lang ? 'long' : 'short', day: '2-digit', month: '2-digit', ...(lang ? { year: 'numeric' } : {}) }).format(new Date(`${tag}T12:00:00Z`));
 
-export function kalenderSeite(d: { tag: string; ansicht: 'tag' | 'woche'; termine: TerminKalender[]; namenZeigen: boolean; heute: string }, o: { wer: string; fassung: string; skriptInline?: string }): string {
+export function kalenderSeite(d: { tag: string; ansicht: 'tag' | 'woche'; termine: TerminKalender[]; namenZeigen: boolean; heute: string; freieTage?: Record<string, string> }, o: { wer: string; fassung: string; skriptInline?: string}): string {
   const tage = d.ansicht === 'woche' ? wocheUm(d.tag) : [d.tag];
   const link = (tag: string, ansicht = d.ansicht) => `/kalender?tag=${tag}&ansicht=${ansicht}${d.namenZeigen ? '&namen=1' : ''}`;
   const name = (t: TerminKalender) => (d.namenZeigen ? `${t.vorname} ${t.nachname}` : `${t.vorname[0]}. ${t.nachname[0]}.`);
   const spalten = tage.map((tag) => {
     const des = d.termine.filter((t) => datumBerlin(t.beginn) === tag);
-    return `<section class="kal-tag${tag === d.heute ? ' heute' : ''}" data-hilfe="kalender.tag"><h2><a href="${link(tag, 'tag')}">${esc(tagText(tag, d.ansicht === 'tag'))}</a> <span class="pw-zahl">${des.length}</span></h2>
+    return `<section class="kal-tag${tag === d.heute ? ' heute' : ''}" data-hilfe="kalender.tag"><h2><a href="${link(tag, 'tag')}">${esc(tagText(tag, d.ansicht === 'tag'))}</a> <span class="pw-zahl">${des.length}</span>${d.freieTage?.[tag] ? ` <span class="chip preset12" data-hilfe="kalender.frei" tabindex="0">${esc(d.freieTage[tag])}</span>` : ''}</h2>
       ${des.length ? des.map((t) => `<a class="kal-termin${t.sektion ? ` sek-${t.sektion}` : t.rezept ? ' rezept' : ''}${t.status === 'erledigt' ? ' erledigt' : ''}" href="/patienten/${t.patientId}#termine" data-hilfe="kalender.termin">
         <b>${sektionMarke(t.sektion)}${zeitText(t.beginn)}–${zeitText(t.ende)}</b><span>${esc(name(t))} <span class="hint">${esc(t.patientennummer)}</span></span>
         <span class="rz-marken">${t.leistung ? `<span class="marke jetzt" data-hilfe="termine.leistung">${esc(t.leistung)}</span>` : ''}<span class="marke">${t.rezept ? 'Rezept' : t.art === 'erstgespraech' ? 'Erstgespräch' : 'Individual'}</span>${t.imKalender ? '' : '<span class="marke warn-marke">nicht im Kalender</span>'}</span></a>`).join('') : '<p class="pw-leer">frei</p>'}

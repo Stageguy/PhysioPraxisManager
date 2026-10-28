@@ -6,9 +6,8 @@
  */
 import { anfrageAnlegen, patientFinden, type Vorschlag } from '../anfragen/anfragen.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
-import { istFeiertag } from '../anfragen/feiertage.ts';
 import { belegteZeiten, reservieren } from '../anfragen/kalender.ts';
-import { wochentag } from '../anfragen/slots.ts';
+import { tagGesperrt, wochentag } from '../anfragen/slots.ts';
 import { protokolliere, type Db } from '../db/index.ts';
 import { datumText, datumZeitText } from '../format.ts';
 import type { GraphClient } from '../graph.ts';
@@ -37,7 +36,7 @@ export async function angebotErstellen(db: Db, graph: Graph | undefined, o: { je
   const belegt = await belegteZeiten(graph, db, von, bis);
   const liste: Angebot['tage'] = [];
   for (let i = 0, datum = erster; i < tage; i++, datum = tagPlus(datum, 1)) {
-    if (istFeiertag(datum)) continue;
+    if (tagGesperrt(datum, regeln)) continue;
     const wt = wochentag(datum);
     const offen: Fenster[] = regeln.oeffnungszeiten.filter((f) => f.tag === wt).map((f) => ({ beginn: berlinZeitUtc(datum, f.von), ende: berlinZeitUtc(datum, f.bis) }));
     const frei = freieFenster(offen, belegt, { pufferMin: regeln.pufferMin, ab });

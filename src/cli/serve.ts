@@ -30,6 +30,7 @@ import { LexwareClient } from '../lexware/client.ts';
 import { attrappeKunden, lexwareKunden } from '../lexware/kunden.ts';
 import { attrappeRechnungen, lexwareRechnungen } from '../lexware/rechnungen.ts';
 import { umgebung } from '../umgebung.ts';
+import { feiertageSicherstellen } from '../kartei/freie-tage.ts';
 
 const env = loadEnv();
 const port = Number(process.env.PORT ?? 3300);
@@ -53,6 +54,15 @@ if (db) {
       console.warn(`Datenbank noch nicht erreichbar (${(err as { code?: string }).code ?? (err as Error).message}) – neuer Versuch in 5 s`);
       await new Promise((r) => setTimeout(r, 5000));
     }
+  }
+}
+// Feiertage (A26): laufendes und nächstes Jahr liegen in der Tabelle – ohne Netz aus dem eigenen Rechner
+if (db) {
+  try {
+    const neu = await feiertageSicherstellen(db);
+    if (neu.length) console.log(`Feiertage eingetragen für ${neu.join(', ')}`);
+  } catch (err) {
+    console.warn(`Feiertage: ${(err as Error).message.slice(0, 160)}`);
   }
 }
 const lokalerZugang = process.env.LOKALER_ZUGANG || undefined;

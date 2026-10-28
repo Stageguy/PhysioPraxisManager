@@ -53,6 +53,10 @@ export interface SlotRegeln {
   pufferMin: number;
   /** Raster der Anfangszeiten in Minuten (Standard 15) */
   rasterMin?: number;
+  /** Gesperrte Tage aus der Tabelle freier_tag (A26/W111) – Feiertage, Brückentage, Schließtage */
+  gesperrt?: Set<string>;
+  /** Wochenenden nie buchbar, auch wenn ein Öffnungsfenster für Sa/So eingetragen ist */
+  wochenendeGesperrt?: boolean;
 }
 
 export interface Slot {
@@ -62,6 +66,10 @@ export interface Slot {
 
 /** Wochentag 1–7 eines Kalendertags */
 export const wochentag = (datum: string): number => ((new Date(`${datum}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
+
+/** Kein Vorschlag, keine Buchung: gerechneter Feiertag, gesperrter Tag aus der Tabelle, gesperrtes Wochenende */
+export const tagGesperrt = (datum: string, regeln: Pick<SlotRegeln, 'gesperrt' | 'wochenendeGesperrt'>): boolean =>
+  Boolean(istFeiertag(datum)) || Boolean(regeln.gesperrt?.has(datum)) || (regeln.wochenendeGesperrt === true && wochentag(datum) >= 6);
 
 const tageszeit = (iso: string): 'vormittag' | 'nachmittag' | 'abend' => {
   const h = Number(zeitBerlin(iso).slice(0, 2));
@@ -78,7 +86,7 @@ export function freieSlots(o: { ab: string; tage: number; belegt: Belegt[]; rege
   const slots: Slot[] = [];
   let datum = datumBerlin(o.ab);
   for (let i = 0; i < o.tage; i++, datum = tagPlus(datum, 1)) {
-    if (istFeiertag(datum)) continue;
+    if (tagGesperrt(datum, o.regeln)) continue;
     const wt = wochentag(datum);
     for (const fenster of o.regeln.oeffnungszeiten.filter((f) => f.tag === wt)) {
       const von = new Date(berlinZeitUtc(datum, fenster.von)).getTime();

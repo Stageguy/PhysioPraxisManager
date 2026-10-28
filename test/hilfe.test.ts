@@ -32,6 +32,7 @@ const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
   basis: null, vorlage: { id: '1', name: 'GebüTh 15. Auflage' }, positionen: 58, uebernommen: 50, ...o,
 });
 const PK = { id: '1', art: 'mobil' as const, wert: '0151 1', normiert: '+491511', bezeichnung: null, primaer: true };
+const FREIE_TAGE = { jahr: 2026, jahre: [2026, 2027], liste: [{ datum: '2026-11-01', name: 'Allerheiligen', art: 'feiertag' as const, gesperrt: true, quelle: 'Rechner' }, { datum: '2026-12-24', name: 'Weihnachten', art: 'geschlossen' as const, gesperrt: false, quelle: 'hand' }], brueckentage: [{ datum: '2026-05-15', wegen: 'Christi Himmelfahrt', gesperrt: true }] };
 const LK_PATIENT = { id: '1', name: 'Anna Test', patientennummer: 'P-1001', status: 'aktiv' };
 const LK = (o: Partial<LexwareKundeStand>): LexwareKundeStand => ({
   id: 'lx-1', nummer: '1001', art: 'person', anrede: 'Frau', vorname: 'Anna', nachname: 'Test', firma: null, email: 'a@example.org', telefon: '0151 1',
@@ -190,8 +191,8 @@ const seiten = () => [
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'in_lexware', nummer: 'RE-2026-001' } }, R),
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, lexware: false, postfach: false, rechnung: { ...RGE, status: 'freigegeben' } }, R),
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'gesendet', nummer: 'RE-2026-001' } }, R),
-  konfigurationSeite({ textbausteine: [TB, { ...TB, id: '2', code: 'R2', aktiv: false, wirkung: 'kleinunternehmer' as const, automatisch: 'wellness' as const }], einstellungen: { kleinunternehmer: 'ja', ust_satz_wellness: '19' } }, R),
-  kalenderSeite({ tag: '2026-10-26', ansicht: 'tag', termine: [KT], namenZeigen: false, heute: '2026-10-26' }, R),
+  konfigurationSeite({ freieTage: FREIE_TAGE, textbausteine: [TB, { ...TB, id: '2', code: 'R2', aktiv: false, wirkung: 'kleinunternehmer' as const, automatisch: 'wellness' as const }], einstellungen: { kleinunternehmer: 'ja', ust_satz_wellness: '19' } }, R),
+  kalenderSeite({ tag: '2026-10-26', ansicht: 'tag', termine: [KT], namenZeigen: false, heute: '2026-10-26', freieTage: { '2026-10-26': 'Brückentag (Test)' } }, R),
   kalenderSeite({ tag: '2026-10-26', ansicht: 'woche', termine: [KT, { ...KT, id: '8', rezept: false, imKalender: true, status: 'erledigt', sektion: 'wellness' as const }, { ...KT, id: '9', rezept: false, sektion: null }, { ...KT, id: '10', rezept: false, sektion: 'selbstzahler' as const }], namenZeigen: true, heute: '2026-10-25' }, R),
   steuerSeite({ jahr: 2026, jahre: [2026, 2025], maskiert: true, rechnungen: [{ id: '1', nummer: 'RE-2026-0001', datum: '2026-10-01', status: 'bezahlt', befreiung: '§ 4 Nr. 14 UStG', patientennummer: 'P-1001', name: 'A*** Test', betrag: 92.54, bezahltAm: '2026-10-20', storniertAm: null,
     positionen: [{ datum: '2026-10-01', nummer: '21201', bezeichnung: 'MT', anzahl: 2, einzelpreis: 46.27, betrag: 92.54 }] }, { id: '2', nummer: 'RE-2026-0002', datum: '2026-10-02', status: 'storniert', befreiung: '§ 19 UStG', patientennummer: 'P-1002', name: 'B** Test', betrag: 59, bezahltAm: null, storniertAm: '2026-10-05', positionen: [] }],
