@@ -312,9 +312,9 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .rk-pat-betrag{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
 .rk-pat.lexware{border-left-style:dashed;border-left-color:#8a6d3b}.rk-pat.lexware.gelb{border-left-color:#f2d43a}.rk-pat.lexware.rot{border-left-color:#d93025}
 /* Rechnungen je Jahr (W104): zuklappbar, Legende oben rechts, Dokumentfenster seitlich */
-details.rk-jahr{margin:10px 0 0}details.rk-jahr summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:center;font-size:15px;color:var(--grau);min-height:36px}
-details.rk-jahr summary::-webkit-details-marker{display:none}details.rk-jahr summary::before{content:'▸';color:var(--akzent);width:14px}details.rk-jahr[open] summary::before{content:'▾'}
-details.rk-jahr summary b{color:var(--fg);font-size:16px}
+details.rk-jahr{margin:10px 0 0}details.rk-jahr>summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:center;font-size:15px;color:var(--grau);min-height:36px}
+details.rk-jahr>summary::-webkit-details-marker{display:none}details.rk-jahr>summary::before{content:'▸';color:var(--akzent);width:14px}details.rk-jahr[open]>summary::before{content:'▾'}
+details.rk-jahr>summary b{color:var(--fg);font-size:16px}
 .rk-legende{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;font-size:12px;font-weight:400;color:var(--grau);align-items:center;cursor:help}
 .rk-legende span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .rk-legende i{display:inline-block;width:18px;height:12px;border-radius:3px;border:1px solid var(--rand);border-left:5px solid var(--rand);background:var(--karte)}
