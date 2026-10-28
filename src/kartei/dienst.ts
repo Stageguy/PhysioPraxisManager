@@ -27,7 +27,7 @@ import { steuerfreieUmsaetze, type SteuerListe } from './steuer.ts';
 import { dokumente, mailEntwurf, rechnungSenden, whatsappAngebote, whatsappEingang, whatsappSenden, whatsappVermerken, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
 import { akteExport } from './akte-export.ts';
 import { terminartAktiv, terminarten, terminartSpeichern, type Terminart } from './terminarten.ts';
-import { kundenAbgleich, lexwareLoesen, lexwareNummerFrei, lexwareVerknuepfen, type LexwareKundeStand } from './lexware-kunden.ts';
+import { feldUebernehmen, kundeInLexwareAnlegen, kundenAbgleich, kundenAbweichungen, lexwareLoesen, lexwareNummerFrei, lexwareVerknuepfen, patientenAusKunden, type Abweichung, type LexwareKundeStand } from './lexware-kunden.ts';
 import { kontaktIdNachtragen, rechnungenUebernehmen, rechnungNachLexware, uebernahmeText } from './lexware-rechnungen.ts';
 import type { LexwareKunde, LexwareKunden } from '../lexware/kunden.ts';
 import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
@@ -61,6 +61,10 @@ export interface PatientSeiteDaten {
   whatsappCloud: boolean;
   /** Lexware angebunden und Patient mit einem Lexware-Kunden verknüpft – Knopf „Rechnungen aus Lexware holen“ (W103) */
   lexwareRechnungen: boolean;
+  /** Abweichungen der gemeinsamen Felder zwischen PPM und Lexware-Kunde (W99b) – null ohne Verknüpfung */
+  lexwareAbgleich: { nummer: string; abweichungen: Abweichung[] } | null;
+  /** Lexware schreibbar und Patient noch kein Kunde – Knopf „In Lexware als Kunde anlegen“ */
+  lexwareKundeAnlegbar: boolean;
 }
 
 export interface AkteDaten {
@@ -154,6 +158,15 @@ export function karteiDienst(q: {
       return ' Der Kalender war nicht erreichbar – der Abgleich holt es nach.';
     }
   };
+  /** Lexware-Kunde zum Patienten (aus dem Zwischenspeicher) – undefined ohne Anbindung, Verknüpfung oder bei Störung */
+  const lexwareKundeZu = async (nummer: string | null): Promise<LexwareKunde | undefined> => {
+    if (!q.lexware || !nummer) return undefined;
+    try { return (await q.lexware.alle()).kunden.find((k) => k.nummer === nummer); } catch (err) { console.warn(`Lexware-Kunde ${nummer}: ${(err as Error).message.slice(0, 160)}`); return undefined; }
+  };
+  const lexwareAbgleichFuer = async (patient: Patient): Promise<PatientSeiteDaten['lexwareAbgleich']> => {
+    const kunde = await lexwareKundeZu(patient.lexwareKundennummer);
+    return kunde ? { nummer: kunde.nummer, abweichungen: kundenAbweichungen(patient, kunde) } : null;
+  };
   return {
     liste: (o) => patientenListe(db, t, o),
     pinnwand: (o) => pinnwand(db, t, o),
@@ -173,6 +186,8 @@ export function karteiDienst(q: {
         preislisten: (await preislistenListen(db)).filter((l) => l.status === 'freigegeben' && l.aktiv),
         dokumente: await dokumente(db, t, id), whatsapp: whatsappAngebote(patient, kommende), whatsappCloud: Boolean(q.whatsapp),
         lexwareRechnungen: Boolean(q.lexwareRechnungen && patient.lexwareKundennummer),
+        lexwareAbgleich: await lexwareAbgleichFuer(patient),
+        lexwareKundeAnlegbar: Boolean(q.lexwareRechnungen) && !patient.lexwareKundennummer,
       };
     },
     whatsappEingang: (n) => whatsappEingang(db, t, n),
@@ -306,6 +321,14 @@ export function karteiDienst(q: {
       if (aktion === 'wellness_aktiv') {
         await wellnessAktiv(db, g('wellness_id') ?? '', f.get('aktiv') === '1');
         return nach('/rezepte/wellness', f.get('aktiv') === '1' ? 'Leistung wieder anbietbar.' : 'Leistung ausgeblendet – bestehende Serien bleiben.');
+      }
+      // Sammelübernahme aus Lexware (W99b) – ohne Patient
+      if (aktion === 'lexware_anlegen_mehrere') {
+        if (!q.lexware) throw new KarteiFehler('Lexware ist nicht angebunden');
+        const nummern = f.getAll('kunde');
+        if (!nummern.length) throw new KarteiFehler('Keine Kunden ausgewählt');
+        const e = await patientenAusKunden(db, t, (await q.lexware.alle()).kunden, nummern, wer);
+        return nach('/patienten/lexware', `${e.angelegt} Patient${e.angelegt === 1 ? '' : 'en'} aus Lexware angelegt.${e.uebersprungen.length ? ` Übersprungen: ${e.uebersprungen.join(', ')}.` : ''}`);
       }
       if (!istId(id)) throw new KarteiFehler('Unbekannter Patient');
       const fallSeite = (fallId: string) => `/patienten/${id}/faelle/${fallId}`;
@@ -475,6 +498,19 @@ export function karteiDienst(q: {
           await kontaktIdNachtragen(db, q.lexware, id);
           const e = await rechnungenUebernehmen(db, t, q.lexwareRechnungen, { patientId: id, wer });
           return nach(`${seite}#rechnungen`, `Aus Lexware: ${uebernahmeText(e)}`);
+        }
+        // Abgleich der gemeinsamen Felder (W99b): ein Lexware-Wert auf Klick; Patient als Kunde nach Lexware
+        case 'lexware_uebernehmen': {
+          const kunde = await lexwareKundeZu((await patientLesen(db, t, id))?.lexwareKundennummer ?? null);
+          if (!kunde) throw new KarteiFehler('Der Lexware-Kunde ist gerade nicht erreichbar oder der Patient nicht verknüpft');
+          const titel = await feldUebernehmen(db, t, id, kunde, g('feld') ?? '', wer);
+          return nach(`${seite}#rechnungen`, `${titel} aus Lexware übernommen.`);
+        }
+        case 'lexware_kunde_anlegen': {
+          if (!q.lexwareRechnungen) throw new KarteiFehler('Lexware ist nicht angebunden');
+          const { nummer } = await kundeInLexwareAnlegen(db, t, q.lexwareRechnungen, id, wer);
+          if (q.lexware && !q.lexware.attrappe) await q.lexware.alle({ neu: true }).catch(() => undefined);
+          return nach(`${seite}#rechnungen`, `In Lexware als Kunde ${nummer} angelegt.`);
         }
         // Lexware-Kunden (W99): nur die Verknüpfung über die Kundennummer – keine Stammdaten aus Lexware
         case 'lexware_zuordnen': {

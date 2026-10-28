@@ -335,6 +335,8 @@ details.rk-jahr summary b{color:var(--fg);font-size:16px}
 .pdf-fenster[hidden]{display:none}.pdf-fenster header{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--rand);color:var(--akzent)}
 .pdf-fenster header b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}.pdf-fenster iframe{flex:1;border:0;width:100%;background:#fff}
 body.pdf-offen{overflow:hidden}
+.lx-auswahl{display:inline-flex;align-items:center}.lx-auswahl input{width:20px;height:20px}.lx-mehrere h2 .knopf{margin-left:auto}
+.lx-abweichungen{margin:6px 0 0;padding-left:18px}.lx-abweichungen li{margin:4px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 figure.girocode{margin:10px 0 0;display:flex;gap:12px;align-items:center}figure.girocode img{border:1px solid var(--rand);border-radius:8px;background:#fff;flex:none}figure.girocode figcaption{font-size:13px;color:var(--grau)}
 .verlauf-fenster{max-height:360px;overflow:auto;background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:4px 14px}
 details.stammdaten.tafel{padding:10px 16px;margin:0 0 12px}details.stammdaten.tafel>summary{display:inline-flex;gap:6px;align-items:center;min-height:36px;color:var(--akzent);font-weight:600}

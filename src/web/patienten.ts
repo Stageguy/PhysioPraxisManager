@@ -115,13 +115,16 @@ function lexwareKachel(k: LexwareKundeStand): string {
   ].filter(Boolean).join(' ');
   const neuLink = (text: string, klasse = 'knopf primaer') => `<a class="${klasse}" href="/patienten/neu?lexware=${esc(k.nummer)}" data-hilfe="lexware.anlegen">${text}</a>`;
   const patient = (p: NonNullable<LexwareKundeStand['patient']>) => `${esc(p.name)} (${esc(p.patientennummer)}${p.status !== 'aktiv' ? `, ${esc(p.status)}` : ''})`;
+  const auswahl = k.stand === 'neu'
+    ? `<label class="lx-auswahl" title="${k.vorname ? 'für die Sammelübernahme auswählen' : 'Firma ohne Personenname – bitte einzeln anlegen'}"><input type="checkbox" name="kunde" value="${esc(k.nummer)}"${k.vorname ? '' : ' disabled'} data-hilfe="lexware.auswahl"></label>`
+    : '';
   const aktionen = k.stand === 'neu'
     ? neuLink('Als Patient anlegen')
     : k.stand === 'vermutet'
       ? `${form('lexware_zuordnen', `<input type="hidden" name="kundennummer" value="${esc(k.nummer)}"><input type="hidden" name="kontakt_id" value="${esc(k.id)}"><button class="knopf primaer" data-hilfe="lexware.zuordnen">Zuordnen: ${patient(k.patient!)}</button>`, { id: k.patient!.id, zurueck: '/patienten/lexware' })} ${neuLink('Als neuen Patienten anlegen', 'knopf')}`
       : `<a class="knopf" href="/patienten/${k.patient!.id}" data-hilfe="lexware.patient">${symbol('patient', { groesse: 18 })} ${patient(k.patient!)}</a> ${form('lexware_loesen', '<button class="knopf" data-hilfe="lexware.loesen">Verknüpfung lösen</button>', { id: k.patient!.id, zurueck: '/patienten/lexware' })}`;
   return `<article class="pat lexware ${k.stand}" data-hilfe="lexware.kachel" id="lx-${esc(k.nummer)}">
-    <header class="pat-kopf"><span class="pat-name"><b>${esc(kundenName(k))}</b></span><span class="pat-nr">Lexware ${esc(k.nummer)}</span></header>
+    <header class="pat-kopf">${auswahl}<span class="pat-name"><b>${esc(kundenName(k))}</b></span><span class="pat-nr">Lexware ${esc(k.nummer)}</span></header>
     ${marken ? `<p class="pat-hinweise">${marken}</p>` : ''}
     <div class="pat-kontakte">${kontakt('telefon', k.telefon, 'Telefon')}${kontakt('email', k.email, 'E-Mail')}</div>
     <dl class="liste-dl klein"><dt>Rechnungsadresse</dt><dd>${adresse}</dd>${k.anrede ? `<dt>Anrede</dt><dd>${esc(k.anrede)}</dd>` : ''}</dl>
@@ -131,8 +134,13 @@ function lexwareKachel(k: LexwareKundeStand): string {
 
 export function lexwareKundenSeite(d: LexwareKundenDaten, o: Rahmen): string {
   const je = (s: KundeStand) => d.kunden.filter((k) => k.stand === s);
+  // Sammelübernahme (W99b): die Gruppe „neu“ ist ein Formular, die Haken in den Kacheln gehören dazu
   const gruppen = (['neu', 'vermutet', 'verknuepft'] as const).filter((s) => je(s).length)
-    .map((s) => `<section class="pat-abschnitt" id="lexware-${s}"><h2>${STAND_TITEL[s]} <span class="hint">(${je(s).length})</span></h2><div class="pat-raster">${je(s).map(lexwareKachel).join('')}</div></section>`).join('');
+    .map((s) => s === 'neu'
+      ? `<section class="pat-abschnitt" id="lexware-neu"><form method="post" action="/patienten/aktion" class="lx-mehrere"><input type="hidden" name="aktion" value="lexware_anlegen_mehrere"><input type="hidden" name="zurueck" value="/patienten/lexware">
+  <h2>${STAND_TITEL.neu} <span class="hint">(${je('neu').length})</span><button class="knopf klein" data-hilfe="lexware.anlegen-mehrere">${symbol('patient', { groesse: 16 })} Ausgewählte als Patienten anlegen</button></h2>
+  <div class="pat-raster">${je('neu').map(lexwareKachel).join('')}</div></form></section>`
+      : `<section class="pat-abschnitt" id="lexware-${s}"><h2>${STAND_TITEL[s]} <span class="hint">(${je(s).length})</span></h2><div class="pat-raster">${je(s).map(lexwareKachel).join('')}</div></section>`).join('');
   const leer = d.fehler ? '' : d.suche ? `<p class="leer">Kein Lexware-Kunde passt zu „${esc(d.suche)}“.</p>` : '<p class="leer">Lexware kennt noch keine Kunden.</p>';
   const zahl = d.kunden.length;
   return seite({
@@ -330,6 +338,8 @@ ${offenBox}
   <div class="knopfreihe">${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="heilbehandlung_steuerfrei"><button class="knopf klein" data-hilfe="rechnung.neu.heil">${symbol('euro', { groesse: 16 })} Neue Rechnung Heilbehandlung</button>`, { id: p.id, zurueck })}
   ${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="wellness_19"><button class="knopf klein" data-hilfe="rechnung.neu.wellness">${symbol('wellness', { groesse: 16 })} Neue Rechnung Wellness</button>`, { id: p.id, zurueck })}</div>
   ${d.lexwareRechnungen ? `<p>${form('lexware_rechnungen', `<button class="knopf klein" data-hilfe="patient.lexware_rechnungen">${symbol('rechnung', { groesse: 16 })} Rechnungen und Zahlungen aus Lexware prüfen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Lexware kennt diesen Patienten als Kunden – neue Rechnungen kommen als Kacheln, bezahlte bekommen Zahldatum und Zahlungsposten.</span></p>` : ''}
+  ${d.lexwareAbgleich?.abweichungen.length ? `<div class="hinweis-muster lx-abgleich" data-hilfe="patient.lexware-abgleich" tabindex="0"><p><b>Lexware-Kunde ${esc(d.lexwareAbgleich.nummer)}:</b> ${d.lexwareAbgleich.abweichungen.length} Feld${d.lexwareAbgleich.abweichungen.length === 1 ? '' : 'er'} weicht ab – der PPM-Wert bleibt, bis du den Lexware-Wert übernimmst.</p><ul class="lx-abweichungen">${d.lexwareAbgleich.abweichungen.map((a) => `<li><b>${esc(a.titel)}</b>: hier „${esc(a.ppm ?? '–')}“ · Lexware „${esc(a.lexware)}“ ${form('lexware_uebernehmen', `<input type="hidden" name="feld" value="${a.feld}"><button class="knopf klein" data-hilfe="patient.lexware-uebernehmen">Lexware-Wert übernehmen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })}</li>`).join('')}</ul></div>` : ''}
+  ${d.lexwareKundeAnlegbar ? `<p>${form('lexware_kunde_anlegen', `<button class="knopf klein" data-hilfe="patient.lexware-kunde">${symbol('euro', { groesse: 16 })} In Lexware als Kunde anlegen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Noch kein Lexware-Kunde – nötig, bevor eine Rechnung nach Lexware geht (passiert sonst beim ersten „Nach Lexware“ von selbst).</span></p>` : ''}
 </section>
 ${pdfFenster()}
 

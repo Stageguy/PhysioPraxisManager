@@ -7,6 +7,7 @@ import { karteiDienst } from '../src/kartei/dienst.ts';
 import { namensschluessel } from '../src/kartei/lexware-kunden.ts';
 import { LexwareClient, type Kontakt } from '../src/lexware/client.ts';
 import { attrappeKunden, kundeAus, lexwareKunden, personAusFirma, strasseTeilen, type LexwareKunde, type LexwareKunden } from '../src/lexware/kunden.ts';
+import { attrappeRechnungen } from '../src/lexware/rechnungen.ts';
 import { praxisDienst } from '../src/server.ts';
 import { neuerHauptschluessel, tresor } from '../src/tresor.ts';
 import { testDb } from './testdb.ts';
@@ -94,7 +95,7 @@ const quelle: LexwareKunden = {
 
 before(async () => {
   db = await testDb();
-  server = praxisDienst({ erlaubt: ['lilli@example.org'], fassung: 't', angemeldet: async () => true, pruefen: async () => [], kartei: karteiDienst({ db, tresor: t, lexware: quelle }) });
+  server = praxisDienst({ erlaubt: ['lilli@example.org'], fassung: 't', angemeldet: async () => true, pruefen: async () => [], kartei: karteiDienst({ db, tresor: t, lexware: quelle, lexwareRechnungen: attrappeRechnungen() }) });
   await new Promise<void>((f) => server.listen(0, '127.0.0.1', f));
   basis = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -112,6 +113,10 @@ test('Patientenliste bietet „Aus Lexware“; die Seite gruppiert nach dem Stan
   assert.match(html, /id="lx-1003"[\s\S]{0,400}<span class="marke">Firma<\/span> <span class="marke">als Person: Yvonne Zeller\?<\/span>/);
   assert.match(html, /Notiz in Lexware/);
   assert.doesNotMatch(html, /lexware-verknuepft/);
+  // Sammelübernahme (W99b): die Gruppe „neu“ ist ein Formular mit Haken je Kachel
+  assert.match(html, /<form method="post" action="\/patienten\/aktion" class="lx-mehrere">[\s\S]{0,600}data-hilfe="lexware.anlegen-mehrere"/, 'Formular um die Gruppe „neu“');
+  assert.match(html, /<input type="checkbox" name="kunde" value="1002" data-hilfe="lexware.auswahl">/);
+  assert.match(html, /<input type="checkbox" name="kunde" value="1003" data-hilfe="lexware.auswahl">/, 'Firma mit Personenname wählbar');
   assert.match(html, /<a class="knopf primaer" href="\/patienten\/neu\?lexware=1002" data-hilfe="lexware.anlegen">Als Patient anlegen<\/a>/);
   const s = await seite('/patienten/lexware?suche=bernd');
   assert.match(s, /id="lx-1002"/);
@@ -180,4 +185,48 @@ test('Lexware nicht erreichbar: Seite bleibt bedienbar mit Hinweis; ohne Anbindu
   } finally {
     ohne.close();
   }
+});
+
+test('Sammelübernahme (W99b): markierte Kunden werden Patienten; schon verknüpfte und unbekannte werden übersprungen', async () => {
+  const r = await post({ aktion: 'lexware_anlegen_mehrere', zurueck: '/patienten/lexware' });
+  assert.match(ziel(r), /fehler=Keine Kunden ausgewählt/);
+  const f = new URLSearchParams([['aktion', 'lexware_anlegen_mehrere'], ['kunde', '1003'], ['kunde', '1002'], ['kunde', '9999'], ['zurueck', '/patienten/lexware']]);
+  const s = await fetch(`${basis}/patienten/aktion`, { method: 'POST', redirect: 'manual', headers: { ...wer, 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/x-www-form-urlencoded' }, body: f.toString() });
+  assert.match(ziel(s), /meldung=1 Patient aus Lexware angelegt\. Übersprungen: 1002 \(schon verknüpft\), 9999 \(nicht in Lexware\)\./);
+  const yvonne = (await db.query<Record<string, unknown>>("SELECT id::text, vorname, nachname, lexware_kundennummer AS n, lexware_kontakt_id AS k FROM patient WHERE lexware_kundennummer = '1003'")).rows[0]!;
+  assert.deepEqual([yvonne.vorname, yvonne.nachname, yvonne.n, yvonne.k], ['Yvonne', 'Zeller', '1003', 'lx-3']);
+  const html = await seite('/patienten/lexware');
+  assert.match(html, /id="lexware-verknuepft"[\s\S]*id="lx-1003"/);
+  assert.doesNotMatch(html, /id="lexware-neu"/, 'niemand mehr ohne Kartei');
+});
+
+test('Feldabgleich (W99b, E30b): Lexware-Werte erscheinen als Abweichungen, kommen nur per Klick; Patient als Kunde nach Lexware', async () => {
+  await post({ aktion: 'lexware_zuordnen', id: annaId, kundennummer: '1001', kontakt_id: 'lx-1', zurueck: '/patienten/lexware' });
+  let html = await seite(`/patienten/${annaId}`);
+  assert.match(html, /data-hilfe="patient.lexware-abgleich"[^>]*><p><b>Lexware-Kunde 1001:<\/b> 4 Felder weicht ab/);
+  for (const t of ['Anrede', 'E-Mail', 'Telefon', 'Rechnungsadresse']) assert.match(html, new RegExp(`<li><b>${t}</b>: hier „–“ · Lexware „`), t);
+  assert.doesNotMatch(html, /patient\.lexware-kunde"/, 'schon Kunde – kein Anlegen-Knopf');
+  let r = await post({ aktion: 'lexware_uebernehmen', id: annaId, feld: 'email', zurueck: `/patienten/${annaId}` });
+  assert.match(ziel(r), /meldung=E-Mail aus Lexware übernommen\./);
+  r = await post({ aktion: 'lexware_uebernehmen', id: annaId, feld: 'adresse', zurueck: `/patienten/${annaId}` });
+  assert.match(ziel(r), /meldung=Rechnungsadresse aus Lexware übernommen\./);
+  assert.match(ziel(await post({ aktion: 'lexware_uebernehmen', id: annaId, feld: 'adresse', zurueck: `/patienten/${annaId}` })), /fehler=Dieses Feld weicht nicht \(mehr\) ab/);
+  const kontakte = (await db.query<{ art: string; wert: string; primaer: boolean }>('SELECT art::text, wert, primaer FROM patient_kontakt WHERE patient_id = $1 ORDER BY id', [annaId])).rows;
+  assert.deepEqual(kontakte, [{ art: 'email', wert: 'anna@example.org', primaer: true }]);
+  const adresse = (await db.query<Record<string, unknown>>('SELECT strasse, hausnummer, plz, ort, rechnungsadresse FROM patient_adresse WHERE patient_id = $1', [annaId])).rows;
+  assert.deepEqual(adresse, [{ strasse: 'Hauptstraße', hausnummer: '12', plz: '86825', ort: 'Bad Wörishofen', rechnungsadresse: true }]);
+  html = await seite(`/patienten/${annaId}`);
+  assert.match(html, /2 Felder weicht ab/);
+  // Rückweg: ein Patient ohne Kunde wird in Lexware (Attrappe) angelegt
+  const dora = /\/patienten\/(\d+)/.exec(ziel(await post({ aktion: 'anlegen', vorname: 'Dora', nachname: 'Neukund', email: 'shopping+dora@2late.de', strasse: 'Mühlweg', hausnummer: '4', plz: '86825', ort: 'Bad Wörishofen' })))![1]!;
+  html = await seite(`/patienten/${dora}`);
+  assert.match(html, /data-hilfe="patient.lexware-kunde"/);
+  assert.doesNotMatch(html, /patient\.lexware_rechnungen/);
+  r = await post({ aktion: 'lexware_kunde_anlegen', id: dora, zurueck: `/patienten/${dora}` });
+  assert.match(ziel(r), /meldung=In Lexware als Kunde 10101 angelegt\./);
+  assert.deepEqual((await db.query('SELECT lexware_kundennummer AS n, lexware_kontakt_id AS k FROM patient WHERE id = $1', [dora])).rows[0], { n: '10101', k: 'attrappe-k-1' });
+  html = await seite(`/patienten/${dora}`);
+  assert.doesNotMatch(html, /patient\.lexware-kunde"/);
+  assert.match(html, /patient\.lexware_rechnungen/);
+  assert.match(ziel(await post({ aktion: 'lexware_kunde_anlegen', id: dora, zurueck: `/patienten/${dora}` })), /fehler=Der Patient ist schon Lexware-Kunde 10101/);
 });
