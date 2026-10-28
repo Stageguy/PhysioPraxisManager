@@ -125,6 +125,7 @@ Neue Ideen bekommen eine W-Nummer und werden sofort mit den Prompts abgeglichen.
 | W106 | **Anordnung der Elemente in den Ansichten** überarbeiten – aktuell zu durcheinander (Patientenseite, Cockpit, Rechnungsseite) | 8, 10 | aufgenommen 27.10.2026, **noch nicht gebaut**: erst Funktionen, dann ein eigener Block „Aufräumen“. Vorschlag für die Patientenseite: feste Reihenfolge Kopf → Termine → Rezepte → Rechnungen → Nachricht → Akte/Formulare; Abschnitte zuklappbar wie die Rechnungsjahre; Formulare (Stammdaten, Kontakt, Adresse) in Aufklapper; Knopfreihen je Abschnitt an einer Stelle. Vorher mit Christian am Prüfbrowser-Foto durchgehen, welche Reihenfolge Lilli am iPhone braucht |
 | W107 | **Behandlungen mit Behandlungsschritten je Rezept, Unterschrift des Patienten nach jedem Termin** – Zusammenhang Patient → Rezept → Termin → Behandlung → Bestätigung | 12, 14 | **Konzept 27.10.2026 (§4e), nicht gebaut.** Kurz: der Zusammenhang besteht im Datenmodell schon (termin.verordnung_id, behandlung.termin_id, behandlung_leistung.verordnung_id, rechnung_position.behandlung_leistung_id); es fehlen die **Bestätigung je Behandlung** (Unterschrift am iPhone, verschlüsselt im Tresor, mit Zeitstempel) und optional **Schritte** als tippbarer Katalog statt Freitext. Empfehlung: Unterschrift als eigener kleiner Block (W107a, 1–2 PT), Schritte später (W107b, 2–3 PT, zusammen mit Materialien W87) |
 | W108 | **Patientenwunsch: weniger, längere Termine** als auf dem Rezept (10 × 20 Min. → 5 × 40 Min.). Kalender soll 40-Minuten-Termine zeigen, die Dokumentation 10 × 20 Min. „mit Terminen und Uhrzeiten“ – Vorschlag für eine „Schattenbuchhaltung“, ohne das Rezept zu erweitern oder mehr abzurechnen | 12, 14 | **Bewertung 27.10.2026 (§4f), nicht gebaut.** Eine Dokumentation mit erfundenen Terminen und Uhrzeiten baue ich nicht: sie wäre eine falsche Behandlungsdokumentation (§ 630f BGB) und gegenüber PKV/Beihilfe eine Täuschung über den Behandlungsablauf – Risiko für Lilli (Abrechnungsbetrug, Berufsrecht), und sie widerspricht W107 (Unterschrift je Termin). **Was geht, und dasselbe Ziel erreicht:** ein 40-Minuten-Termin verbraucht **zwei Einheiten** des Rezepts (Doppelbehandlung) – wahr dokumentiert (ein Termin, 40 Min., 2 × KG), Stempelkarte zählt 2, Rechnung weist „2 × KG am 03.11.“ aus; Hinweis an den Patienten über das Erstattungsrisiko als Erklärung in der Akte; besser noch: der Arzt verordnet die Doppelbehandlung. Im PPM dafür: Einheiten je Termin wählbar (1/2), Dauer = Einheiten × Regelzeit, Warnhinweis, Erklärung „Hinweis Erstattung“ – W108a, 1 PT |
+| W109 | **Rezepte digital vom Arzt bekommen** – geht das, und was sind die Voraussetzungen? | 12, 14 | **Prüfung 28.10.2026 (§4g).** Kurz: Die amtliche elektronische Heilmittelverordnung (eVO über die Telematikinfrastruktur) gibt es noch nicht – Papier-Muster 13 gilt weiter; Gesetz nennt 1.1.2027, gematik plant Release eRp 27.4 im 1. Halbjahr 2028, G-BA ändert die Heilmittel-Richtlinie erst (Beschluss 21.1.2027), die TI-Anschlusspflicht für Heilmittelerbringer wurde auf 1.10.2027 verschoben; ob Privatverordnungen überhaupt erfasst werden, ist offen. **Heute realistisch:** (1) Patient fotografiert das Rezept → Akte (W69/W70, braucht HTTPS); (2) Arztpraxen schicken die Verordnung als PDF über **KIM** – dafür braucht die Praxis einen TI-Anschluss (TI-Gateway, SMC-B über das eGBR mit IK, eHBA für Lilli, KIM-Dienst), ohne Kassenzulassung ohne Kostenerstattung; (3) unverschlüsselte Mail vom Arzt ist wegen der Diagnose auf dem Rezept kein Weg. Empfehlung: (1) jetzt, (2) nur, wenn mehrere verordnende Ärzte mitmachen (E32), eVO beobachten |
 | W37 | Hilfeseite, die Kategorien und spätere Funktionen erklärt; Rechtsklick-Erklärungen an Schaltflächen und Eingabefeldern wie in den mondre-Projekten | 10 | ✅ 20.10.2026: `/hilfe`, `/hilfe.js`, Vorschau `npm run hilfe:vorschau` |
 | W36 | Postfach durchlesen: wie viele Mails enthalten Rechnungen, die für das Geschäftsjahr 2026 relevant sind? | 4 | ✅ gezählt 20.10.2026, N21 |
 
@@ -480,6 +481,52 @@ mit einem Klick. Frage an Lilli (Nr. 26): Will sie das anbieten, und spricht sie
 
 ---
 
+## 4g. Rezepte digital vom Arzt (W109, Prüfung 28.10.2026)
+
+**Frage:** Können wir Rezepte digital vom Arzt bekommen, und was sind die Voraussetzungen?
+
+**1. Der amtliche Weg: elektronische Heilmittelverordnung (eVO) über die Telematikinfrastruktur (TI).**
+- **Stand Oktober 2026: gibt es noch nicht.** Für Heilmittel gilt weiter das Papierformular Muster 13. Das Gesetz
+  (§ 360 Abs. 7 SGB V) nennt den 1. Januar 2027, die gematik führt die Heilmittelverordnung aber erst im Release
+  eRp 27.4 (geplant 1. Halbjahr 2028); der G-BA überarbeitet die Heilmittel-Richtlinie (Stellungnahme bis
+  27.10.2026, Beschluss 21.1.2027, Bundesanzeiger April 2027); in Unterlagen steht auch 2029. Eine
+  Vorab-Fachkonzeption der gematik (Juli 2026) beschreibt Ausstellen, Bereitstellen, Einlösen, Korrigieren und
+  Leistungsbestätigung – der Patientenzugang (eGK, App, QR-Code), der Abrufweg der Praxis und die Signatur sind
+  noch offen. Die TI-Anschlusspflicht für Heilmittelerbringer wurde vom 1.1.2026 auf den **1.10.2027** verschoben
+  (Bundestag 6.11.2025); Pilotphasen 2027, flächendeckend voraussichtlich 2028.
+- **Für eine Privatpraxis unklar:** Die eVO ist ein Instrument der gesetzlichen Versorgung (Heilmittel-Richtlinie,
+  Muster 13). Ob Privatverordnungen (PKV, Beihilfe, Selbstzahler) über denselben Weg laufen, ist in keiner Quelle
+  geregelt. Eine Anschlusspflicht gilt nur für Praxen, die gesetzlich Versicherte behandeln.
+- **Voraussetzungen, wenn es so weit ist:** TI-Anschluss (heute als **TI-Gateway** eines Anbieters, kein Konnektor
+  mehr in der Praxis), **SMC-B** (Praxisausweis, über das elektronische Gesundheitsberuferegister eGBR – braucht ein
+  Institutionskennzeichen IK und eine Person mit eHBA), **eHBA** für Lilli (über das eGBR mit Berufsurkunde),
+  Kartenterminal für die eGK, und ein **Primärsystem**, das die E-Rezept-Schnittstellen spricht. Letzteres ist der
+  Knackpunkt: Der PPM müsste die gematik-Schnittstellen (FHIR, Zugriff über den TI-Gateway) umsetzen oder ein
+  zertifiziertes Produkt daneben nutzen – für eine Ein-Personen-Privatpraxis ohne TI-Pauschale (§ 380 SGB V zahlt
+  nur bei Kassenzulassung) derzeit kein sinnvoller Aufwand.
+
+**2. Was heute geht.**
+- **(a) Patient fotografiert das Rezept** (W69/W70): Foto per Buchungsseite, Mail oder in der Praxis am iPhone →
+  Dokument in der Akte (`dokument` mit Art `verordnung`, verschlüsselt), Verordnung wird daraus angelegt und
+  geprüft. Braucht HTTPS für die Kamera (A31). Für Privatpatienten reicht der Praxis eine **Kopie** – das Original
+  reichen sie selbst bei PKV oder Beihilfe ein. Das ist der Weg mit dem besten Verhältnis von Nutzen zu Aufwand
+  und hängt nicht von den Arztpraxen ab.
+- **(b) Verordnung als PDF direkt von der Arztpraxis:** Arztpraxen haben KIM (Kommunikation im Medizinwesen, die
+  sichere Mail der TI). Darüber könnten sie Verordnungen an eine KIM-Adresse der Praxis schicken; der PPM liest
+  dieses Postfach wie heute den Rechnungseingang (Ordner, Erkennung, Zuordnung zum Patienten, Fach „Bitte
+  anschauen“). Voraussetzung ist der TI-Anschluss aus Punkt 1 (TI-Gateway, SMC-B, eHBA, KIM-Dienst) – Größenordnung
+  50–100 € im Monat plus Karten, Angebote prüfen, keine Erstattung ohne Kassenzulassung. Lohnt nur, wenn mehrere
+  verordnende Ärzte das tatsächlich tun (Frage 27 an Lilli) → **E32**.
+- **(c) Unverschlüsselte Mail vom Arzt an praxis@:** technisch sofort möglich (der Leser existiert), aber ein Rezept
+  trägt Diagnose und ICD-Code – Gesundheitsdaten gehören nicht in normale Mails (Leitplanke 9, Art. 9 DSGVO). Kein
+  empfohlener Weg; höchstens Ende-zu-Ende-verschlüsselt, was Arztpraxen praktisch nicht leisten.
+
+**3. Empfehlung.** Jetzt (a) bauen; (b) als Entscheidung E32 mit Lilli und ihren Ärzten klären; die eVO beobachten
+und frühestens zur Pilotphase 2027 entscheiden. Im PPM ist vorbereitet: `verordnung.dokument_id` für das Bild,
+die Felder Maßnahme, Anzahl, Frequenz, Dauer, Diagnose, ICD lassen sich später aus einer eVO (FHIR) befüllen.
+
+---
+
 ## 5. Aufgaben (A) – Schritt für Schritt
 
 Status: ✅ erledigt · ▶ als Nächstes · ⏳ wartet (auf Entscheidung oder Vorleistung) · ○ später
@@ -660,6 +707,7 @@ Patientendaten liegen dort noch nicht. Der Weg in Lillis eigenen Tailnet steht i
 | E26 | Tresor-Schlüssel: wo liegt die Notfallkopie, und wer darf sie öffnen? Hat Lilli eine sektorale Heilpraktikererlaubnis (Direktzugang ohne Verordnung)? | Lilli + Christian | Notfallkopie ausgedruckt im Praxis-Safe (Umschlag), zweite Kopie bei Christian offline – **nur für die Produktion** (`praxis`); der Schlüssel von `praxis-test` schützt nur erfundene Daten und wird bei Verlust einfach neu erzeugt (entschieden 24.10.2026). Erlaubnis: Frage 15 an Lilli |
 | E30 | **Rechnungsversand aus dem PPM und Konfliktregel beim Lexware-Abgleich** (Grundprinzip §4d) | Lilli, Christian | **(a) entschieden 27.10.2026 (Christian):** Rechnungen sind die Ausnahme von Leitplanke 3 – zwei Klicks im PPM (W100): Klick 1 nach Lexware, Klick 2 Versand aus der Rechnungskachel über den Standardweg; nie ohne Klick. **(b) offen:** Wer gewinnt bei abweichenden gemeinsamen Feldern (Name, Rechnungsadresse, Mail, Telefon)? Vorschlag: der PPM führt; Lexware füllt nur leere Felder, Abweichungen werden auf der Patientenseite gezeigt und per Klick übernommen – nie stillschweigend überschrieben, nie gelöscht |
 | E31 | **Produktion im eigenen Tailnet (§5b):** (a) Darf Christian die Produktion mit echten Patientendaten sehen und bedienen? (b) Tailnet-Name: fun name von Tailscale (`praxis.<fun-name>.ts.net`) oder eigener Name `praxis.lilli-nebel.de` (W105)? (c) Sicherungsziel außerhalb des Servers (E16) | Lilli, Christian | Vorschlag 27.10.2026: (a) ja – Betreiber mit AVV, Protokoll mit Namen, Lilli kann ihn jederzeit entfernen; später Rolle „Betreiber ohne Akte“ (W89). (b) fun name jetzt, eigener Name später. (c) verschlüsselter `pg_dump` nächtlich auf HiDrive-Objektspeicher oder einen zweiten Server, vor den ersten echten Daten |
+| E32 | **TI-Anschluss und KIM für die Privatpraxis** (W109): lohnt ein TI-Gateway mit SMC-B, eHBA und KIM (Größenordnung 50–100 €/Monat plus Karten, ohne TI-Pauschale, weil keine Kassenzulassung), damit Ärzte Verordnungen sicher digital schicken und die Praxis später die eVO empfangen kann? | Lilli, Christian | Vorschlag: erst fragen, welche Ärzte überhaupt per KIM senden würden (Frage 27); vorher Rezeptfoto (W69/W70) bauen; TI frühestens 2027 mit der Pilotphase der eVO entscheiden |
 
 ---
 

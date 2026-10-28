@@ -188,3 +188,10 @@ Dokumentation mit erfundenen Terminen – das wäre eine falsche Behandlungsdoku
 (a) Willst du Doppelbehandlungen anbieten? (b) Sprichst du mit den verordnenden Ärzten ab, dass sie
 „Doppelbehandlung“ oder eine 40-Minuten-Leistung gleich verordnen? (c) Sollen Patienten vorher den Hinweis
 bekommen, dass ihre Versicherung Doppelbehandlungen ohne Verordnung kürzen kann (eine Erklärung in der Akte)?
+
+**27. Rezepte digital vom Arzt (W109):** Die elektronische Heilmittelverordnung über die Telematikinfrastruktur
+kommt frühestens 2027/2028 und ist für Privatverordnungen noch nicht geregelt. Bis dahin: (a) Patienten
+fotografieren das Rezept, der PPM legt es in der Akte ab; (b) Arztpraxen könnten Verordnungen als PDF über KIM
+schicken – dafür bräuchte die Praxis einen TI-Anschluss (ca. 50–100 € im Monat, ohne Erstattung). Bitte sagen:
+Von welchen Ärzten kommen die meisten Verordnungen, und würden diese Praxen Verordnungen digital (per KIM)
+schicken? Wenn ja, lohnt sich der Anschluss; wenn nein, bleibt es beim Foto.
