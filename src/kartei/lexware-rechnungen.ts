@@ -9,6 +9,7 @@ import { datumText } from '../format.ts';
 import type { Tresor } from '../tresor.ts';
 import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
 import type { LexwareKunden } from '../lexware/kunden.ts';
+import type { Zahlung } from '../lexware/client.ts';
 import { nurProduktion, SchrankeVerletzt } from '../umgebung.ts';
 import { ART_TEXT, lexwareStandUebernehmen, rechnungLesen, rechnungStatus, type RechnungStatus } from './rechnungen.ts';
 import { lexwareVerknuepfen } from './lexware-kunden.ts';
@@ -28,6 +29,19 @@ export interface Uebernahme {
   ohneDatei: number;
   /** Dateien, die in dieser Runde geholt wurden */
   dateien: number;
+  /** Rechnungen, die in dieser Runde auf „bezahlt“ gegangen sind (A29) */
+  bezahlt: number;
+}
+
+const ZAHLUNGSART: Record<string, string> = { manualPayment: 'manuell erfasst', partPaymentFinancialTransaction: 'Bankumsatz', partPaymentCashBox: 'Kasse', cashDiscount: 'Skonto', dunningCosts: 'Mahnkosten', irrecoverableReceivable: 'uneinbringlich' };
+
+/** Zahlungsposten aus Lexware an der Rechnung festhalten – bei jedem Abgleich neu (Quelle lexware) */
+export async function zahlungenSpeichern(db: Db, rechnungId: string, posten: NonNullable<Zahlung['paymentItems']>): Promise<void> {
+  await db.query("DELETE FROM rechnung_zahlung WHERE rechnung_id = $1 AND quelle = 'lexware'", [rechnungId]);
+  for (const p of posten) {
+    if (!Number.isFinite(p.amount)) continue;
+    await db.query('INSERT INTO rechnung_zahlung (rechnung_id, datum, betrag, art) VALUES ($1, $2, $3, $4)', [rechnungId, tagVon(p.postingDate), p.amount, ZAHLUNGSART[p.paymentItemType] ?? p.paymentItemType]);
+  }
 }
 
 /** Lexware-Status → Kachelstatus: offen heißt hier „versendet“ (vor dem PPM verschickt), bezahlt, storniert, Entwurf */
@@ -57,45 +71,64 @@ export async function rechnungenUebernehmen(
   )).rows;
   if (o.patientId && !zeilen.length) throw new KarteiFehler('Dieser Patient ist mit keinem Lexware-Kunden verknüpft – zuerst unter „Aus Lexware“ zuordnen');
   const patientZu = new Map(zeilen.map((z) => [z.kontakt, z.id]));
-  const e: Uebernahme = { gefunden: 0, neu: 0, aktualisiert: 0, unveraendert: 0, ohnePatient: 0, konflikt: 0, ohneDatei: 0, dateien: 0 };
+  const e: Uebernahme = { gefunden: 0, neu: 0, aktualisiert: 0, unveraendert: 0, ohnePatient: 0, konflikt: 0, ohneDatei: 0, dateien: 0, bezahlt: 0 };
   for await (const b of lex.belege({ kontaktId: o.patientId ? zeilen[0]!.kontakt : undefined })) {
     e.gefunden++;
     const patientId = b.contactId ? patientZu.get(b.contactId) : undefined;
     if (!patientId) { e.ohnePatient++; continue; }
-    const bekannt = (await db.query<{ id: string; patient_id: string; pdf: boolean; geaendert: string | null }>(
-      `SELECT id::text, patient_id::text, (lexware_pdf IS NOT NULL) AS pdf, lexware_geaendert_am AS geaendert FROM rechnung
+    const bekannt = (await db.query<{ id: string; patient_id: string; pdf: boolean; geaendert: string | null; status: string; zahlungen: string }>(
+      `SELECT id::text, patient_id::text, (lexware_pdf IS NOT NULL) AS pdf, lexware_geaendert_am AS geaendert, status::text,
+         (SELECT count(*)::text FROM rechnung_zahlung z WHERE z.rechnung_id = rechnung.id) AS zahlungen FROM rechnung
        WHERE lexware_invoice_id = $1 OR ($2::text IS NOT NULL AND nummer = $2) ORDER BY (lexware_invoice_id = $1) DESC LIMIT 1`, [b.id, b.voucherNumber ?? null],
     )).rows[0];
     if (bekannt && bekannt.patient_id !== patientId) { e.konflikt++; continue; }
     const geaendert = iso(b.updatedDate);
-    if (bekannt?.pdf && bekannt.geaendert && geaendert && iso(bekannt.geaendert) === geaendert) { e.unveraendert++; continue; }
+    if (bekannt?.pdf && bekannt.geaendert && geaendert && iso(bekannt.geaendert) === geaendert) {
+      e.unveraendert++;
+      // Zahlungsposten nachholen, wenn eine bezahlte Rechnung noch keine hat (ältere Übernahmen vor A29)
+      if (!o.probelauf && bekannt.zahlungen === '0' && (b.voucherStatus === 'paid' || b.voucherStatus === 'paidoff')) {
+        try { await zahlungenSpeichern(db, bekannt.id, (await lex.zahlung(b.id)).paymentItems ?? []); } catch (err) { console.warn(`Lexware-Zahlung ${b.id}: ${(err as Error).message.slice(0, 120)}`); }
+      }
+      continue;
+    }
     if (o.probelauf) { if (bekannt) e.aktualisiert++; else e.neu++; continue; }
-    // Zahldatum nur bei bezahlten Rechnungen – kostet eine Anfrage mehr
+    // Zahldatum und Zahlungsposten nur bei bezahlten Rechnungen – kostet eine Anfrage mehr
     let bezahltAm: string | undefined;
-    if (b.voucherStatus === 'paid' || b.voucherStatus === 'paidoff') {
-      try { bezahltAm = tagVon((await lex.zahlung(b.id)).paidDate) ?? undefined; } catch (err) { console.warn(`Lexware-Zahlung ${b.id}: ${(err as Error).message.slice(0, 120)}`); }
+    let posten: NonNullable<Zahlung['paymentItems']> = [];
+    const istBezahlt = b.voucherStatus === 'paid' || b.voucherStatus === 'paidoff';
+    if (istBezahlt) {
+      try {
+        const z = await lex.zahlung(b.id);
+        bezahltAm = tagVon(z.paidDate) ?? undefined;
+        posten = z.paymentItems ?? [];
+      } catch (err) { console.warn(`Lexware-Zahlung ${b.id}: ${(err as Error).message.slice(0, 120)}`); }
     }
     const datei = bekannt?.pdf || b.voucherStatus === 'draft' ? undefined : await lex.datei(b.id);
     if (datei) e.dateien++;
     else if (!bekannt?.pdf && b.voucherStatus !== 'draft') e.ohneDatei++;
+    let rechnungId: string;
     if (bekannt) {
       await lexwareStandUebernehmen(db, t, bekannt.id, {
         invoiceId: b.id, nummer: b.voucherNumber, status: b.voucherStatus, betrag: b.totalAmount, bezahltAm, pdf: datei?.daten, pdfName: datei?.name,
         erstelltAm: iso(b.createdDate) ?? undefined, geaendertAm: geaendert ?? undefined,
       }, o.wer);
       e.aktualisiert++;
-      continue;
+      if (istBezahlt && bekannt.status !== 'bezahlt' && bekannt.status !== 'storniert') e.bezahlt++;
+      rechnungId = bekannt.id;
+    } else {
+      const storniert = b.voucherStatus === 'voided';
+      rechnungId = (await db.query<{ id: string }>(
+        `INSERT INTO rechnung (patient_id, art, steuerklasse, quelle, empfaenger, datum, faellig_am, nummer, betrag, netto, ust, ust_satz, kleinunternehmer, status, bezahlt_am, storniert_am, storno_grund,
+           lexware_invoice_id, lexware_status, lexware_betrag, lexware_geprueft_am, lexware_pdf, lexware_pdf_am, lexware_pdf_name, lexware_erstellt_am, lexware_geaendert_am, erstellt_von)
+         VALUES ($1, 'einzel', NULL, 'lexware', $2, $3, $4, $5, $6, $6, 0, 0, true, $7, $8, $9, $10, $11, $12, $6, now(), $13, CASE WHEN $13::bytea IS NULL THEN NULL ELSE now() END, $14, $15, $16, $17) RETURNING id::text`,
+        [patientId, JSON.stringify({ name: b.contactName ?? '' }), tagVon(b.voucherDate), tagVon(b.dueDate), b.voucherNumber ?? null, b.totalAmount ?? 0, statusAusLexware(b.voucherStatus),
+          bezahltAm ?? null, storniert ? (geaendert?.slice(0, 10) ?? tagVon(b.voucherDate)) : null, storniert ? 'in Lexware storniert' : null,
+          b.id, b.voucherStatus, datei ? t.verschluesseln(datei.daten, 'rechnung.lexware_pdf') : null, datei?.name ?? null, iso(b.createdDate), geaendert, o.wer],
+      )).rows[0]!.id;
+      e.neu++;
+      if (istBezahlt) e.bezahlt++;
     }
-    const storniert = b.voucherStatus === 'voided';
-    await db.query(
-      `INSERT INTO rechnung (patient_id, art, steuerklasse, quelle, empfaenger, datum, faellig_am, nummer, betrag, netto, ust, ust_satz, kleinunternehmer, status, bezahlt_am, storniert_am, storno_grund,
-         lexware_invoice_id, lexware_status, lexware_betrag, lexware_geprueft_am, lexware_pdf, lexware_pdf_am, lexware_pdf_name, lexware_erstellt_am, lexware_geaendert_am, erstellt_von)
-       VALUES ($1, 'einzel', NULL, 'lexware', $2, $3, $4, $5, $6, $6, 0, 0, true, $7, $8, $9, $10, $11, $12, $6, now(), $13, CASE WHEN $13::bytea IS NULL THEN NULL ELSE now() END, $14, $15, $16, $17)`,
-      [patientId, JSON.stringify({ name: b.contactName ?? '' }), tagVon(b.voucherDate), tagVon(b.dueDate), b.voucherNumber ?? null, b.totalAmount ?? 0, statusAusLexware(b.voucherStatus),
-        bezahltAm ?? null, storniert ? (geaendert?.slice(0, 10) ?? tagVon(b.voucherDate)) : null, storniert ? 'in Lexware storniert' : null,
-        b.id, b.voucherStatus, datei ? t.verschluesseln(datei.daten, 'rechnung.lexware_pdf') : null, datei?.name ?? null, iso(b.createdDate), geaendert, o.wer],
-    );
-    e.neu++;
+    if (istBezahlt) await zahlungenSpeichern(db, rechnungId, posten);
   }
   if (!o.probelauf) await protokolliere(db, { actor: o.wer, action: 'rechnung_lexware_import', objectType: 'patient', objectId: o.patientId ?? '0', details: { ...e } });
   return e;
@@ -164,4 +197,4 @@ export async function rechnungNachLexware(
 export { SchrankeVerletzt };
 
 export const uebernahmeText = (e: Uebernahme): string =>
-  `${e.gefunden} Rechnung${e.gefunden === 1 ? '' : 'en'} in Lexware – ${e.neu} neu, ${e.aktualisiert} aktualisiert, ${e.unveraendert} unverändert${e.ohnePatient ? `, ${e.ohnePatient} ohne verknüpften Patienten` : ''}${e.konflikt ? `, ${e.konflikt} mit Nummernkonflikt` : ''}${e.ohneDatei ? `, ${e.ohneDatei} ohne Datei` : ''}${e.dateien ? ` · ${e.dateien} Datei${e.dateien === 1 ? '' : 'en'} in den Tresor gelegt` : ''}.`;
+  `${e.gefunden} Rechnung${e.gefunden === 1 ? '' : 'en'} in Lexware – ${e.neu} neu, ${e.aktualisiert} aktualisiert, ${e.unveraendert} unverändert${e.bezahlt ? `, ${e.bezahlt} jetzt bezahlt` : ''}${e.ohnePatient ? `, ${e.ohnePatient} ohne verknüpften Patienten` : ''}${e.konflikt ? `, ${e.konflikt} mit Nummernkonflikt` : ''}${e.ohneDatei ? `, ${e.ohneDatei} ohne Datei` : ''}${e.dateien ? ` · ${e.dateien} Datei${e.dateien === 1 ? '' : 'en'} in den Tresor gelegt` : ''}.`;

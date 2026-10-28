@@ -91,7 +91,7 @@ test('Übernahme: Kacheln je Jahr, Datei im Tresor, Zahldatum; Probelauf schreib
   assert.deepEqual([probe.gefunden, probe.neu, probe.aktualisiert, probe.ohnePatient], [3, 3, 0, 0]);
   assert.equal(await anzahl(annaId), 0, 'Probelauf schreibt nichts');
   r = await post({ aktion: 'lexware_rechnungen', id: annaId, zurueck: `/patienten/${annaId}` });
-  assert.match(ziel(r), /meldung=Aus Lexware: 3 Rechnungen in Lexware – 3 neu, 0 aktualisiert, 0 unverändert · 3 Dateien in den Tresor gelegt\.#rechnungen$/);
+  assert.match(ziel(r), /meldung=Aus Lexware: 3 Rechnungen in Lexware – 3 neu, 0 aktualisiert, 0 unverändert, 2 jetzt bezahlt · 3 Dateien in den Tresor gelegt\.#rechnungen$/);
   const rows = (await db.query<Record<string, unknown>>(
     'SELECT nummer, status::text, quelle, datum::text, faellig_am::text, bezahlt_am::text, betrag::text, lexware_pdf_name AS name, lexware_pdf AS pdf, steuerklasse::text, lexware_status FROM rechnung WHERE patient_id = $1 ORDER BY nummer', [annaId],
   )).rows;
@@ -111,6 +111,8 @@ test('Übernahme: Kacheln je Jahr, Datei im Tresor, Zahldatum; Probelauf schreib
   assert.doesNotMatch(html, /target="_blank"[^>]*patient\.rechnung/, 'kein Tab-Wechsel');
   assert.match(html, /RE-2026-0088[\s\S]{0,200}überfällig/);
   assert.match(html, /aus Lexware · paid/);
+  assert.match(html, /<dt>Zahlung<\/dt><dd>12\.03\.2025 · 89,00[\s\u00a0]€ · Bankumsatz<\/dd>/, 'Zahlungsposten in der Kachel (A29)');
+  assert.deepEqual((await db.query('SELECT z.datum::text AS d, z.betrag::text AS b, z.art FROM rechnung_zahlung z JOIN rechnung r ON r.id = z.rechnung_id WHERE r.nummer = $1', ['RE-2025-0007'])).rows, [{ d: '2025-03-12', b: '89.00', art: 'Bankumsatz' }]);
   assert.match(html, /name="anhang_rechnung"[^>]*> Rechnung RE-2025-0007 \(PDF\)/, 'als Mail-Anhang wählbar');
   const rid = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE nummer = $1', ['RE-2025-0007'])).rows[0]!.id;
   const pdf = await fetch(`${basis}/patienten/${annaId}/rechnungen/${rid}/pdf`, { headers: wer });
@@ -138,7 +140,7 @@ test('PPM-Rechnung mit derselben Nummer wird verknüpft statt verdoppelt; Storno
   await post({ aktion: 'lexware_zuordnen', id: berndId, kundennummer: '10002', kontakt_id: 'attrappe-2', zurueck: '/patienten/lexware' });
   await db.query(`INSERT INTO rechnung (patient_id, art, steuerklasse, empfaenger, status, nummer, betrag) VALUES ($1, 'einzel', 'heilbehandlung_steuerfrei', '{"name":"Bernd"}', 'freigegeben', 'RE-2026-0040', 60)`, [berndId]);
   const r = await post({ aktion: 'lexware_rechnungen', id: berndId, zurueck: `/patienten/${berndId}` });
-  assert.match(ziel(r), /2 Rechnungen in Lexware – 1 neu, 1 aktualisiert, 0 unverändert · 2 Dateien/);
+  assert.match(ziel(r), /2 Rechnungen in Lexware – 1 neu, 1 aktualisiert, 0 unverändert, 1 jetzt bezahlt · 2 Dateien/);
   const rows = (await db.query<Record<string, unknown>>('SELECT nummer, status::text, quelle, lexware_invoice_id AS lx, storno_grund AS grund, (lexware_pdf IS NOT NULL) AS pdf FROM rechnung WHERE patient_id = $1 ORDER BY nummer', [berndId])).rows;
   assert.deepEqual(rows.map((x) => [x.nummer, x.status, x.quelle, x.lx, x.grund, x.pdf]), [
     ['RE-2024-0012', 'bezahlt', 'lexware', 'attrappe-re-4', null, true],

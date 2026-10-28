@@ -41,6 +41,8 @@ export interface Zahlung {
   paymentStatus: 'balanced' | 'openRevenue' | 'openExpense';
   voucherStatus: Belegstatus;
   paidDate?: string;
+  /** Einzelne Zahlungsposten (manualPayment, partPaymentFinancialTransaction = Bankumsatz, cashDiscount, dunningCosts …) */
+  paymentItems?: { paymentItemType: string; postingDate?: string; amount: number; currency?: string }[];
 }
 
 /** Kontakt aus /v1/contacts – nur die Felder, die die Kundenkarte braucht (W99) */

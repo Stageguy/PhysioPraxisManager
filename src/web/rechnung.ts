@@ -108,7 +108,8 @@ ${meldungen(o)}
     <dt>Preisliste</dt><dd>${r.preisliste ? `<a href="/preislisten/${r.preisliste.id}">${esc(r.preisliste.name)}</a> <span class="hint">(Stand dieser Rechnung)</span>` : '<span class="warn">keine – Preise bitte von Hand</span>'}</dd>
     <dt>Datum</dt><dd>${r.datum ? datumText(r.datum) : 'bei Fertigstellung'}${r.faelligAm ? ` · fällig ${datumText(r.faelligAm)}` : ''}</dd>
     ${r.zeitraumVon ? `<dt>Zeitraum</dt><dd>${datumText(r.zeitraumVon)} – ${datumText(r.zeitraumBis)}</dd>` : ''}
-    ${r.lexware.status ? `<dt>Lexware</dt><dd>${esc(r.lexware.status)}${r.lexware.geprueftAm ? ` · geprüft ${datumText(r.lexware.geprueftAm)}` : ''}</dd>` : ''}
+    ${r.lexware.status ? `<dt>Lexware</dt><dd>${esc(r.lexware.status)}${r.lexware.geprueftAm ? ` · geprüft ${datumText(r.lexware.geprueftAm)}` : ''}${r.lexware.invoiceId ? ` · <a href="https://app.lexware.de/permalink/invoices/view/${esc(r.lexware.invoiceId)}" target="_blank" rel="noopener" data-hilfe="rechnung.lexware-link">in Lexware öffnen</a>` : ''}</dd>` : ''}
+    ${r.zahlungen.map((z) => `<dt>Zahlung</dt><dd>${z.datum ? datumText(z.datum) : '–'} · ${euroText(z.betrag)} · ${esc(z.art)}</dd>`).join('')}
     ${r.stornoGrund ? `<dt>Storno</dt><dd>${datumText(r.storniertAm)} · ${esc(r.stornoGrund)}</dd>` : ''}
   </dl>${r.lexware.pdfAm ? `<a class="knopf klein" href="/patienten/${p.id}/rechnungen/${r.id}/pdf" data-pdf="${esc(r.nummer ?? 'Rechnung')}" data-hilfe="ausgang.pdf">${symbol('rechnung', { groesse: 16 })} PDF aus Lexware</a>` : ''}</div>
 </div>

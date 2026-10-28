@@ -78,6 +78,8 @@ export interface Rechnung {
   erstelltAm: string;
   positionen: Position[];
   bausteine: Baustein[];
+  /** Zahlungsposten aus Lexware (A29) */
+  zahlungen: { datum: string | null; betrag: number; art: string }[];
 }
 
 
@@ -98,6 +100,8 @@ export async function rechnungLesen(db: Db, patientId: string, id: string): Prom
   }));
   const bausteine = (await db.query<Record<string, unknown>>('SELECT id::text, code, kurzname, text, wirkung FROM rechnung_textbaustein WHERE rechnung_id = $1 ORDER BY reihenfolge, id', [id])).rows
     .map((b) => ({ id: String(b.id), code: (b.code as string | null) ?? null, kurzname: String(b.kurzname), text: String(b.text), wirkung: String(b.wirkung) }));
+  const zahlungen = (await db.query<Record<string, unknown>>('SELECT datum, betrag, art FROM rechnung_zahlung WHERE rechnung_id = $1 ORDER BY datum, id', [id])).rows
+    .map((z) => ({ datum: tag(z.datum), betrag: betrag(z.betrag), art: String(z.art) }));
   return {
     id: String(r.id_text), patientId: String(r.pid), fallId: (r.fid as string | null) ?? null, verordnungId: (r.vid as string | null) ?? null, art: String(r.art),
     steuerklasse: (r.steuerklasse as Rechnung['steuerklasse']) ?? null, quelle: r.quelle === 'lexware' ? 'lexware' : 'ppm', status: r.status as RechnungStatus, empfaenger: (r.empfaenger as Rechnung['empfaenger']) ?? { name: '' },
@@ -109,7 +113,7 @@ export async function rechnungLesen(db: Db, patientId: string, id: string): Prom
       geprueftAm: iso(r.lexware_geprueft_am), abweichung: (r.lexware_abweichung as string | null) ?? null, pdfAm: iso(r.lexware_pdf_am), pdfName: (r.lexware_pdf_name as string | null) ?? null,
       erstelltAm: iso(r.lexware_erstellt_am), geaendertAm: iso(r.lexware_geaendert_am),
     },
-    notiz: (r.notiz as string | null) ?? null, erstelltAm: new Date(r.erstellt_am as string).toISOString(), positionen, bausteine,
+    notiz: (r.notiz as string | null) ?? null, erstelltAm: new Date(r.erstellt_am as string).toISOString(), positionen, bausteine, zahlungen,
   };
 }
 

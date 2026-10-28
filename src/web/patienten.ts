@@ -266,7 +266,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
       <span class="rk-pat-betrag">${euroText(r.betrag)}</span>
       <dl class="liste-dl klein">${lexware
         ? `<dt>Datei</dt><dd>${r.pdf ? esc(r.dateiName ?? `Rechnung-${r.nummer ?? r.id}.pdf`) : '<span class="hint">keine Datei</span>'}</dd>`
-        : `<dt>Gruppe</dt><dd>${r.steuerklasse === 'wellness_19' ? 'Wellness' : 'Heilbehandlung'} · ${r.positionen} Pos.</dd>`}<dt>Datum</dt><dd>${r.datum ? datumText(r.datum) : '–'}</dd>${r.faelligAm ? `<dt>Fällig</dt><dd>${datumText(r.faelligAm)}</dd>` : ''}${r.bezahltAm ? `<dt>Bezahlt</dt><dd>${datumText(r.bezahltAm)}</dd>` : ''}${r.storniertAm ? `<dt>Storniert</dt><dd>${datumText(r.storniertAm)}</dd>` : ''}${r.versandArt ? `<dt>Versand</dt><dd>${{ email: 'per Mail', post: 'per Post', beides: 'Mail + Post' }[r.versandArt] ?? r.versandArt}</dd>` : ''}</dl>
+        : `<dt>Gruppe</dt><dd>${r.steuerklasse === 'wellness_19' ? 'Wellness' : 'Heilbehandlung'} · ${r.positionen} Pos.</dd>`}<dt>Datum</dt><dd>${r.datum ? datumText(r.datum) : '–'}</dd>${r.faelligAm ? `<dt>Fällig</dt><dd>${datumText(r.faelligAm)}</dd>` : ''}${r.bezahltAm ? `<dt>Bezahlt</dt><dd>${datumText(r.bezahltAm)}</dd>` : ''}${r.zahlungen.map((z) => `<dt>Zahlung</dt><dd>${z.datum ? datumText(z.datum) : '–'} · ${euroText(z.betrag)} · ${esc(z.art)}</dd>`).join('')}${r.storniertAm ? `<dt>Storniert</dt><dd>${datumText(r.storniertAm)}</dd>` : ''}${r.versandArt ? `<dt>Versand</dt><dd>${{ email: 'per Mail', post: 'per Post', beides: 'Mail + Post' }[r.versandArt] ?? r.versandArt}</dd>` : ''}</dl>
       ${r.lexwareAbweichung ? `<span class="fk-warn">${symbol('warnung', { groesse: 14 })} ${esc(r.lexwareAbweichung)}</span>` : ''}${lexware ? `<span class="marke">${symbol('rechnung', { groesse: 12 })} aus Lexware${r.lexwareStatus ? ` · ${esc(r.lexwareStatus)}` : ''}</span>` : r.pdf ? `<span class="marke">${symbol('rechnung', { groesse: 12 })} PDF</span>` : ''}
     </a>`;
   };
@@ -329,7 +329,7 @@ ${offenBox}
   ${rechnungen || '<p class="leer">Noch keine Rechnung – Rezepte und Serien legen ihren Entwurf selbst an.</p>'}
   <div class="knopfreihe">${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="heilbehandlung_steuerfrei"><button class="knopf klein" data-hilfe="rechnung.neu.heil">${symbol('euro', { groesse: 16 })} Neue Rechnung Heilbehandlung</button>`, { id: p.id, zurueck })}
   ${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="wellness_19"><button class="knopf klein" data-hilfe="rechnung.neu.wellness">${symbol('wellness', { groesse: 16 })} Neue Rechnung Wellness</button>`, { id: p.id, zurueck })}</div>
-  ${d.lexwareRechnungen ? `<p>${form('lexware_rechnungen', `<button class="knopf klein" data-hilfe="patient.lexware_rechnungen">${symbol('rechnung', { groesse: 16 })} Rechnungen aus Lexware holen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Lexware kennt diesen Patienten als Kunden – Rechnungen und Dateien kommen als Kacheln hierher.</span></p>` : ''}
+  ${d.lexwareRechnungen ? `<p>${form('lexware_rechnungen', `<button class="knopf klein" data-hilfe="patient.lexware_rechnungen">${symbol('rechnung', { groesse: 16 })} Rechnungen und Zahlungen aus Lexware prüfen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Lexware kennt diesen Patienten als Kunden – neue Rechnungen kommen als Kacheln, bezahlte bekommen Zahldatum und Zahlungsposten.</span></p>` : ''}
 </section>
 ${pdfFenster()}
 

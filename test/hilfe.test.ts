@@ -52,7 +52,7 @@ const SERIE = { id: '2', patientId: '1', patientName: 'Anna Test', nummer: 2, gr
 const WELLNESS = { id: '1', code: 'WM60', bezeichnung: 'Wellnessmassage 60', dauerMin: 60, preis: 65, aktiv: true };
 const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true };
 const RK = { id: '1', art: 'einzel', steuerklasse: 'heilbehandlung_steuerfrei', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', statusText: 'Versendet', statusFarbe: 'preset4', gemahnt: false, positionen: 2, versandArt: 'email', lexwareAbweichung: null,
-  quelle: 'ppm' as const, bezahltAm: null, storniertAm: null, dateiName: null, lexwareStatus: null, pdf: false };
+  quelle: 'ppm' as const, bezahltAm: null, storniertAm: null, dateiName: null, lexwareStatus: null, lexwareInvoiceId: null, zahlungen: [] as { datum: string | null; betrag: number; art: string }[], pdf: false };
 const PATIENT_DATEN = {
   patient: PAT, gruende: [{ code: 'absage_patient', bezeichnung: 'Absage Patient' }],
   verlauf: [
@@ -68,7 +68,7 @@ const PATIENT_DATEN = {
   whatsappCloud: true, lexwareRechnungen: true,
   termine: [TERMIN], verordnungen: [VERORDNUNG, { ...VERORDNUNG, id: '3', art: 'korrektur' as const, status: 'ersetzt', vorgaengerId: '1' }], serien: [SERIE, { ...SERIE, id: '4', grundlage: 'direktzugang' as const, wellness: null, abgeschlossenAm: '2026-10-22' }],
   rechnungen: [RK, { ...RK, id: '2', status: 'entwurf', statusText: 'Entwurf', statusFarbe: 'preset10', nummer: null, datum: null, faelligAm: null, lexwareAbweichung: 'in Lexware storniert', pdf: true, steuerklasse: 'wellness_19' },
-    { ...RK, id: '3', quelle: 'lexware' as const, pdf: true, dateiName: 'RE-2025-0007.pdf', status: 'bezahlt', statusText: 'Bezahlt', statusFarbe: 'preset19', datum: '2025-03-01', faelligAm: '2025-03-15', bezahltAm: '2025-03-20', lexwareStatus: 'paid', positionen: 0, steuerklasse: '' }],
+    { ...RK, id: '3', quelle: 'lexware' as const, pdf: true, dateiName: 'RE-2025-0007.pdf', status: 'bezahlt', statusText: 'Bezahlt', statusFarbe: 'preset19', datum: '2025-03-01', faelligAm: '2025-03-15', bezahltAm: '2025-03-20', lexwareStatus: 'paid', lexwareInvoiceId: 'lx-re-1', zahlungen: [{ datum: '2025-03-20', betrag: 46.27, art: 'Bankumsatz' }], positionen: 0, steuerklasse: '' }],
   preislisten: [PL({ status: 'freigegeben', aktiv: true, standard: true }), PL({ id: '6', name: 'Tagesgast', status: 'freigegeben', aktiv: true })],
 };
 const ANFRAGE: Anfrage = {
@@ -83,7 +83,7 @@ const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abs
   preisliste: { id: '5', name: 'Privat 2026' }, zeitraumVon: null, zeitraumBis: null, datum: null, faelligAm: null, nummer: null, netto: 92.54, ust: 0, ustSatz: 0, betrag: 92.54, kleinunternehmer: false, versandArt: null, versendetAm: null, bezahltAm: null, storniertAm: null, stornoGrund: null,
   lexware: { invoiceId: null, status: null, betrag: null, geprueftAm: null, abweichung: null, pdfAm: null, pdfName: null, erstelltAm: null, geaendertAm: null }, notiz: null, erstelltAm: '2026-10-25T10:00:00Z',
   positionen: [{ id: '1', reihenfolge: 1, datum: '2026-10-26', nummer: '21201', bezeichnung: 'Manuelle Therapie', anzahl: 1, einzelpreis: 46.27, betrag: 46.27, verordnungId: '1', terminId: '7', behandlungLeistungId: '3' }, { id: '2', reihenfolge: 2, datum: null, nummer: '21201', bezeichnung: 'Manuelle Therapie', anzahl: 1, einzelpreis: 46.27, betrag: 46.27, verordnungId: '1', terminId: null, behandlungLeistungId: null }],
-  bausteine: [{ id: '1', code: 'R1', kurzname: 'Steuerfrei – Heilbehandlung', text: '§ 4 Nr. 14', wirkung: 'steuerfrei_heilbehandlung' }] };
+  zahlungen: [] as { datum: string | null; betrag: number; art: string }[], bausteine: [{ id: '1', code: 'R1', kurzname: 'Steuerfrei – Heilbehandlung', text: '§ 4 Nr. 14', wirkung: 'steuerfrei_heilbehandlung' }] };
 const TB = { id: '1', code: 'R1', kurzname: 'Steuerfrei', text: 'x', wirkung: 'steuerfrei_heilbehandlung' as const, automatisch: 'heilbehandlung' as const, aktiv: true };
 const RECHNUNG_DATEN = { patient: PAT, rechnung: RGE, lexware: true, postfach: true, textbausteine: [TB, { ...TB, id: '3', code: 'R3', kurzname: 'Dank', wirkung: 'keine' as const, automatisch: 'nie' as const }], preislistePositionen: [{ id: '9', nummer: '21201', bezeichnung: 'MT', preis: 46.27 }], wellness: [WELLNESS], preislisteAktuell: { id: '6', name: 'Tagesgast' } };
 const KT = { id: '7', patientId: '1', vorname: 'Anna', nachname: 'Test', patientennummer: 'P-1001', beginn: '2026-10-26T07:00:00Z', ende: '2026-10-26T07:30:00Z', art: 'behandlung', status: 'bestaetigt', rezept: true, imKalender: false, exchangeEventId: null, leistung: 'MT', sektion: 'rezept' as const };
@@ -185,7 +185,7 @@ const seiten = () => [
   fallSeite(FALL, R),
   fallSeite({ ...FALL, details: { ...FALL.details, anamnese: null, befunde: [], erklaerungen: [], phasen: [] }, verordnungen: [], termine: [], rechnungen: [] }, R),
   ausgangsrechnungSeite(RECHNUNG_DATEN, R),
-  ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'freigegeben', steuerklasse: 'wellness_19', ustSatz: 19, ust: 14.77, netto: 77.77, lexware: { ...RGE.lexware, abweichung: 'Betrag weicht ab', pdfAm: '2026-10-25T10:00:00Z', status: 'open' }, stornoGrund: 'x', storniertAm: '2026-10-25', zeitraumVon: '2026-10-01', zeitraumBis: '2026-10-20' } }, R),
+  ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'freigegeben', steuerklasse: 'wellness_19', ustSatz: 19, ust: 14.77, netto: 77.77, lexware: { ...RGE.lexware, invoiceId: 'lx-1', abweichung: 'Betrag weicht ab', pdfAm: '2026-10-25T10:00:00Z', status: 'open' }, stornoGrund: 'x', storniertAm: '2026-10-25', zeitraumVon: '2026-10-01', zeitraumBis: '2026-10-20' } }, R),
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'in_lexware', nummer: 'RE-2026-001' } }, R),
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, lexware: false, postfach: false, rechnung: { ...RGE, status: 'freigegeben' } }, R),
   ausgangsrechnungSeite({ ...RECHNUNG_DATEN, rechnung: { ...RGE, status: 'gesendet', nummer: 'RE-2026-001' } }, R),

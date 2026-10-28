@@ -167,7 +167,10 @@ export function attrappeRechnungen(): LexwareRechnungen {
       const e = rechnungen.find((x) => x.id === id);
       if (!e) throw new Error(`Attrappe kennt Rechnung ${id} nicht`);
       const bezahlt = e.status === 'paid';
-      return { openAmount: bezahlt || e.status === 'voided' ? 0 : e.betrag, paymentStatus: bezahlt ? 'balanced' : 'openRevenue', voucherStatus: e.status, paidDate: e.bezahlt ? `${e.bezahlt}T00:00:00.000+01:00` : undefined };
+      return {
+        openAmount: bezahlt || e.status === 'voided' ? 0 : e.betrag, paymentStatus: bezahlt ? 'balanced' : 'openRevenue', voucherStatus: e.status, paidDate: e.bezahlt ? `${e.bezahlt}T00:00:00.000+01:00` : undefined,
+        paymentItems: bezahlt && e.bezahlt ? [{ paymentItemType: 'partPaymentFinancialTransaction', postingDate: `${e.bezahlt}T00:00:00.000+01:00`, amount: e.betrag, currency: 'EUR' }] : [],
+      };
     },
     async kontaktAnlegen(k) {
       kontakte++;
