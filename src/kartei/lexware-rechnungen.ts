@@ -12,7 +12,7 @@ import type { LexwareKunden } from '../lexware/kunden.ts';
 import type { Zahlung } from '../lexware/client.ts';
 import { nurProduktion, SchrankeVerletzt } from '../umgebung.ts';
 import { ART_TEXT, lexwareStandUebernehmen, rechnungLesen, rechnungStatus, type RechnungStatus } from './rechnungen.ts';
-import { lexwareVerknuepfen } from './lexware-kunden.ts';
+import { lexwareVerknuepfen, namensschluessel } from './lexware-kunden.ts';
 import { KarteiFehler, patientLesen } from './patienten.ts';
 
 export interface Uebernahme {
@@ -31,6 +31,25 @@ export interface Uebernahme {
   dateien: number;
   /** Rechnungen, die in dieser Runde auf „bezahlt“ gegangen sind (A29) */
   bezahlt: number;
+  /** Rechnungen ohne Lexware-Kontakt, die über den Namen genau einem Patienten zugeordnet wurden (W103b) */
+  ueberNamen: number;
+}
+
+/** „Testfeld, Clara“ oder „Clara Testfeld“ → Namensschlüssel wie bei den Patienten */
+export const namensschluesselAusText = (name: string): string => {
+  const teile = name.split(',').map((s) => s.trim());
+  return teile.length === 2 ? namensschluessel(teile[1]!, teile[0]!) : namensschluessel('', name);
+};
+
+/** Aktive Patienten nach Namensschlüssel – für Rechnungen mit freier Adresse (ohne Lexware-Kontakt) */
+async function patientenNachName(db: Db): Promise<Map<string, string[]>> {
+  const { rows } = await db.query<{ id: string; vorname: string; nachname: string }>("SELECT id::text, vorname, nachname FROM patient WHERE status <> 'archiviert'");
+  const m = new Map<string, string[]>();
+  for (const p of rows) {
+    const s = namensschluessel(p.vorname, p.nachname);
+    if (s) m.set(s, [...(m.get(s) ?? []), p.id]);
+  }
+  return m;
 }
 
 const ZAHLUNGSART: Record<string, string> = { manualPayment: 'manuell erfasst', partPaymentFinancialTransaction: 'Bankumsatz', partPaymentCashBox: 'Kasse', cashDiscount: 'Skonto', dunningCosts: 'Mahnkosten', irrecoverableReceivable: 'uneinbringlich' };
@@ -71,11 +90,19 @@ export async function rechnungenUebernehmen(
   )).rows;
   if (o.patientId && !zeilen.length) throw new KarteiFehler('Dieser Patient ist mit keinem Lexware-Kunden verknüpft – zuerst unter „Aus Lexware“ zuordnen');
   const patientZu = new Map(zeilen.map((z) => [z.kontakt, z.id]));
-  const e: Uebernahme = { gefunden: 0, neu: 0, aktualisiert: 0, unveraendert: 0, ohnePatient: 0, konflikt: 0, ohneDatei: 0, dateien: 0, bezahlt: 0 };
+  // Rechnungen ohne Lexware-Kontakt (freie Adresse, W103b): über den Namen zuordnen, wenn genau ein aktiver Patient passt – nur im Gesamtlauf
+  const nachName = o.patientId ? undefined : await patientenNachName(db);
+  const e: Uebernahme = { gefunden: 0, neu: 0, aktualisiert: 0, unveraendert: 0, ohnePatient: 0, konflikt: 0, ohneDatei: 0, dateien: 0, bezahlt: 0, ueberNamen: 0 };
   for await (const b of lex.belege({ kontaktId: o.patientId ? zeilen[0]!.kontakt : undefined })) {
     e.gefunden++;
-    const patientId = b.contactId ? patientZu.get(b.contactId) : undefined;
+    let patientId = b.contactId ? patientZu.get(b.contactId) : undefined;
+    let ueberNamen = false;
+    if (!patientId && !b.contactId && nachName && b.contactName) {
+      const treffer = nachName.get(namensschluesselAusText(b.contactName));
+      if (treffer?.length === 1) { patientId = treffer[0]; ueberNamen = true; }
+    }
     if (!patientId) { e.ohnePatient++; continue; }
+    if (ueberNamen) e.ueberNamen++;
     const bekannt = (await db.query<{ id: string; patient_id: string; pdf: boolean; geaendert: string | null; status: string; zahlungen: string }>(
       `SELECT id::text, patient_id::text, (lexware_pdf IS NOT NULL) AS pdf, lexware_geaendert_am AS geaendert, status::text,
          (SELECT count(*)::text FROM rechnung_zahlung z WHERE z.rechnung_id = rechnung.id) AS zahlungen FROM rechnung
@@ -197,4 +224,4 @@ export async function rechnungNachLexware(
 export { SchrankeVerletzt };
 
 export const uebernahmeText = (e: Uebernahme): string =>
-  `${e.gefunden} Rechnung${e.gefunden === 1 ? '' : 'en'} in Lexware – ${e.neu} neu, ${e.aktualisiert} aktualisiert, ${e.unveraendert} unverändert${e.bezahlt ? `, ${e.bezahlt} jetzt bezahlt` : ''}${e.ohnePatient ? `, ${e.ohnePatient} ohne verknüpften Patienten` : ''}${e.konflikt ? `, ${e.konflikt} mit Nummernkonflikt` : ''}${e.ohneDatei ? `, ${e.ohneDatei} ohne Datei` : ''}${e.dateien ? ` · ${e.dateien} Datei${e.dateien === 1 ? '' : 'en'} in den Tresor gelegt` : ''}.`;
+  `${e.gefunden} Rechnung${e.gefunden === 1 ? '' : 'en'} in Lexware – ${e.neu} neu, ${e.aktualisiert} aktualisiert, ${e.unveraendert} unverändert${e.bezahlt ? `, ${e.bezahlt} jetzt bezahlt` : ''}${e.ueberNamen ? `, ${e.ueberNamen} über den Namen zugeordnet` : ''}${e.ohnePatient ? `, ${e.ohnePatient} ohne verknüpften Patienten` : ''}${e.konflikt ? `, ${e.konflikt} mit Nummernkonflikt` : ''}${e.ohneDatei ? `, ${e.ohneDatei} ohne Datei` : ''}${e.dateien ? ` · ${e.dateien} Datei${e.dateien === 1 ? '' : 'en'} in den Tresor gelegt` : ''}.`;

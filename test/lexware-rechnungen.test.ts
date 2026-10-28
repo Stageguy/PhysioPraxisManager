@@ -35,12 +35,13 @@ test('Client: Belegliste je Kontakt, Datei mit Namen aus Content-Disposition, En
   assert.equal(await q.datei('i2'), undefined, 'Entwurf: 409 → keine Datei');
 });
 
-test('Attrappe: sechs erfundene Rechnungen zu drei Kunden, jede festgeschriebene mit PDF', async () => {
+test('Attrappe: sieben erfundene Rechnungen – sechs zu drei Kunden, eine mit freier Adresse –, jede festgeschriebene mit PDF', async () => {
   const a = attrappeRechnungen();
   const alle: Beleg[] = [];
   for await (const b of a.belege()) alle.push(b);
-  assert.equal(alle.length, 6);
-  assert.equal(new Set(alle.map((b) => b.contactId)).size, 3);
+  assert.equal(alle.length, 7);
+  assert.equal(new Set(alle.map((b) => b.contactId).filter(Boolean)).size, 3);
+  assert.equal(alle.filter((b) => !b.contactId).length, 1, 'eine ohne Kontakt (W103b)');
   for (const b of alle) assert.equal(Buffer.from((await a.datei(b.id))!.daten.subarray(0, 4)).toString(), '%PDF', b.voucherNumber);
   assert.equal((await a.zahlung('attrappe-re-1')).paidDate?.slice(0, 10), '2025-03-12');
 });
@@ -156,8 +157,17 @@ test('PPM-Rechnung mit derselben Nummer wird verknüpft statt verdoppelt; Storno
   assert.equal(await anzahl(claraId), 0);
 });
 
-test('Gesamtlauf (CLI-Weg): alle verknüpften Patienten; Konflikte werden nur gezählt', async () => {
-  // Anna 3 (RE-2026-0088 trägt noch den Stand „bezahlt am 20.10.“ aus dem Schalter-Lauf → gilt als geändert), Bernd 2 unverändert, Yvonne/Clara 1 Konflikt
+test('Gesamtlauf (CLI-Weg): alle verknüpften Patienten; Konflikte werden nur gezählt; freie Adresse über den Namen (W103b)', async () => {
+  // Anna 3 (RE-2026-0088 trägt noch den Stand „bezahlt am 20.10.“ aus dem Schalter-Lauf → gilt als geändert), Bernd 2 unverändert, Yvonne/Clara 1 Konflikt,
+  // RE-2023-0005 ohne Kontakt → über den Namen „Clara Testfeld“ genau einem aktiven Patienten zugeordnet
   const e = await rechnungenUebernehmen(db, t, attrappe, { wer: 'x', probelauf: true });
-  assert.deepEqual([e.gefunden, e.neu, e.aktualisiert, e.unveraendert, e.ohnePatient, e.konflikt], [6, 0, 1, 4, 0, 1]);
+  assert.deepEqual([e.gefunden, e.neu, e.aktualisiert, e.unveraendert, e.ohnePatient, e.konflikt, e.ueberNamen], [7, 1, 1, 4, 0, 1, 1]);
+  const echt = await rechnungenUebernehmen(db, t, attrappe, { wer: 'x' });
+  assert.deepEqual([echt.neu, echt.ueberNamen, echt.bezahlt], [1, 1, 1]);
+  const clara = (await db.query<Record<string, unknown>>("SELECT p.vorname, r.quelle, r.lexware_kontakt_id AS k, r.status::text, r.bezahlt_am::text AS b FROM rechnung r JOIN patient p ON p.id = r.patient_id WHERE r.nummer = 'RE-2023-0005'")).rows[0]!;
+  assert.deepEqual(clara, { vorname: 'Clara', quelle: 'lexware', k: null, status: 'bezahlt', b: '2023-06-10' });
+  // Namensvarianten
+  const { namensschluesselAusText } = await import('../src/kartei/lexware-rechnungen.ts');
+  assert.equal(namensschluesselAusText('Testfeld, Clara'), 'clara testfeld');
+  assert.equal(namensschluesselAusText('Clara Testfeld'), 'clara testfeld');
 });

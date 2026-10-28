@@ -119,7 +119,8 @@ export function lexwareRechnungen(client: Pick<LexwareClient, 'belege' | 'rechnu
   };
 }
 
-interface Erfunden { id: string; kontakt: string; name: string; nummer: string; datum: string; faellig: string; status: Belegstatus; betrag: number; bezahlt?: string; geaendert: string }
+/** kontakt null = freie Adresse ohne Lexware-Kontakt (kommt in Lexware bei 94 echten Rechnungen vor, W103b) */
+interface Erfunden { id: string; kontakt: string | null; name: string; nummer: string; datum: string; faellig: string; status: Belegstatus; betrag: number; bezahlt?: string; geaendert: string }
 
 /** Erfundene Rechnungen zu den Attrappe-Kunden (attrappe-1 Anna Beispiel, attrappe-2 Bernd Mustermann, attrappe-5 Yvonne Zeller) */
 const ERFUNDEN: Erfunden[] = [
@@ -129,6 +130,7 @@ const ERFUNDEN: Erfunden[] = [
   { id: 'attrappe-re-4', kontakt: 'attrappe-2', name: 'Bernd Mustermann', nummer: 'RE-2024-0012', datum: '2024-11-05', faellig: '2024-11-19', status: 'paid', betrag: 120, bezahlt: '2024-11-20', geaendert: '2024-11-20T09:00:00Z' },
   { id: 'attrappe-re-5', kontakt: 'attrappe-2', name: 'Bernd Mustermann', nummer: 'RE-2026-0040', datum: '2026-03-01', faellig: '2026-03-15', status: 'voided', betrag: 60, geaendert: '2026-03-04T09:00:00Z' },
   { id: 'attrappe-re-6', kontakt: 'attrappe-5', name: 'Yvonne Zeller', nummer: 'RE-2026-0075', datum: '2026-08-20', faellig: '2026-09-03', status: 'paid', betrag: 95, bezahlt: '2026-08-28', geaendert: '2026-08-28T09:00:00Z' },
+  { id: 'attrappe-re-7', kontakt: null, name: 'Clara Testfeld', nummer: 'RE-2023-0005', datum: '2023-06-01', faellig: '2023-06-15', status: 'paid', betrag: 45, bezahlt: '2023-06-10', geaendert: '2023-06-10T09:00:00Z' },
 ];
 
 const beleg = (e: Erfunden): Beleg => ({
@@ -150,7 +152,7 @@ export function erfundenesRechnungsPdf(e: { nummer: string; name: string; datum:
 /** Attrappe mit eigenem Speicher je Instanz: angelegte Kontakte und Rechnungen erscheinen danach in der Belegliste */
 export function attrappeRechnungen(): LexwareRechnungen {
   const rechnungen: (Erfunden & { zeilen?: string[] })[] = ERFUNDEN.map((e) => ({ ...e }));
-  const namen = new Map<string, string>(ERFUNDEN.map((e) => [e.kontakt, e.name]));
+  const namen = new Map<string, string>(ERFUNDEN.filter((e) => e.kontakt).map((e) => [e.kontakt!, e.name]));
   let kontakte = 0;
   // Nummernkreis 9001 ff., damit nichts mit den Testdaten (RE-2026-0012 … 0101) oder PPM-Nummern zusammenstößt
   let nummern = 9000;
