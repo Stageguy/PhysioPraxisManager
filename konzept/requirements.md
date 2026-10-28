@@ -575,6 +575,7 @@ Status: ✅ erledigt · ▶ als Nächstes · ⏳ wartet (auf Entscheidung oder V
 | A28 | **Rechnung in zwei Klicks (W100):** Klick 1 „Nach Lexware“ (Kontakt über `lexware_kontakt_id` anlegen/abgleichen, `POST /v1/invoices?finalize=true`, Nummer + PDF holen → Status `in_lexware`, Rechnungskachel in der Akte); Klick 2 „Versenden“ in der Kachel über den Standardweg (Mail mit PDF aus dem Praxispostfach, Druck bei Postweg) → `gesendet`; Probelauf-Schalter, Attrappe in Tests | W100, E28, E30 | ✅ 0.23.0 (Test, 27.10.2026) – echte Übertragung erst in der Produktion nach `deploy/strato-dev.sh prod` (Schranke 4) |
 | A29 | **„Zahlungen prüfen“ am Patienten (W101a):** liest `GET /v1/payments` je Rechnung bzw. die Belegliste nach `contactId`, setzt `bezahlt` mit Datum, legt eine Zahlungskachel an (Betrag, Tag, Art), offene mit Permalink nach Lexware; später Webhook `payment.changed` (A27) | W101, N32, A14b | ✅ 0.24.0 (Test, 28.10.2026): Knopf „Rechnungen und Zahlungen aus Lexware prüfen“ am Patienten liest Status, Zahldatum und **Zahlungsposten** (`rechnung_zahlung`: Datum, Betrag, Art – Bankumsatz, manuell, Skonto, Mahnkosten) aus `GET /v1/payments`; Kachel und Rechnungsseite zeigen „Zahlung …“; Meldung „n jetzt bezahlt“; Rechnungsseite mit „in Lexware öffnen“ (Permalink). Webhook `payment.changed` folgt mit A27 |
 | A30 | **Rechnungen aus Lexware in die Produktion übernehmen (W103):** Patienten unter „Aus Lexware“ verknüpfen bzw. anlegen → `kubectl -n praxis exec deploy/praxis-dienst -- node src/cli/lexware-rechnungen.ts` (Zählung mit Kartei-Abgleich) → mit `--ausfuehren` (~13 Min., Dateien in den Tresor) → Stichprobe am Patienten | W103, N34 | ⏳ nach Christians Go und `deploy/strato-dev.sh prod` |
+| A32 | **Code neu strukturieren** (Christians Entscheidung 28.10.2026: TypeScript bleibt, Struktur wird nachgezogen) – nach den Funktionsblöcken W110–W113, vor der Produktion: `src/kartei/dienst.ts` (550 Zeilen, ein Aktionsverteiler) nach Fachgebieten aufteilen (Patienten, Termine, Rechnungen, Lexware, Nachrichten, Konfiguration) mit einer Aktionstabelle statt `switch`; Formulareingaben zentral prüfen (Pflicht, Länge, Datum, Zahl) statt je Aktion; `src/web/hilfe.ts` (1.270 Zeilen) je Seite aufteilen; `src/kartei/patienten.ts` (1.000 Zeilen) in Stammdaten, Termine, Rezepte, Akte trennen; SQL bleibt in `src/kartei`; Oberfläche dabei nicht verändern (Prüfbrowser-Fotos vorher/nachher gleich), Tests bleiben grün. Zusammen mit W106 (Anordnung der Ansichten) | W106, N-Stand 28.10.2026 | ○ geplant, Aufwand 1–2 PT |
 
 ### Phase 2 – Termine
 
@@ -714,6 +715,17 @@ Patientendaten liegen dort noch nicht. Der Weg in Lillis eigenen Tailnet steht i
 | E32 | **TI-Anschluss und KIM für die Privatpraxis** (W109): lohnt ein TI-Gateway mit SMC-B, eHBA und KIM (Größenordnung 50–100 €/Monat plus Karten, ohne TI-Pauschale, weil keine Kassenzulassung), damit Ärzte Verordnungen sicher digital schicken und die Praxis später die eVO empfangen kann? | Lilli, Christian | Vorschlag: erst fragen, welche Ärzte überhaupt per KIM senden würden (Frage 27); vorher Rezeptfoto (W69/W70) bauen; TI frühestens 2027 mit der Pilotphase der eVO entscheiden |
 
 ---
+
+## 6a. Entscheidung Entwicklungssprache (28.10.2026)
+
+Christians Frage, ob TypeScript bei diesem Umfang noch die richtige Sprache ist – Stand: 110 Quelldateien, 16.800
+Zeilen, 178 Tests, 5 Laufzeit-Abhängigkeiten, 18 Migrationen. **Entschieden: TypeScript bleibt.** Gründe: eine
+Sprache für Server, Browser-Skript, Buchungsseite und Befehle; Node 24 ohne Bauschritt; die Typen tragen die
+Erweiterungen durch alle Dateien; Tests gegen PGlite in unter zwei Minuten; die nötigen Bibliotheken (Graph, PDF,
+QR) liegen im JavaScript-Ökosystem; ein Wechsel kostete Wochen ohne neuen Nutzen. Was knirscht, ist die Struktur
+(große Dateien, ein Aktionsverteiler) – das wird als **A32** nachgezogen. Die strategische Alternative wäre nicht
+eine andere Sprache, sondern ein fertiges Praxisprogramm; die Abwägung vom Anfang (eigene Abläufe, Lexware-Kopplung,
+Website-Buchung) hält.
 
 ## 7. Ideen-Backlog
 
