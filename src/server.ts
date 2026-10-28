@@ -481,6 +481,13 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const fd = await d.fall(fm[1]!, fm[2]!, wer);
       return fd ? senden(res, 200, 'text/html', fallSeite(fd, r)) : senden(res, 404, 'text/plain', 'Diesen Fall gibt es nicht');
     }
+    const us = /^\/patienten\/(\d+)\/behandlungen\/(\d+)\/unterschrift\.png$/.exec(pfad);
+    if (us) {
+      const bild = await d.unterschrift(us[1]!, us[2]!, wer);
+      if (!bild) return senden(res, 404, 'text/plain', 'Keine Unterschrift');
+      dateiKopf(res, bild.mime, 'unterschrift.png', { sandbox: true });
+      return void res.end(Buffer.from(bild.daten));
+    }
     const ap = /^\/patienten\/(\d+)\/akte\.pdf$/.exec(pfad);
     if (ap) {
       const pdf = await d.aktePdf(ap[1]!, wer);

@@ -35,7 +35,7 @@ export function rezeptKachel(v: VerordnungKurz, o: { mitPatient?: boolean; zurue
       ${v.fallNummer ? `<dt>Fall</dt><dd>Fall ${v.fallNummer}</dd>` : ''}
       ${v.notiz ? `<dt>Notiz</dt><dd>${esc(v.notiz)}</dd>` : ''}
     </dl>
-    <div class="stempel" aria-label="${v.abgehakt} von ${v.anzahlVerordnet}">${punkte}<span>${v.abgehakt} von ${v.anzahlVerordnet}</span></div>
+    <div class="stempel" aria-label="${v.abgehakt} von ${v.anzahlVerordnet}">${punkte}<span>${v.abgehakt} von ${v.anzahlVerordnet}${v.bestaetigt ? ` · ✓ ${v.bestaetigt} bestätigt` : ''}</span></div>
     ${aktionen}
   </article>`;
 }

@@ -9,7 +9,7 @@ import { textPdf, type Abschnitt } from '../pdf/text.ts';
 import { praxisName } from '../praxis.ts';
 import type { Tresor } from '../tresor.ts';
 import { heuteBerlin } from '../zeit.ts';
-import { akte, KarteiFehler, patientLesen, termine, verordnungen, VERORDNUNG_ARTEN, type Patient } from './patienten.ts';
+import { akte, BESTAETIGUNG_TEXT, KarteiFehler, patientLesen, termine, verordnungen, VERORDNUNG_ARTEN, type Patient } from './patienten.ts';
 import { ERKLAERUNG_ARTEN, fallDetails, PHASEN_NAMEN, type Phase } from './pinnwand.ts';
 
 const GRUNDLAGE: Record<string, string> = { verordnung: 'ärztliche Verordnung', direktzugang: 'Direktzugang (sektorale Heilpraktikererlaubnis)', praevention: 'Prävention / Wellness' };
@@ -62,7 +62,8 @@ export async function akteExport(db: Db, t: Tresor, patientId: string, wer: stri
       for (const b of [...f.behandlungen].reverse()) {
         zeilen.push({ text: `${datumText(b.datum)}${b.dauerMin ? ` · ${b.dauerMin} min` : ''} · ${b.behandeltVon}${b.status === 'ausgefallen' ? ' · ausgefallen' : ''}${b.leistungen.length ? ` · ${b.leistungen.map((l) => `${l.nummer} ${l.bezeichnung}`).join(', ')}` : ''}`, einzug: 12, fett: true },
           ...feld('Maßnahmen', b.massnahmen).map((z) => ({ ...z, einzug: 24 })), ...feld('Verlauf / Wirkung', b.verlaufWirkung).map((z) => ({ ...z, einzug: 24 })),
-          ...feld('Reaktionen', b.reaktionen).map((z) => ({ ...z, einzug: 24 })), ...feld('Übungen / Empfehlungen', b.uebungen).map((z) => ({ ...z, einzug: 24 })));
+          ...feld('Reaktionen', b.reaktionen).map((z) => ({ ...z, einzug: 24 })), ...feld('Übungen / Empfehlungen', b.uebungen).map((z) => ({ ...z, einzug: 24 })),
+          { text: b.bestaetigung ? `Bestätigt vom Patienten: ${BESTAETIGUNG_TEXT[b.bestaetigung.art] ?? b.bestaetigung.art} · ${datumText(b.bestaetigung.zeitpunkt.slice(0, 10))}${b.bestaetigung.werName ? ` · ${b.bestaetigung.werName}` : ''}${b.bestaetigung.bild ? ' (Unterschriftsbild liegt in der Akte)' : ''}` : 'Ohne Bestätigung des Patienten', einzug: 24 });
       }
     } else zeilen.push('Noch keine Behandlung dokumentiert.');
     abschnitte.push({ titel: `Fall ${f.nummer}${f.bezeichnung ? ` – ${f.bezeichnung}` : ''}`, zeilen });

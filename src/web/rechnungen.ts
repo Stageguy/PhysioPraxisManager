@@ -384,5 +384,24 @@ export const PRAXIS_SKRIPT = String.raw`
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pdfFenster.hidden) pdfSchliessen(); });
   }
+  // Unterschrift je Behandlung (W107a): Fingerzeichnung auf der Fläche, beim Absenden als PNG ins versteckte Feld
+  var flaeche = document.querySelector('canvas[data-unterschrift]');
+  if (flaeche) {
+    var ctx = flaeche.getContext('2d'), malt = false, leer = true, feld = document.getElementById(flaeche.getAttribute('data-unterschrift'));
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1b1519';
+    function punkt(e) { var r = flaeche.getBoundingClientRect(); return { x: (e.clientX - r.left) * flaeche.width / r.width, y: (e.clientY - r.top) * flaeche.height / r.height }; }
+    flaeche.addEventListener('pointerdown', function (e) { malt = true; leer = false; flaeche.setPointerCapture(e.pointerId); var p = punkt(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + 0.1, p.y); ctx.stroke(); e.preventDefault(); });
+    flaeche.addEventListener('pointermove', function (e) { if (!malt) return; var p = punkt(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); });
+    function ende() { malt = false; }
+    flaeche.addEventListener('pointerup', ende); flaeche.addEventListener('pointercancel', ende);
+    var loeschen = document.querySelector('[data-unterschrift-loeschen]');
+    if (loeschen) loeschen.addEventListener('click', function (e) { e.preventDefault(); ctx.clearRect(0, 0, flaeche.width, flaeche.height); leer = true; if (feld) feld.value = ''; });
+    var formular = flaeche.closest('form');
+    if (formular) formular.addEventListener('submit', function () { if (feld) feld.value = leer ? '' : flaeche.toDataURL('image/png'); });
+    var box = flaeche.closest('[data-unterschrift-box]');
+    function zeige() { var u = document.querySelector('input[name=bestaetigung]:checked'); if (box) box.hidden = !(u && u.value === 'unterschrift'); }
+    document.querySelectorAll('input[name=bestaetigung]').forEach(function (a) { a.addEventListener('change', zeige); });
+    zeige();
+  }
 })();
 `;

@@ -153,6 +153,8 @@ export interface VerordnungKurz {
   anzahlVerordnet: number;
   /** Haken über die ganze Kette (Original + Korrekturen) */
   abgehakt: number;
+  /** Behandlungen auf diesem Rezept, die der Patient bestätigt hat (W107a) */
+  bestaetigt: number;
   status: string;
   arzt: string | null;
   fallId: string | null;
@@ -226,7 +228,11 @@ export interface Behandlung {
   reaktionen: string | null;
   uebungen: string | null;
   leistungen: { nummer: string; bezeichnung: string; anzahl: number; einzelpreis: number; verordnungId: string | null }[];
+  /** Bestätigung durch den Patienten (W107a) – Unterschrift am Bildschirm, auf Papier oder mündlich */
+  bestaetigung: { art: 'unterschrift' | 'papier' | 'muendlich'; zeitpunkt: string; werName: string | null; bild: boolean } | null;
 }
+
+export const BESTAETIGUNG_TEXT: Record<'unterschrift' | 'papier' | 'muendlich', string> = { unterschrift: 'Unterschrift am Bildschirm', papier: 'auf Papier unterschrieben', muendlich: 'mündlich bestätigt' };
 
 export interface Fall {
   id: string;
@@ -600,19 +606,26 @@ const HAKEN_SQL = (alias: string) => `(WITH RECURSIVE kette AS (
   SELECT coalesce(sum(bl.anzahl), 0) FROM behandlung_leistung bl JOIN behandlung b ON b.id = bl.behandlung_id
   WHERE bl.verordnung_id IN (SELECT id FROM kette) AND b.ersetzt_am IS NULL)`;
 
+/** Bestätigte Behandlungen auf dem Rezept (W107a), über dieselbe Kette */
+const BESTAETIGT_SQL = (alias: string) => `(WITH RECURSIVE kette AS (
+    SELECT k0.id, k0.vorgaenger_id, k0.art FROM verordnung k0 WHERE k0.id = ${alias}.id
+    UNION ALL SELECT k1.id, k1.vorgaenger_id, k1.art FROM verordnung k1 JOIN kette k ON k1.id = k.vorgaenger_id WHERE k.art = 'korrektur')
+  SELECT count(DISTINCT b.id) FROM behandlung_leistung bl JOIN behandlung b ON b.id = bl.behandlung_id JOIN behandlung_bestaetigung bb ON bb.behandlung_id = b.id
+  WHERE bl.verordnung_id IN (SELECT id FROM kette) AND b.ersetzt_am IS NULL)`;
+
 export async function verordnungen(db: Db, o: { patientId?: string; nurAktiv?: boolean } = {}): Promise<VerordnungKurz[]> {
   const wo = [o.patientId ? 'v.patient_id = $1' : 'true', o.nurAktiv ? "v.status = 'aktiv'" : 'true'].join(' AND ');
   const { rows } = await db.query<Record<string, unknown>>(
     `SELECT v.id::text, v.patient_id::text, p.vorname || ' ' || p.nachname AS patient_name, v.art::text, v.langzeit, v.ausgestellt_am, v.gueltig_bis, v.massnahme, v.leistung_nummer, v.frequenz,
        v.anzahl_verordnet, v.status::text, v.fall_id::text, f.nummer AS fall_nummer, a.name AS arzt, v.vorgaenger_id::text, v.zweitschrift_am, v.notiz,
-       ${HAKEN_SQL('v')} AS abgehakt
+       ${HAKEN_SQL('v')} AS abgehakt, ${BESTAETIGT_SQL('v')} AS bestaetigt
      FROM verordnung v JOIN patient p ON p.id = v.patient_id LEFT JOIN arzt a ON a.id = v.arzt_id LEFT JOIN behandlungsfall f ON f.id = v.fall_id
      WHERE ${wo} ORDER BY v.status = 'aktiv' DESC, v.ausgestellt_am DESC, v.id DESC LIMIT 300`, o.patientId ? [o.patientId] : [],
   );
   return rows.map((r) => ({
     id: String(r.id), patientId: String(r.patient_id), patientName: String(r.patient_name), art: r.art as VerordnungArt, langzeit: Boolean(r.langzeit),
     ausgestelltAm: tag(r.ausgestellt_am)!, gueltigBis: tag(r.gueltig_bis), massnahme: String(r.massnahme), leistungNummer: text(r.leistung_nummer), frequenz: text(r.frequenz),
-    anzahlVerordnet: Number(r.anzahl_verordnet), abgehakt: Number(r.abgehakt), status: String(r.status), arzt: text(r.arzt), fallId: text(r.fall_id), fallNummer: zahl(r.fall_nummer),
+    anzahlVerordnet: Number(r.anzahl_verordnet), abgehakt: Number(r.abgehakt), bestaetigt: Number(r.bestaetigt), status: String(r.status), arzt: text(r.arzt), fallId: text(r.fall_id), fallNummer: zahl(r.fall_nummer),
     vorgaengerId: text(r.vorgaenger_id), zweitschriftAm: tag(r.zweitschrift_am), notiz: text(r.notiz),
   }));
 }
@@ -755,6 +768,54 @@ export async function rechnungen(db: Db, patientId: string): Promise<RechnungKur
   });
 }
 
+// ── Bestätigung der Behandlung (W107a) ──────────────────────────────────────
+
+const bestaetigungAus = (v: unknown): Behandlung['bestaetigung'] => {
+  const o = (typeof v === 'string' ? JSON.parse(v) : v) as { art: string; zeitpunkt: unknown; werName: string | null; bild: boolean } | null;
+  return o ? { art: o.art as 'unterschrift' | 'papier' | 'muendlich', zeitpunkt: iso(o.zeitpunkt)!, werName: text(o.werName), bild: Boolean(o.bild) } : null;
+};
+
+const PNG_KOPF = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+const UNTERSCHRIFT_MAX = 400 * 1024;
+
+/**
+ * Bestätigung an eine Behandlung hängen – Unterschrift als PNG aus dem Formular (data:-Adresse), verschlüsselt im
+ * Tresor; „papier“ und „muendlich“ ohne Bild. Höchstens eine je Behandlung, die Behandlung bleibt unverändert.
+ */
+export async function bestaetigungSpeichern(
+  db: Db, t: Tresor, patientId: string, behandlungId: string, d: { art: string; unterschrift?: string; werName?: string }, wer: string,
+): Promise<void> {
+  if (!['unterschrift', 'papier', 'muendlich'].includes(d.art)) throw new KarteiFehler('Unbekannte Art der Bestätigung');
+  const b = (await db.query('SELECT b.id FROM behandlung b JOIN behandlungsfall f ON f.id = b.fall_id WHERE b.id = $1 AND f.patient_id = $2', [behandlungId, patientId])).rows[0];
+  if (!b) throw new KarteiFehler('Diese Behandlung gibt es nicht');
+  let bild: Buffer | null = null;
+  if (d.art === 'unterschrift') {
+    const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec((d.unterschrift ?? '').trim());
+    const daten = m ? Buffer.from(m[1]!, 'base64') : null;
+    if (!daten || daten.length < 100 || !daten.subarray(0, 4).equals(PNG_KOPF)) throw new KarteiFehler('Bitte auf der Fläche unterschreiben – oder eine andere Art der Bestätigung wählen');
+    if (daten.length > UNTERSCHRIFT_MAX) throw new KarteiFehler('Die Unterschrift ist zu groß – bitte noch einmal, kürzer');
+    bild = t.verschluesseln(daten, 'behandlung_bestaetigung.bild');
+  }
+  try {
+    await db.query('INSERT INTO behandlung_bestaetigung (behandlung_id, art, bild, bild_mime, wer_name, erfasst_von) VALUES ($1, $2, $3, $4, $5, $6)', [behandlungId, d.art, bild, bild ? 'image/png' : null, text(d.werName), wer]);
+  } catch (err) {
+    if ((err as { code?: string }).code === '23505') throw new KarteiFehler('Diese Behandlung ist schon bestätigt');
+    throw err;
+  }
+  await protokolliere(db, { actor: wer, action: 'behandlung_bestaetigt', objectType: 'patient', objectId: patientId, details: { behandlung: Number(behandlungId), art: d.art } });
+}
+
+/** Das Unterschriftsbild einer Behandlung – aus dem Tresor; jedes Ansehen steht im Protokoll */
+export async function bestaetigungBild(db: Db, t: Tresor, patientId: string, behandlungId: string, wer: string): Promise<{ daten: Uint8Array; mime: string } | undefined> {
+  if (!istId(patientId) || !istId(behandlungId)) return undefined;
+  const r = (await db.query<{ bild: Uint8Array | null; mime: string | null }>(
+    'SELECT bb.bild, bb.bild_mime AS mime FROM behandlung_bestaetigung bb JOIN behandlung b ON b.id = bb.behandlung_id JOIN behandlungsfall f ON f.id = b.fall_id WHERE b.id = $1 AND f.patient_id = $2', [behandlungId, patientId],
+  )).rows[0];
+  if (!r?.bild) return undefined;
+  await protokolliere(db, { actor: wer, action: 'unterschrift_angesehen', objectType: 'patient', objectId: patientId, details: { behandlung: Number(behandlungId) } });
+  return { daten: new Uint8Array(t.entschluesseln(r.bild, 'behandlung_bestaetigung.bild')), mime: r.mime ?? 'image/png' };
+}
+
 // ── Akte (§ 630f) ───────────────────────────────────────────────────────────
 
 /** Die Akte lesen – jedes Öffnen steht im Protokoll (ohne Inhalte) */
@@ -768,7 +829,8 @@ export async function akte(db: Db, t: Tresor, patientId: string, wer: string): P
     const bs = (await db.query<Record<string, unknown>>(
       `SELECT b.id::text, b.datum, b.dauer_min, b.behandelt_von, b.status::text, b.massnahmen, b.verlauf_wirkung, b.reaktionen, b.uebungen_empfehlungen,
          (SELECT coalesce(json_agg(json_build_object('nummer', bl.nummer, 'bezeichnung', bl.bezeichnung, 'anzahl', bl.anzahl, 'einzelpreis', bl.einzelpreis, 'verordnungId', bl.verordnung_id::text) ORDER BY bl.id), '[]')
-            FROM behandlung_leistung bl WHERE bl.behandlung_id = b.id) AS leistungen
+            FROM behandlung_leistung bl WHERE bl.behandlung_id = b.id) AS leistungen,
+         (SELECT row_to_json(x) FROM (SELECT bb.art::text, bb.zeitpunkt, bb.wer_name AS "werName", (bb.bild IS NOT NULL) AS bild FROM behandlung_bestaetigung bb WHERE bb.behandlung_id = b.id) x) AS bestaetigung
        FROM behandlung b WHERE b.fall_id = $1 AND b.ersetzt_am IS NULL ORDER BY b.datum DESC, b.id DESC`, [f.id],
     )).rows;
     ergebnis.push({
@@ -784,6 +846,7 @@ export async function akte(db: Db, t: Tresor, patientId: string, wer: string): P
         reaktionen: t.entschluesselnText(b.reaktionen as Uint8Array | null, 'behandlung.reaktionen'),
         uebungen: t.entschluesselnText(b.uebungen_empfehlungen as Uint8Array | null, 'behandlung.uebungen_empfehlungen'),
         leistungen: (b.leistungen as Behandlung['leistungen']).map((l) => ({ ...l, einzelpreis: Number(l.einzelpreis) })),
+        bestaetigung: bestaetigungAus(b.bestaetigung),
       })),
     });
   }

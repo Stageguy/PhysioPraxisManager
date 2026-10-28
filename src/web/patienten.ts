@@ -7,7 +7,7 @@
 import type { AkteDaten, LexwareKundenDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
 import type { KundeStand, LexwareKundeStand } from '../kartei/lexware-kunden.ts';
 import { kundenName, type LexwareKunde } from '../lexware/kunden.ts';
-import { VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz, type RechnungKurz } from '../kartei/patienten.ts';
+import { BESTAETIGUNG_TEXT, VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz, type RechnungKurz } from '../kartei/patienten.ts';
 import { VORLAGEN } from '../nachrichten/vorlagen.ts';
 import { SEKTION_REIHE, SEKTIONEN, type Terminart } from '../kartei/terminarten.ts';
 import { rezeptKachel, serieKachel, serienKnoepfe } from './rezepte.ts';
@@ -406,6 +406,7 @@ export function akteSeite(d: AkteDaten, o: Rahmen): string {
     ${f.behandlungen.length ? `<ol class="behandlungen">${f.behandlungen.map((b) => `<li id="b-${b.id}" data-hilfe="akte.behandlung" tabindex="0">
       <div class="b-kopf"><b>${datumText(b.datum)}</b>${b.dauerMin ? ` · ${b.dauerMin} min` : ''} · ${esc(b.behandeltVon)}${b.status === 'ausgefallen' ? ' <span class="chip preset12">ausgefallen</span>' : ''}
         ${b.leistungen.map((l) => `<span class="marke${l.verordnungId ? ' jetzt' : ''}">${esc(l.nummer)} ${esc(l.bezeichnung)}${l.verordnungId ? ' · Rezept ✓' : ''}</span>`).join(' ')}</div>
+      ${b.bestaetigung ? `<p class="b-bestaetigung">${symbol('haken', { groesse: 14 })} Bestätigt: ${esc(BESTAETIGUNG_TEXT[b.bestaetigung.art] ?? b.bestaetigung.art)} · ${datumZeitText(b.bestaetigung.zeitpunkt, { jahr: true })}${b.bestaetigung.werName ? ` · ${esc(b.bestaetigung.werName)}` : ''}${b.bestaetigung.bild ? ` · <a href="/patienten/${p.id}/behandlungen/${b.id}/unterschrift.png" data-pdf="Unterschrift ${datumText(b.datum)}" data-hilfe="akte.unterschrift">Unterschrift ansehen</a>` : ''}</p>` : '<p class="b-bestaetigung hint">ohne Bestätigung des Patienten</p>'}
       <dl class="liste-dl klein">${b.massnahmen ? `<dt>Maßnahmen</dt><dd>${esc(b.massnahmen)}</dd>` : ''}${b.verlaufWirkung ? `<dt>Verlauf / Wirkung</dt><dd>${esc(b.verlaufWirkung)}</dd>` : ''}
         ${b.reaktionen ? `<dt>Reaktionen</dt><dd>${esc(b.reaktionen)}</dd>` : ''}${b.uebungen ? `<dt>Übungen / Empfehlungen</dt><dd>${esc(b.uebungen)}</dd>` : ''}</dl>
     </li>`).join('')}</ol>` : '<p class="leer">Noch keine Behandlung in diesem Fall.</p>'}
@@ -413,7 +414,7 @@ export function akteSeite(d: AkteDaten, o: Rahmen): string {
   return seite({
     titel: `Akte – ${name(p)}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}">${esc(name(p))}</a> › Akte</p>
-<h1>${symbol('protokoll', { groesse: 26 })} Akte ${esc(name(p))} <span class="hint">${esc(p.patientennummer)}</span></h1>${meldungen(o)}
+<h1>${symbol('protokoll', { groesse: 26 })} Akte ${esc(name(p))} <span class="hint">${esc(p.patientennummer)}</span></h1>${meldungen(o)}${pdfFenster()}
 <p class="hint">Behandlungsdokumentation nach § 630f BGB. Einträge werden nicht geändert oder gelöscht – jedes Öffnen dieser Seite steht im Protokoll.</p>
 <div class="knopfreihe"><a class="knopf primaer" href="/patienten/${p.id}/neu/behandlung" data-hilfe="akte.neu">${symbol('haken', { groesse: 18 })} Behandlung erfassen</a>
   <a class="knopf" href="/patienten/${p.id}/akte.pdf" target="_blank" rel="noopener" data-hilfe="akte.pdf">${symbol('rechnung', { groesse: 18 })} Akte als PDF (§ 630g)</a></div>
@@ -477,6 +478,21 @@ export function behandlungNeuSeite(d: NeuAktionDaten, o: Rahmen): string {
   <label>Verlauf / Wirkung<textarea name="verlauf_wirkung" rows="2"></textarea></label>
   <label>Reaktionen, Unverträglichkeiten<textarea name="reaktionen" rows="2"></textarea></label>
   <label>Übungen, Empfehlungen<textarea name="uebungen" rows="2"></textarea></label>
+  <fieldset class="bestaetigung" data-hilfe="behandlung.bestaetigung"><legend>Bestätigung des Patienten</legend>
+    <div class="wahl-zeile">
+      <label class="wahl-chip"><input type="radio" name="bestaetigung" value="unterschrift" checked> Unterschrift am Bildschirm</label>
+      <label class="wahl-chip"><input type="radio" name="bestaetigung" value="papier"> auf Papier unterschrieben</label>
+      <label class="wahl-chip"><input type="radio" name="bestaetigung" value="muendlich"> mündlich bestätigt</label>
+      <label class="wahl-chip"><input type="radio" name="bestaetigung" value="keine"> keine</label>
+    </div>
+    <div data-unterschrift-box>
+      <p class="hint">„Ich bestätige die Behandlung an diesem Tag.“ – der Patient unterschreibt mit dem Finger auf der Fläche:</p>
+      <canvas class="unterschrift" data-unterschrift="unterschrift-feld" width="600" height="200" data-hilfe="behandlung.unterschrift" aria-label="Unterschriftsfläche"></canvas>
+      <input type="hidden" name="unterschrift" id="unterschrift-feld">
+      <button type="button" class="knopf klein" data-unterschrift-loeschen data-hilfe="behandlung.unterschrift-loeschen">Fläche leeren</button>
+    </div>
+    <label>Bestätigt von <span class="hint">(leer = Patient selbst)</span><input name="bestaetigt_von" maxlength="80" placeholder="z. B. Mutter, Begleitung"></label>
+  </fieldset>
   <p class="hint">Der Eintrag ist danach fest (§ 630f BGB). Ein Fehler wird durch einen Folgeeintrag korrigiert, nicht durch Ändern.</p>
   <button class="knopf primaer" data-hilfe="behandlung.speichern">In die Akte eintragen</button>
 </form>`,

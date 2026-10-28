@@ -9,7 +9,7 @@ import type { GraphClient } from '../graph.ts';
 import type { Tresor } from '../tresor.ts';
 import { terminSpiegeln } from './kalender.ts';
 import {
-  adresseLoeschen, adresseSpeichern, akte, anrufBeginnen, behandlungErfassen, fallAnlegen, gespraechsgruende, KarteiFehler, kontaktLoeschen, kontaktSpeichern, kontaktverlauf,
+  adresseLoeschen, adresseSpeichern, akte, anrufBeginnen, behandlungErfassen, BESTAETIGUNG_TEXT, bestaetigungBild, bestaetigungSpeichern, fallAnlegen, gespraechsgruende, KarteiFehler, kontaktLoeschen, kontaktSpeichern, kontaktverlauf,
   offeneFaelle, patientAnlegen, patientenListe, patientLesen, rechnungen, rechnungsadresseSetzen, serieAbschliessen, serien, stammdatenSpeichern, statusSetzen, terminAnlegen,
   terminStatus, termine, verlaufAbschliessen, verlaufEintragen, verlaufVerwerfen, verordnungAbbrechen, verordnungAnlegen, verordnungen, wellnessAktiv, wellnessLeistungen,
   wellnessSpeichern, zweitschriftVermerken,
@@ -111,6 +111,8 @@ export interface KarteiDienst {
   akte(id: string, wer: string): Promise<AkteDaten | undefined>;
   /** Die ganze Akte als PDF – Einsicht nach § 630g (A19d), jeder Export im Protokoll */
   aktePdf(id: string, wer: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
+  /** Unterschriftsbild einer Behandlung (W107a), jedes Ansehen im Protokoll */
+  unterschrift(patientId: string, behandlungId: string, wer: string): Promise<{ daten: Uint8Array; mime: string } | undefined>;
   neuAktion(id: string): Promise<NeuAktionDaten | undefined>;
   rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
   rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[]; preislisteAktuell: { id: string; name: string } | null; lexware: boolean; postfach: boolean; girocode: string | null } | undefined>;
@@ -199,6 +201,7 @@ export function karteiDienst(q: {
       if (!istId(id) || !(await patientLesen(db, t, id))) return undefined;
       return akteExport(db, t, id, wer);
     },
+    unterschrift: (patientId, behandlungId, wer) => bestaetigungBild(db, t, patientId, behandlungId, wer),
     async neuAktion(id) {
       const patient = await patientLesen(db, t, id);
       if (!patient) return undefined;
@@ -431,6 +434,17 @@ export function karteiDienst(q: {
             datum: g('datum') ?? '', dauerMin: ganz(f.get('dauer_min')) || undefined, terminId: g('termin_id') || undefined, verordnungId: g('verordnung_id') || undefined,
             leistungNummer: g('leistung_nummer'), massnahmen: g('massnahmen'), verlaufWirkung: g('verlauf_wirkung'), reaktionen: g('reaktionen'), uebungen: g('uebungen'),
           }, wer);
+          // Bestätigung des Patienten (W107a): Unterschrift am Bildschirm, Papier oder mündlich – „keine“ lässt sie weg
+          const art = g('bestaetigung') ?? 'keine';
+          if (art !== 'keine') {
+            try {
+              await bestaetigungSpeichern(db, t, id, e.behandlungId, { art, unterschrift: g('unterschrift'), werName: g('bestaetigt_von') }, wer);
+            } catch (err) {
+              if (err instanceof KarteiFehler) return nach(`/patienten/${id}/akte#b-${e.behandlungId}`, `Behandlung in der Akte eingetragen – ohne Bestätigung: ${err.message}`);
+              throw err;
+            }
+            return nach(`/patienten/${id}/akte#b-${e.behandlungId}`, `Behandlung in der Akte eingetragen und vom Patienten bestätigt (${BESTAETIGUNG_TEXT[art as keyof typeof BESTAETIGUNG_TEXT] ?? art}).`);
+          }
           return nach(`/patienten/${id}/akte#b-${e.behandlungId}`, 'Behandlung in der Akte eingetragen.');
         }
         // Rechnungen (W79, W81)

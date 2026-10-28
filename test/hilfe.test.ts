@@ -47,7 +47,7 @@ const PAT: Patient = {
   bezugspersonen: [{ id: '1', rolle: 'notfallkontakt', name: 'Max', beziehung: 'Bruder', berechtigungsgrund: null, telefon: null, email: null }], versicherungen: [],
 };
 const VERORDNUNG = { id: '1', patientId: '1', patientName: 'Anna Test', art: 'erst' as const, langzeit: true, ausgestelltAm: '2026-10-01', gueltigBis: '2026-12-31', massnahme: 'MT', leistungNummer: '21201', frequenz: '2×/Woche',
-  anzahlVerordnet: 6, abgehakt: 2, status: 'aktiv', arzt: 'Dr. B', fallId: '1', fallNummer: 1, vorgaengerId: null, zweitschriftAm: '2026-10-05', notiz: 'x' };
+  anzahlVerordnet: 6, abgehakt: 2, bestaetigt: 1, status: 'aktiv', arzt: 'Dr. B', fallId: '1', fallNummer: 1, vorgaengerId: null, zweitschriftAm: '2026-10-05', notiz: 'x' };
 const SERIE = { id: '2', patientId: '1', patientName: 'Anna Test', nummer: 2, grundlage: 'praevention' as const, bezeichnung: 'Entspannung', wellness: { id: '1', bezeichnung: 'Wellnessmassage 60', preis: 65 }, begonnenAm: '2026-10-01', abgeschlossenAm: null, behandlungen: 2, letzteAm: '2026-10-20' };
 const WELLNESS = { id: '1', code: 'WM60', bezeichnung: 'Wellnessmassage 60', dauerMin: 60, preis: 65, aktiv: true };
 const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true };
@@ -89,7 +89,7 @@ const TB = { id: '1', code: 'R1', kurzname: 'Steuerfrei', text: 'x', wirkung: 's
 const RECHNUNG_DATEN = { patient: PAT, rechnung: RGE, lexware: true, postfach: true, girocode: 'data:image/png;base64,iVBORw0KGgo=', textbausteine: [TB, { ...TB, id: '3', code: 'R3', kurzname: 'Dank', wirkung: 'keine' as const, automatisch: 'nie' as const }], preislistePositionen: [{ id: '9', nummer: '21201', bezeichnung: 'MT', preis: 46.27 }], wellness: [WELLNESS], preislisteAktuell: { id: '6', name: 'Tagesgast' } };
 const KT = { id: '7', patientId: '1', vorname: 'Anna', nachname: 'Test', patientennummer: 'P-1001', beginn: '2026-10-26T07:00:00Z', ende: '2026-10-26T07:30:00Z', art: 'behandlung', status: 'bestaetigt', rezept: true, imKalender: false, exchangeEventId: null, leistung: 'MT', sektion: 'rezept' as const };
 const AKTE = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', steuerklasse: 'heilbehandlung_steuerfrei', bezeichnung: 'Schulter', anlass: 'Schmerz', diagnoseArzt: 'M75.1', begonnenAm: '2026-10-01', abgeschlossenAm: null,
-  behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
+  behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', bestaetigung: { art: 'unterschrift' as const, zeitpunkt: '2026-10-20T10:30:00Z', werName: null, bild: true }, massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
 const TERMINARTEN = [
   { id: '1', code: 'P1', sektion: 'rezept' as const, kurz: 'Neupatient – Erstanamnese und Befund', lang: 'Erster Termin', dauerMin: 60, leistungNummer: null, regelzeit: null, aktiv: true },
   { id: '2', code: 'P4', sektion: 'rezept' as const, kurz: 'Krankengymnastik (KG)', lang: null, dauerMin: 30, leistungNummer: '20501', regelzeit: '15 bis 25 Minuten', aktiv: false },
