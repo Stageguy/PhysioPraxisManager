@@ -9,7 +9,7 @@ import { ART_TEXT, STATUS_TEXT, type Rechnung } from '../kartei/rechnungen.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, euroText, preisText } from '../format.ts';
 import { heuteBerlin } from '../zeit.ts';
-import { meldungen, pdfFenster, type Rahmen } from './bausteine.ts';
+import { meldungen, type Rahmen } from './bausteine.ts';
 import { symbol } from './symbole.ts';
 
 
@@ -100,7 +100,6 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen): string {
   <a class="nur-desktop konfig-link" href="/konfiguration" data-hilfe="konfiguration.link">${symbol('protokoll', { groesse: 14 })} Konfiguration</a></p>
 <header class="kopf"><h1>${symbol('euro', { groesse: 26 })} ${esc(ART_TEXT[r.art] ?? 'Rechnung')} ${r.nummer ? esc(r.nummer) : ''} ${statusChip(r.status)}${r.lexware.abweichung ? ` <span class="chip preset0" data-hilfe="rechnung.abweichung" tabindex="0">${symbol('warnung', { groesse: 14 })} ${esc(r.lexware.abweichung)}</span>` : ''}</h1></header>
 ${r.quelle === 'lexware' ? `<p class="meldung ok">${symbol('rechnung', { groesse: 18 })} Aus Lexware übernommen – Positionen, Rezept und Behandlung liegen hier nicht vor; die Datei ist die Rechnung${r.lexware.pdfName ? `: <a href="${zurueck}/pdf" data-pdf="${esc(r.nummer ?? r.lexware.pdfName)}">${esc(r.lexware.pdfName)}</a>` : ''}.</p>` : ''}
-${pdfFenster()}
 ${meldungen(o)}
 <div class="re-kopf">
   <div class="tafel" data-hilfe="rechnung.empfaenger" tabindex="0"><h2>Empfänger</h2><p>${esc(e.name)}${e.zusatz ? `<br>${esc(e.zusatz)}` : ''}${e.strasse ? `<br>${esc(e.strasse)}` : ''}${e.plz || e.ort ? `<br>${esc([e.plz, e.ort].filter(Boolean).join(' '))}` : ''}</p>

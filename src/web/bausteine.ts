@@ -57,7 +57,30 @@ export const chip = (text: string, farbe: string) => `<span class="chip ${farbe}
  * Seite oder den Tab zu wechseln; „Schließen“ oder Escape blendet es aus. Ohne Skript (oder am iPhone, wo der Rahmen
  * nur die erste Seite zeigt) öffnet der Link das PDF im selben Tab – „Zurück“ führt zur Seite.
  */
-export const pdfFenster = () => `<aside class="pdf-fenster" id="pdf-fenster" hidden aria-label="Dokument">
-  <header>${symbol('rechnung', { groesse: 18 })}<b id="pdf-titel"></b><a id="pdf-oeffnen" class="knopf klein" href="#" data-hilfe="pdf.oeffnen">Öffnen</a><button type="button" class="knopf klein" id="pdf-schliessen" data-hilfe="pdf.schliessen">${symbol('kreuz', { groesse: 16 })} Schließen</button></header>
-  <iframe id="pdf-rahmen" title="Dokument" src="about:blank"></iframe>
-</aside>`;
+// ── Kachel-Regeln (W114, requirements §4h) ──────────────────────────────────
+// 1. Wo man in einem Kachelraster Neues anlegen kann, ist die erste Kachel eine „+“-Kachel (gleiche Größe wie die
+//    anderen). Mit `href` öffnet sie die Erfassungsseite im Seitenfenster (Rechner) bzw. als Seite (Handy, ohne JS);
+//    mit `inhalt` ein Popup an Ort und Stelle (kleine Formulare, Auswahl).
+// 2. Eine Kachel, die man bearbeiten darf, zeigt beim Überfahren unten rechts einen Stift (am Handy immer).
+// 3. Mehrere Aktionen zu einer Kachel stecken in einem „+“ oben rechts; eine einzelne Aktion bleibt ein Knopf.
+
+/** „+“-Kachel – immer die erste im Raster */
+export function plusKachel(o: { text: string; hilfe: string; href?: string; inhalt?: string; titel?: string; klasse?: string }): string {
+  const innen = `<span class="plus-zeichen" aria-hidden="true">+</span><span class="plus-text">${esc(o.text)}</span>`;
+  const klasse = `plus-kachel${o.klasse ? ` ${o.klasse}` : ''}`;
+  if (o.href) return `<a class="${klasse}" href="${esc(o.href)}" data-fenster="${esc(o.titel ?? o.text)}" data-hilfe="${o.hilfe}">${innen}</a>`;
+  return `<details class="${klasse}"><summary data-hilfe="${o.hilfe}">${innen}</summary>
+    <div class="plus-popup" role="dialog" aria-label="${esc(o.titel ?? o.text)}"><header><b>${esc(o.titel ?? o.text)}</b><button type="button" class="knopf klein plus-schliessen" data-hilfe="kachel.popup-schliessen">${symbol('kreuz', { groesse: 16 })} Schließen</button></header>${o.inhalt ?? ''}</div></details>`;
+}
+
+/** Stift unten rechts: diese Kachel darf bearbeitet werden. `oeffnet` = id eines <details>, das /praxis.js aufklappt */
+export const stift = (href: string, hilfe = 'kachel.stift', o: { oeffnet?: string; text?: string } = {}): string =>
+  `<a class="kachel-stift" href="${esc(href)}"${o.oeffnet ? ` data-oeffnet="${esc(o.oeffnet)}"` : ''} data-hilfe="${hilfe}" aria-label="${esc(o.text ?? 'Bearbeiten')}" title="${esc(o.text ?? 'Bearbeiten')}">${symbol('stift', { groesse: 16 })}</a>`;
+
+/** „+“ oben rechts an der Kachel: Menü mit den Aktionen (Links oder kleine Formulare) */
+export const plusMenue = (inhalt: string, hilfe: string, o: { klein?: boolean; label?: string } = {}): string =>
+  `<details class="plus${o.klein ? ' klein' : ''}" data-hilfe="${hilfe}"><summary aria-label="${esc(o.label ?? 'Aktionen')}">+</summary><div class="plus-menue">${inhalt}</div></details>`;
+
+/** Liste von Links in einem „+“-Popup (gleiche Optik wie das Menü oben rechts) */
+export const popupLinks = (links: { href: string; text: string; hilfe: string; symbol?: Symbol; fenster?: string }[]): string =>
+  `<div class="plus-menue-liste">${links.map((l) => `<a href="${esc(l.href)}"${l.fenster ? ` data-fenster="${esc(l.fenster)}"` : ''} data-hilfe="${l.hilfe}">${l.symbol ? symbol(l.symbol, { groesse: 18 }) : ''} ${esc(l.text)}</a>`).join('')}</div>`;

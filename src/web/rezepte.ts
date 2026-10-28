@@ -8,7 +8,7 @@ import { VERORDNUNG_ARTEN, type Patient, type Serie, type VerordnungKurz, type W
 import { esc, seite } from './layout.ts';
 import { datumText, euroText } from '../format.ts';
 import { heuteBerlin } from '../zeit.ts';
-import { karteiFormular as form, meldungen } from './bausteine.ts';
+import { karteiFormular as form, meldungen, plusKachel, plusMenue, popupLinks } from './bausteine.ts';
 import { symbol } from './symbole.ts';
 
 
@@ -21,13 +21,13 @@ export function rezeptKachel(v: VerordnungKurz, o: { mitPatient?: boolean; zurue
   const punkte = Array.from({ length: Math.min(v.anzahlVerordnet, 30) }, (_, i) => `<i class="${i < v.abgehakt ? 'voll' : ''}"></i>`).join('');
   // Noch nicht geplante Behandlungen (W110): verordnet minus erledigt minus kommende Termine
   const offen = v.anzahlVerordnet - v.abgehakt - v.geplant;
-  const aktionen = v.status === 'aktiv' ? `<details class="rz-mehr"><summary class="knopf klein" data-hilfe="rezept.mehr">mehr …</summary><div class="rz-aktionen">
+  // Alle Aktionen im „+“ oben rechts (W114); die Akte-Daten der Kachel selbst sind unveränderlich – kein Stift
+  const aktionen = v.status === 'aktiv' ? plusMenue(`${offen > 0 ? `<a href="/patienten/${v.patientId}/rezepte/${v.id}/termine" data-hilfe="rezept.termine">${symbol('kalender', { groesse: 18 })} Termine planen (${offen} offen)</a>` : ''}
+      <a href="/patienten/${v.patientId}/neu/rezept?vorgaenger=${v.id}" data-fenster="Folgerezept / Korrektur" data-hilfe="rezept.folge">${symbol('rezept', { groesse: 18 })} Folgerezept / Korrektur</a>
       ${form('zweitschrift', `<input type="hidden" name="verordnung_id" value="${v.id}"><button class="knopf klein" data-hilfe="rezept.zweitschrift">Zweitschrift vermerken</button>`, { id: v.patientId, zurueck: o.zurueck })}
-      ${form('verordnung_abbrechen', `<input type="hidden" name="verordnung_id" value="${v.id}"><input name="grund" placeholder="Grund (Pflicht)" required maxlength="200"><button class="knopf klein warnend" data-hilfe="rezept.abbrechen">Rezept abbrechen</button>`, { id: v.patientId, zurueck: o.zurueck })}
-      <a class="knopf klein" href="/patienten/${v.patientId}/neu/rezept?vorgaenger=${v.id}" data-hilfe="rezept.folge">Folgerezept / Korrektur</a>
-    </div></details>` : '';
-  return `<article class="rz ${v.status}" data-hilfe="rezepte.kachel" id="rz-${v.id}">
-    <header class="rz-kopf">${symbol('rezept', { groesse: 20 })}<b>${esc(v.massnahme)}</b><span class="chip ${farbe}">${st}</span></header>
+      ${form('verordnung_abbrechen', `<input type="hidden" name="verordnung_id" value="${v.id}"><input name="grund" placeholder="Grund (Pflicht)" required maxlength="200"><button class="knopf klein warnend" data-hilfe="rezept.abbrechen">Rezept abbrechen</button>`, { id: v.patientId, zurueck: o.zurueck })}`, 'rezept.plus', { klein: true, label: 'Aktionen zum Rezept' }) : '';
+  return `<article class="rz ${v.status}${aktionen ? ' mit-plus' : ''}" data-hilfe="rezepte.kachel" id="rz-${v.id}">
+    <header class="rz-kopf">${symbol('rezept', { groesse: 20 })}<b>${esc(v.massnahme)}</b><span class="chip ${farbe}">${st}</span></header>${aktionen}
     ${o.mitPatient ? `<a class="rz-patient" href="/patienten/${v.patientId}#rezepte">${esc(v.patientName)}</a>` : ''}
     <p class="rz-marken"><span class="marke">${esc(VERORDNUNG_ARTEN[v.art])}</span>${v.langzeit ? '<span class="marke jetzt">Langzeitbehandlung</span>' : ''}${v.zweitschriftAm ? `<span class="marke">Zweitschrift ${datumText(v.zweitschriftAm)}</span>` : ''}${v.vorgaengerId ? `<a class="marke" href="#rz-${v.vorgaengerId}">↑ Vorgänger</a>` : ''}</p>
     <dl class="liste-dl klein">
@@ -37,9 +37,7 @@ export function rezeptKachel(v: VerordnungKurz, o: { mitPatient?: boolean; zurue
       ${v.fallNummer ? `<dt>Fall</dt><dd>Fall ${v.fallNummer}</dd>` : ''}
       ${v.notiz ? `<dt>Notiz</dt><dd>${esc(v.notiz)}</dd>` : ''}
     </dl>
-    <div class="stempel" aria-label="${v.abgehakt} von ${v.anzahlVerordnet}">${punkte}<span>${v.abgehakt} von ${v.anzahlVerordnet}${v.bestaetigt ? ` · ✓ ${v.bestaetigt} bestätigt` : ''}${v.geplant ? ` · ${v.geplant} geplant` : ''}</span></div>
-    ${v.status === 'aktiv' && offen > 0 ? `<a class="knopf klein" href="/patienten/${v.patientId}/rezepte/${v.id}/termine" data-hilfe="rezept.termine">${symbol('kalender', { groesse: 16 })} Termine planen (${offen} offen)</a>` : ''}
-    ${aktionen}
+    <div class="stempel" aria-label="${v.abgehakt} von ${v.anzahlVerordnet}">${punkte}<span>${v.abgehakt} von ${v.anzahlVerordnet}${v.bestaetigt ? ` · ✓ ${v.bestaetigt} bestätigt` : ''}${v.geplant ? ` · ${v.geplant} geplant` : ''}${v.status === 'aktiv' && offen > 0 ? ` · ${offen} offen` : ''}</span></div>
   </article>`;
 }
 
@@ -59,12 +57,12 @@ export function serieKachel(s: Serie, o: { mitPatient?: boolean; zurueck: string
   </article>`;
 }
 
-/** Die Knöpfe zum Hinzufügen – auf der Patientenseite unter den Kacheln */
-export const serienKnoepfe = (patientId: string) => `<div class="knopfreihe">
-  <a class="knopf klein" href="/patienten/${patientId}/neu/rezept" data-hilfe="plus.rezept">${symbol('rezept', { groesse: 16 })} Neues Rezept</a>
-  <a class="knopf klein" href="/patienten/${patientId}/neu/direktzugang" data-hilfe="plus.direktzugang">${symbol('freigabe', { groesse: 16 })} Behandlung ohne Rezept</a>
-  <a class="knopf klein" href="/patienten/${patientId}/neu/wellness" data-hilfe="plus.wellness">${symbol('wellness', { groesse: 16 })} Wellness</a>
-</div>`;
+/** „+“-Kachel vorn im Rezept-Raster der Patientenseite (W114): Popup mit den drei Arten, jede öffnet im Seitenfenster */
+export const serienPlus = (patientId: string) => plusKachel({ text: 'Neu', titel: 'Rezept oder Serie anlegen', hilfe: 'plus.rezept-serie', inhalt: popupLinks([
+  { href: `/patienten/${patientId}/neu/rezept`, text: 'Neues Rezept', hilfe: 'plus.rezept', symbol: 'rezept', fenster: 'Neues Rezept' },
+  { href: `/patienten/${patientId}/neu/direktzugang`, text: 'Behandlung ohne Rezept', hilfe: 'plus.direktzugang', symbol: 'freigabe', fenster: 'Behandlung ohne Rezept' },
+  { href: `/patienten/${patientId}/neu/wellness`, text: 'Wellness-Serie', hilfe: 'plus.wellness', symbol: 'wellness', fenster: 'Wellness-Serie' },
+]) });
 
 // ── /rezepte ────────────────────────────────────────────────────────────────
 export function rezepteSeite(d: RezepteDaten, o: { wer: string; fassung: string; meldung?: string; fehler?: string; skriptInline?: string }): string {

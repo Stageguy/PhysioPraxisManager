@@ -8,7 +8,7 @@ import { REGELZEIT_QUELLE_TEXT, type Regelzeit } from '../kartei/regelzeiten.ts'
 import { oeffnungszeitenJeTag, oeffnungszeitenLesen, wochentag, type OeffnungsTag } from '../anfragen/slots.ts';
 import { datumText } from '../format.ts';
 import { esc, seite } from './layout.ts';
-import { karteiFormular, meldungen, type Rahmen } from './bausteine.ts';
+import { karteiFormular, meldungen, plusKachel, stift, type Rahmen } from './bausteine.ts';
 import { symbol } from './symbole.ts';
 
 const form = (aktion: string, inhalt: string, klasse = 'inline') => karteiFormular(aktion, inhalt, { zurueck: '/konfiguration', klasse });
@@ -100,7 +100,8 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
   const kacheln = d.textbausteine.map((b) => `<article class="tbk${b.aktiv ? '' : ' ab'}" data-hilfe="konfiguration.textbaustein">
     <header><span class="tbk-code">${esc(b.code)}</span><b>${esc(b.kurzname)}</b></header>
     <p class="rz-marken"><span class="marke${b.wirkung === 'keine' ? '' : ' jetzt'}">${esc(WIRKUNG_TEXT[b.wirkung])}</span><span class="marke">${esc(AUTOMATISCH_TEXT[b.automatisch])}</span></p>
-    <details><summary class="knopf klein" data-hilfe="konfiguration.textbaustein.bearbeiten">Bearbeiten</summary>
+    ${stift(`#tb-${b.id}`, 'konfiguration.textbaustein.bearbeiten', { oeffnet: `tb-${b.id}`, text: 'Textbaustein bearbeiten' })}
+    <details id="tb-${b.id}"><summary class="knopf klein nur-ohne-js" data-hilfe="konfiguration.textbaustein.bearbeiten">Bearbeiten</summary>
       ${form('textbaustein_speichern', `<input type="hidden" name="textbaustein_id" value="${b.id}">
         <label>Kurzname (oben auf der Kachel)<input name="kurzname" value="${esc(b.kurzname)}" required maxlength="60"></label>
         <label>Text (steht unter den Positionen der Rechnung)<textarea name="text" rows="4" required>${esc(b.text)}</textarea></label>
@@ -122,14 +123,10 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
 </div>
 
 <h2>Textbausteine für Rechnungen</h2>
-<div class="tbk-raster">${kacheln}
-  <details class="tbk neu" data-hilfe="konfiguration.textbaustein.neu"><summary><span class="rp-plus">+</span> Textbaustein</summary>
-    ${form('textbaustein_speichern', `<label>Kurzname<input name="kurzname" required maxlength="60" placeholder="z. B. Dank"></label>
+<div class="tbk-raster">${plusKachel({ text: 'Neuer Textbaustein', hilfe: 'konfiguration.textbaustein.neu', inhalt: form('textbaustein_speichern', `<label>Kurzname<input name="kurzname" required maxlength="60" placeholder="z. B. Dank"></label>
       <label>Text<textarea name="text" rows="4" required></textarea></label>
       <div class="zwei"><label>Wirkung${wahl('wirkung', WIRKUNG_TEXT, 'keine')}</label><label>Automatisch dabei${wahl('automatisch', AUTOMATISCH_TEXT, 'nie')}</label></div>
-      <p class="hint">Die Kennung (R + Nummer) vergibt das System.</p><button class="knopf primaer">Anlegen</button>`, 'formular')}
-  </details>
-</div>
+      <p class="hint">Die Kennung (R + Nummer) vergibt das System.</p><button class="knopf primaer">Anlegen</button>`, 'formular') })}${kacheln}</div>
 
 <h2>Steuer</h2>
 <div class="tafel">

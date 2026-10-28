@@ -1,0 +1,16 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "patienten", "pfad": "/patienten" },
+    { "name": "patient", "pfad": "/patienten/86" },
+    { "name": "pinnwand", "pfad": "/pinnwand?ansicht=horizontal" },
+    { "name": "terminarten", "pfad": "/konfiguration/terminarten" },
+    { "name": "konfiguration", "pfad": "/konfiguration" },
+    { "name": "preislisten", "pfad": "/preislisten" },
+    { "name": "anfragen", "pfad": "/anfragen" }
+  ]
+}

@@ -9,7 +9,7 @@ import type { NeueQuelle, Pruefergebnis } from '../preise/quellen.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, euroText, preisText } from '../format.ts';
 import { heuteBerlin } from '../zeit.ts';
-import { preislistenFormular as form, meldungen, type Rahmen } from './bausteine.ts';
+import { preislistenFormular as form, meldungen, plusKachel, stift, type Rahmen } from './bausteine.ts';
 import { symbol } from './symbole.ts';
 
 const faktorText = (n: number | null | undefined) => (n === null || n === undefined ? '' : n.toLocaleString('de-DE', { maximumFractionDigits: 4 }));
@@ -52,6 +52,7 @@ function kachel(l: Preisliste): string {
         <dt>Patienten</dt><dd>${l.patienten} zugeordnet${l.standard ? ' · plus alle ohne eigene Liste' : ''}</dd>
       </dl>
     </a>
+    ${stift(`/preislisten/${l.id}`, 'kachel.stift', { text: 'Preisliste bearbeiten' })}
     <div class="pk-fuss nur-desktop">
     ${form('aktiv', `<input type="hidden" name="aktiv_id" value="${l.id}"><input type="hidden" name="aktiv" value="0"><label class="pk-aktiv" data-hilfe="preislisten.aktiv"><input type="checkbox" name="aktiv" value="1"${l.aktiv ? ' checked' : ''}${l.status !== 'freigegeben' || l.standard ? ' disabled' : ''} data-auto-senden> aktiv</label><button class="knopf klein nur-ohne-js">übernehmen</button>`, { id: l.id, klasse: 'pk-aktiv-form' })}
     ${form('standard', `<input type="hidden" name="standard_id" value="${l.id}"><label class="pk-aktiv" data-hilfe="preislisten.standard"><input type="radio" name="standard_wahl" value="${l.id}"${l.standard ? ' checked' : ''}${l.status !== 'freigegeben' ? ' disabled' : ''} data-auto-senden> Standard</label><button class="knopf klein nur-ohne-js">übernehmen</button>`, { id: l.id, klasse: 'pk-aktiv-form' })}
@@ -81,14 +82,13 @@ export function uebersichtSeite(d: UebersichtDaten, o: Rahmen): string {
     titel: 'Preislisten', aktiv: 'preislisten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<h1>${symbol('euro', { groesse: 26 })} Preislisten</h1>${meldungen(o)}${neu}${pruefung}
 <div class="knopfreihe nur-desktop">
-  <a class="knopf primaer" href="/preislisten/neu" data-hilfe="preislisten.neu">${symbol('rechnung', { groesse: 18 })} Neu</a>
   <a class="knopf" href="/preislisten/bearbeiten" data-hilfe="preislisten.bearbeiten">Bearbeiten</a>
   ${form('pruefen', `<button class="knopf" data-hilfe="preislisten.pruefen">${symbol('haken', { groesse: 18 })} Prüfen</button>`)}
   <a class="knopf" href="/preislisten/archiv" data-hilfe="preislisten.archiv">${symbol('archiv', { groesse: 18 })} Archiv</a>
 </div>
 <p class="hint nur-mobil">Am Handy lassen sich Preislisten nur ansehen – bearbeiten bitte am Rechner.</p>
 <h2 class="spaltenkopf dash-kopf">Die letzten Preislisten</h2>
-${d.listen.length ? `<div class="pk-raster">${d.listen.slice(0, 3).map(kachel).join('')}</div>` : '<p class="leer">Noch keine Preisliste – mit „Neu“ die erste anlegen.</p>'}
+<div class="pk-raster">${plusKachel({ text: 'Neue Preisliste', hilfe: 'preislisten.neu', href: '/preislisten/neu', klasse: 'nur-desktop' })}${d.listen.slice(0, 3).map(kachel).join('')}</div>${d.listen.length ? '' : '<p class="leer">Noch keine Preisliste – über „+“ die erste anlegen (am Rechner).</p>'}
 ${d.listen.length > 3 ? `<p><a href="/preislisten/bearbeiten">Alle ${d.listen.length} Preislisten</a></p>` : ''}
 <h2 class="spaltenkopf dash-kopf">Grundlagen</h2>
 <ul class="quellen tafel">${quellen}</ul>

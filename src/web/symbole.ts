@@ -31,6 +31,8 @@ const PFADE = {
   website: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
   buchung: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5"/>',
   brief: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h8M8 12h8M8 16h4"/>',
+  /** Bearbeiten (Kachel-Regeln W114) */
+  stift: '<path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M13 8l3 3"/>',
 } as const;
 
 export type Symbol = keyof typeof PFADE;

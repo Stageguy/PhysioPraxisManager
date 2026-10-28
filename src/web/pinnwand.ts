@@ -10,7 +10,7 @@ import { ERKLAERUNG_ARTEN, PHASEN, PHASEN_NAMEN, type FallDetails, type Karte, t
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText } from '../format.ts';
 import { heuteBerlin } from '../zeit.ts';
-import { karteiFormular as form, meldungen, type Rahmen } from './bausteine.ts';
+import { karteiFormular as form, meldungen, plusKachel, type Rahmen } from './bausteine.ts';
 import { rezeptKachel } from './rezepte.ts';
 import { symbol } from './symbole.ts';
 
@@ -46,8 +46,8 @@ export function pinnwandSeite(d: { spalten: Spalte[]; ansicht: 'horizontal' | 'v
   const zurueck = `/pinnwand?ansicht=${d.ansicht}${d.archiv ? '&archiv=1' : ''}`;
   const spalten = d.spalten.map((sp) => `<section class="pw-phase" data-phase="${sp.phase}" data-hilfe="pinnwand.phase" aria-labelledby="ph-${sp.phase}">
     <header class="pw-kopf"><h2 id="ph-${sp.phase}">${esc(sp.name)} <span class="pw-zahl">${sp.karten.length}</span></h2><p class="hint">${esc(sp.text)}</p>
-      ${sp.phase === 'anfrage' ? `<a class="knopf klein" href="/pinnwand/neu" data-hilfe="pinnwand.neu">+ Fall</a>` : ''}</header>
-    <div class="pw-karten">${sp.karten.map((k) => fallKarte(k)).join('') || '<p class="pw-leer">–</p>'}</div>
+    </header>
+    <div class="pw-karten">${sp.phase === 'anfrage' ? plusKachel({ text: 'Neuer Fall', hilfe: 'pinnwand.neu', href: '/pinnwand/neu' }) : ''}${sp.karten.map((k) => fallKarte(k)).join('') || (sp.phase === 'anfrage' ? '' : '<p class="pw-leer">–</p>')}</div>
   </section>`).join('');
   const anzahl = d.spalten.reduce((n, sp) => n + sp.karten.length, 0);
   return seite({
@@ -123,8 +123,8 @@ export function fallSeite(d: { patient: Patient; details: FallDetails; verordnun
 </dl></div></section>
 
 <section class="pat-abschnitt" id="rezepte"><h2>${symbol('rezept')} Rezepte dieses Falls</h2>
-  ${d.verordnungen.length ? `<div class="rz-raster">${d.verordnungen.map((v) => rezeptKachel(v, { zurueck })).join('')}</div>` : '<p class="leer">Kein Rezept am Fall.</p>'}
-  <p><a class="knopf klein" href="/patienten/${p.id}/neu/rezept" data-hilfe="plus.rezept">Neues Rezept</a></p>
+  <div class="rz-raster">${plusKachel({ text: 'Neues Rezept', hilfe: 'plus.rezept', href: `/patienten/${p.id}/neu/rezept` })}${d.verordnungen.map((v) => rezeptKachel(v, { zurueck })).join('')}</div>
+  ${d.verordnungen.length ? '' : '<p class="leer">Kein Rezept am Fall.</p>'}
 </section>
 
 <section class="pat-abschnitt" id="anamnese"><h2>${symbol('protokoll')} Anamnese</h2>

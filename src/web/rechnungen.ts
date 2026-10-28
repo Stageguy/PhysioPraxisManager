@@ -362,19 +362,27 @@ export const PRAXIS_SKRIPT = String.raw`
     var tr = t.closest && t.closest('tr[data-href]');
     if (tr && !t.closest('input,select,textarea,button,a,label')) window.location.href = tr.getAttribute('data-href');
   });
-  // Dokumente im seitlichen Fenster (W104): Klick auf a[data-pdf] lädt das PDF in den Rahmen, kein Seiten- oder Tab-Wechsel.
-  // Am iPhone zeigt ein Rahmen nur die erste PDF-Seite – dort öffnet der Link das PDF im selben Tab (Zurück = Seite).
+  // Seitenfenster: Dokumente (W104, a[data-pdf]) und Erfassungsseiten (W114, a[data-fenster]) laden in den Rahmen rechts –
+  // kein Seiten- oder Tab-Wechsel. Am iPhone und auf schmalen Bildschirmen öffnet der Link die Seite ganz normal.
+  var imFenster = window.self !== window.top;
+  if (imFenster) document.documentElement.classList.add('im-fenster');
   var pdfFenster = document.getElementById('pdf-fenster');
-  if (pdfFenster) {
-    var pdfRahmen = document.getElementById('pdf-rahmen'), pdfTitel = document.getElementById('pdf-titel'), pdfOeffnen = document.getElementById('pdf-oeffnen');
+  if (pdfFenster && !imFenster) {
+    var pdfRahmen = document.getElementById('pdf-rahmen'), pdfTitel = document.getElementById('pdf-titel'), pdfOeffnen = document.getElementById('pdf-oeffnen'), fensterZiel = null;
     var ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    function pdfSchliessen() { pdfFenster.hidden = true; pdfRahmen.src = 'about:blank'; document.body.classList.remove('pdf-offen'); }
+    function pdfSchliessen() { pdfFenster.hidden = true; pdfFenster.classList.remove('seite'); pdfRahmen.src = 'about:blank'; fensterZiel = null; document.body.classList.remove('pdf-offen'); }
     document.addEventListener('click', function (e) {
-      var a = e.target.closest && e.target.closest('a[data-pdf]');
-      if (a && !ios) {
+      var a = e.target.closest && e.target.closest('a[data-pdf],a[data-fenster]');
+      var seite = a && a.hasAttribute('data-fenster');
+      if (a && !ios && !(seite && window.innerWidth < 900)) {
         e.preventDefault();
-        pdfTitel.textContent = a.getAttribute('data-pdf') || 'Dokument';
+        var popup = a.closest('details.plus-kachel');
+        if (popup) popup.open = false;
+        pdfTitel.textContent = a.getAttribute(seite ? 'data-fenster' : 'data-pdf') || (seite ? 'Erfassen' : 'Dokument');
         pdfOeffnen.href = a.href;
+        pdfOeffnen.hidden = !!seite;
+        pdfFenster.classList.toggle('seite', !!seite);
+        fensterZiel = seite ? new URL(a.href, location.href).pathname : null;
         pdfRahmen.src = a.href;
         pdfFenster.hidden = false;
         document.body.classList.add('pdf-offen');
@@ -382,8 +390,27 @@ export const PRAXIS_SKRIPT = String.raw`
       }
       if (e.target.closest && e.target.closest('#pdf-schliessen')) { e.preventDefault(); pdfSchliessen(); }
     });
+    // Erfassungsseite im Fenster: nach dem Speichern leitet der Dienst woandershin um – dann folgt die ganze Seite dorthin
+    pdfRahmen.addEventListener('load', function () {
+      if (!fensterZiel) return;
+      try {
+        var u = pdfRahmen.contentWindow.location;
+        if (u.pathname && u.pathname !== fensterZiel) { var ziel = u.pathname + u.search + u.hash; pdfSchliessen(); location.href = ziel; }
+      } catch (x) { /* fremde Seite im Rahmen */ }
+    });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pdfFenster.hidden) pdfSchliessen(); });
   }
+  // „+“-Kachel mit Popup (W114): Schließen-Knopf, Escape oder Klick auf den Hintergrund schließen es
+  document.addEventListener('click', function (e) {
+    var s = e.target.closest && e.target.closest('.plus-schliessen');
+    if (s) { var ds = s.closest('details'); if (ds) ds.open = false; return; }
+    var offen = document.querySelector('details.plus-kachel[open]');
+    if (offen && !e.target.closest('.plus-popup') && !e.target.closest('details.plus-kachel>summary')) offen.open = false;
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.querySelectorAll('details.plus-kachel[open]').forEach(function (d) { d.open = false; }); });
+  // Sprungmarke auf ein zugeklapptes <details> (z. B. #stammdaten vom Stift der Patientenkachel) klappt es auf
+  var sprung = location.hash && document.getElementById(location.hash.slice(1));
+  if (sprung && sprung.tagName === 'DETAILS') sprung.open = true;
   // Unterschrift je Behandlung (W107a): Fingerzeichnung auf der Fläche, beim Absenden als PNG ins versteckte Feld
   var flaeche = document.querySelector('canvas[data-unterschrift]');
   if (flaeche) {

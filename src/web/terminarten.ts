@@ -4,7 +4,7 @@
  * Online-Terminanfrage. Oben die Vorschau des Dropdowns, unten der HTML-Baustein für die Website.
  */
 import { SEKTION_REIHE, SEKTIONEN, websiteBaustein, type Terminart } from '../kartei/terminarten.ts';
-import { karteiFormular, meldungen, SEKTION_SYMBOL, sektionLegende, type Rahmen } from './bausteine.ts';
+import { karteiFormular, meldungen, plusKachel, SEKTION_SYMBOL, sektionLegende, stift, type Rahmen } from './bausteine.ts';
 import { esc, seite } from './layout.ts';
 import { symbol } from './symbole.ts';
 
@@ -20,7 +20,8 @@ function kachel(a: Terminart): string {
       ${a.leistungNummer ? `<span class="marke" data-hilfe="terminart.gkv" tabindex="0">GKV ${esc(a.leistungNummer)}${a.regelzeit ? ` · ${esc(a.regelzeit)}` : ''}</span>` : ''}
       ${form('terminart_aktiv', `<input type="hidden" name="terminart_id" value="${a.id}"><input type="hidden" name="aktiv" value="${a.aktiv ? '0' : '1'}"><label class="haken" data-hilfe="terminart.aktiv"><input type="checkbox"${a.aktiv ? ' checked' : ''} data-auto-senden> aktiv</label><button class="knopf klein nur-ohne-js">${a.aktiv ? 'ausschalten' : 'aktivieren'}</button>`, 'ta-aktiv')}
     </div>
-    <details><summary class="hint" data-hilfe="terminart.bearbeiten">bearbeiten</summary>
+    ${stift(`#ta-${a.id}-bearbeiten`, 'terminart.bearbeiten', { oeffnet: `ta-${a.id}-bearbeiten`, text: 'Terminart bearbeiten' })}
+    <details id="ta-${a.id}-bearbeiten"><summary class="hint nur-ohne-js" data-hilfe="terminart.bearbeiten">bearbeiten</summary>
       ${form('terminart_speichern', `<input type="hidden" name="terminart_id" value="${a.id}">
         <label>Kurzbeschreibung (im Dropdown)<input name="kurz" value="${esc(a.kurz)}" required maxlength="80"></label>
         <label>Langbeschreibung (unter dem Dropdown)<textarea name="lang" rows="3" maxlength="600">${esc(a.lang ?? '')}</textarea></label>
@@ -38,16 +39,12 @@ export function terminartenSeite(d: { terminarten: Terminart[]; buchung?: { url:
     return `<section class="ta-sektion sek-${s}" id="sektion-${s}" data-hilfe="terminart.sektion.${s}">
   <h2><span class="sek-sym sek-${s}">${symbol(SEKTION_SYMBOL[s], { groesse: 22 })}</span> ${esc(SEKTIONEN[s].name)} <span class="hint">${liste.filter((a) => a.aktiv).length} von ${liste.length} aktiv</span></h2>
   <p class="hint">${esc(SEKTIONEN[s].text)}</p>
-  <div class="ta-raster">${liste.map(kachel).join('')}
-    <details class="ta-kachel neu sek-${s}" data-hilfe="terminart.neu"><summary><span class="rp-plus">+</span> Terminart (${esc(SEKTIONEN[s].buchstabe)} …)</summary>
-      ${form('terminart_speichern', `<input type="hidden" name="sektion" value="${s}">
+  <div class="ta-raster">${plusKachel({ text: 'Neue Terminart', titel: `Neue Terminart (${SEKTIONEN[s].buchstabe} …)`, hilfe: 'terminart.neu', klasse: `sek-${s}`, inhalt: form('terminart_speichern', `<input type="hidden" name="sektion" value="${s}">
         <label>Kurzbeschreibung<input name="kurz" required maxlength="80"></label>
         <label>Langbeschreibung<textarea name="lang" rows="3" maxlength="600"></textarea></label>
         <div class="zwei"><label>Dauer in Minuten<input name="dauer_min" value="30" inputmode="numeric" class="kurz" required></label>
         <label>GKV-Nummer (optional)<input name="leistung_nummer" inputmode="numeric" class="kurz" maxlength="5"></label></div>
-        <p class="hint">Die Kennung vergibt das System; neue Terminarten sind zunächst inaktiv.</p><button class="knopf primaer">Anlegen</button>`, 'formular')}
-    </details>
-  </div>
+        <p class="hint">Die Kennung vergibt das System; neue Terminarten sind zunächst inaktiv.</p><button class="knopf primaer">Anlegen</button>`, 'formular') })}${liste.map(kachel).join('')}</div>
 </section>`;
   }).join('');
   const optionen = SEKTION_REIHE.map((s) => {

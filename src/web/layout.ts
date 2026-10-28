@@ -5,6 +5,7 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { umgebung } from '../umgebung.ts';
+import { symbol } from './symbole.ts';
 
 /** Was das Menü je Anfrage wissen muss – setzt der Server (roter Punkt bei neuen Preisgrundlagen) */
 export const menueStand = new AsyncLocalStorage<{ preislistenNeu: number }>();
@@ -278,7 +279,6 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .adr-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
 .adr{background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
 .adr.aktiv{border:2px solid var(--ok)}.adr p{margin:0}.adr-fuss{display:flex;gap:8px;align-items:center;margin-top:auto}
-.adr.neu summary{cursor:pointer;color:var(--akzent);min-height:36px;display:flex;align-items:center}.adr.neu .formular{margin-top:8px}
 .rezepte{list-style:none;margin:0;padding:0;display:grid;gap:8px}.rezepte li{background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:10px 14px}
 .stempel{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:6px}.stempel i{width:14px;height:14px;border-radius:50%;border:1px solid var(--akzent)}.stempel i.voll{background:var(--akzent)}
 .stempel span{margin-left:6px;font-size:13px;color:var(--grau)}
@@ -335,6 +335,27 @@ details.rk-jahr summary b{color:var(--fg);font-size:16px}
 .pdf-fenster[hidden]{display:none}.pdf-fenster header{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--rand);color:var(--akzent)}
 .pdf-fenster header b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}.pdf-fenster iframe{flex:1;border:0;width:100%;background:#fff}
 body.pdf-offen{overflow:hidden}
+.pdf-fenster.seite iframe{background:var(--bg)}.pdf-fenster.seite header svg:first-child{display:none}
+/* Kachel-Regeln (W114): „+“-Kachel zuerst, Stift bei bearbeitbaren Kacheln, „+“-Menü oben rechts; Seitenfenster für Erfassungsseiten */
+.plus-kachel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:120px;min-width:0;border:2px dashed var(--akzent);border-radius:14px;background:color-mix(in srgb,var(--akzent) 5%,var(--karte));color:var(--akzent);text-decoration:none;cursor:pointer;padding:12px}
+a.plus-kachel:hover,a.plus-kachel:focus-visible,.plus-kachel summary:hover{background:color-mix(in srgb,var(--akzent) 12%,var(--karte))}
+details.plus-kachel{padding:0}.plus-kachel summary{list-style:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;flex:1;width:100%;min-height:120px;cursor:pointer;padding:12px;border-radius:12px}
+.plus-kachel summary::-webkit-details-marker{display:none}
+.plus-zeichen{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--akzent);color:var(--bg);font-size:40px;line-height:1;font-weight:300}
+.plus-text{font-size:15px;font-weight:600;text-align:center}
+details.plus-kachel[open]::before{content:"";position:fixed;inset:0;background:rgba(27,21,25,.38);z-index:1140}
+.plus-popup{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1150;width:min(600px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;background:var(--karte);color:var(--fg);border:1px solid var(--rand);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.3);padding:12px 16px 16px;text-align:left;font-weight:400}
+.plus-popup header{display:flex;gap:8px;align-items:center;margin-bottom:10px}.plus-popup header b{flex:1;font-size:17px;color:var(--akzent)}
+.plus-popup .formular,.plus-popup form{margin:0}
+.plus-menue-liste{display:grid;gap:4px}.plus-menue-liste a{display:flex;gap:8px;align-items:center;min-height:44px;padding:6px 10px;border-radius:8px;text-decoration:none;color:var(--fg);font-weight:400}.plus-menue-liste a:hover{background:color-mix(in srgb,var(--akzent) 10%,transparent)}
+.plus-menue form.inline{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:4px 8px}
+.plus-menue form input:not([type]),.plus-menue form input[type=text],.plus-menue form select{font:inherit;font-size:14px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:4px 8px;min-height:32px;flex:1 1 120px}
+.rz,.tk,.tbk,.ta-kachel,.pk,.adr{position:relative}.rz .plus,.tk .plus{position:absolute;right:8px;top:8px}.rz.mit-plus>.rz-kopf,.tk.mit-plus>b{padding-right:36px}
+.kachel-stift{position:absolute;right:10px;bottom:10px;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--karte);border:1px solid var(--rand);color:var(--akzent);opacity:0;transition:opacity .12s;z-index:2}
+article:hover>.kachel-stift,article:focus-within>.kachel-stift,.kachel-stift:focus-visible{opacity:1}
+@media (hover:none){.kachel-stift{opacity:1}}
+.im-fenster nav,.im-fenster footer,.im-fenster .testband,.im-fenster .hilfe-hinweis,.im-fenster .rueckmeldung-knopf{display:none}.im-fenster main{padding:12px 16px 32px;max-width:none}
+.pw-karten .plus-kachel{min-height:88px}.pw-karten .plus-kachel summary{min-height:88px}.pw-karten .plus-zeichen{width:40px;height:40px;font-size:28px}
 .lx-auswahl{display:inline-flex;align-items:center}.lx-auswahl input{width:20px;height:20px}.lx-mehrere h2 .knopf{margin-left:auto}
 .lx-abweichungen{margin:6px 0 0;padding-left:18px}.lx-abweichungen li{margin:4px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 fieldset.bestaetigung .wahl-zeile{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 8px}
@@ -357,9 +378,6 @@ table.regelzeiten td:nth-child(3){white-space:nowrap}details.regelzeiten-liste>s
 .rz.aktiv{border-color:var(--ok)}.rz.ersetzt,.rz.abgebrochen{opacity:.7}
 .rz-kopf{display:flex;gap:8px;align-items:center;color:var(--akzent);flex-wrap:wrap}.rz-kopf b{color:var(--fg);flex:1;min-width:0;overflow-wrap:anywhere}
 .rz-patient{font-size:15px}.rz-marken{margin:0;display:flex;gap:6px;flex-wrap:wrap}.rz-marken a.marke{text-decoration:none}
-.rz-mehr summary{list-style:none;display:inline-flex;margin-top:4px}.rz-mehr summary::-webkit-details-marker{display:none}
-.rz-aktionen{display:grid;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--rand)}.rz-aktionen form{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.rz-aktionen input{font:inherit;font-size:14px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:4px 8px;min-height:32px;flex:1 1 140px}
 /* Rechnungsseite, Konfiguration, Kalender */
 .kopf-kalender{margin-left:auto;display:inline-flex;gap:4px;align-items:center;color:var(--akzent);text-decoration:none;font-size:18px;font-weight:400}
 .konfig-link{margin-left:12px;display:inline-flex;gap:4px;align-items:center}
@@ -464,6 +482,10 @@ export function seite(o: {
 ${o.inhalt}
 <footer>Angemeldet als ${esc(o.wer)} · PhysioPraxisManager ${esc(o.fassung)}</footer>
 </main>
+<aside class="pdf-fenster" id="pdf-fenster" hidden aria-label="Seitenfenster">
+  <header>${symbol('rechnung', { groesse: 18 })}<b id="pdf-titel"></b><a id="pdf-oeffnen" class="knopf klein" href="#" data-hilfe="pdf.oeffnen">Öffnen</a><button type="button" class="knopf klein" id="pdf-schliessen" data-hilfe="pdf.schliessen">${symbol('kreuz', { groesse: 16 })} Schließen</button></header>
+  <iframe id="pdf-rahmen" title="Seitenfenster" src="about:blank"></iframe>
+</aside>
 ${skript}
 </body></html>`;
 }

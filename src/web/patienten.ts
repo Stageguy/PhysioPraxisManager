@@ -10,11 +10,11 @@ import { kundenName, type LexwareKunde } from '../lexware/kunden.ts';
 import { BESTAETIGUNG_TEXT, VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz, type RechnungKurz } from '../kartei/patienten.ts';
 import { VORLAGEN } from '../nachrichten/vorlagen.ts';
 import { SEKTION_REIHE, SEKTIONEN, type Terminart } from '../kartei/terminarten.ts';
-import { rezeptKachel, serieKachel, serienKnoepfe } from './rezepte.ts';
+import { rezeptKachel, serieKachel, serienPlus } from './rezepte.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText, zeitText } from '../format.ts';
 import { heuteBerlin } from '../zeit.ts';
-import { karteiFormular as form, meldungen, pdfFenster, type Rahmen } from './bausteine.ts';
+import { karteiFormular as form, meldungen, plusKachel, plusMenue, stift, type Rahmen } from './bausteine.ts';
 import { symbol, type Symbol } from './symbole.ts';
 
 
@@ -44,7 +44,7 @@ const standChip = (p: PatientKurz) =>
   p.rechnungsstand === 'rot' ? `<span class="chip preset0" data-hilfe="kachel.status" tabindex="0">Rechnung im Verzug</span>`
     : p.rechnungsstand === 'gelb' ? `<span class="chip preset3" data-hilfe="kachel.status" tabindex="0">Rechnung überfällig</span>` : '';
 
-function plusMenue(p: Pick<PatientKurz, 'id'>): string {
+function patientMenue(p: Pick<PatientKurz, 'id'>): string {
   return `<details class="plus" data-hilfe="kachel.plus"><summary aria-label="Neue Aktivität">+</summary><div class="plus-menue">
     <a href="/patienten/${p.id}/neu/termin" data-hilfe="plus.termin">${symbol('kalender', { groesse: 18 })} Neuer Termin</a>
     <a href="/patienten/${p.id}/neu/behandlung" data-hilfe="plus.behandlung">${symbol('protokoll', { groesse: 18 })} Neue Behandlung</a>
@@ -67,10 +67,11 @@ export function kachel(p: PatientKurz, o: { kopf?: boolean } = {}): string {
     <header class="pat-kopf">
       ${o.kopf ? `<h1>${esc(name(p))}</h1>` : `<a class="pat-name" href="/patienten/${p.id}"><b>${esc(name(p))}</b></a>`}
       <span class="pat-nr">${esc(p.patientennummer)}</span>
-      ${plusMenue(p)}
+      ${patientMenue(p)}
     </header>
     ${p.ansprache || p.besonderheiten ? `<p class="pat-hinweise">${p.ansprache ? `<span class="marke">${esc(p.ansprache)}</span> ` : ''}${p.besonderheiten ? `<span class="marke warn-marke">${esc(p.besonderheiten)}</span>` : ''}</p>` : ''}
     <div class="pat-kontakte">${kontaktLink(p, p.telefon, 'telefon')}${kontaktLink(p, p.whatsapp, 'whatsapp', { klein: true })}${kontaktLink(p, p.email, 'email', { klein: true })}</div>
+    ${o.kopf ? stift('#stammdaten', 'patient.stammdaten', { oeffnet: 'stammdaten', text: 'Stammdaten bearbeiten' }) : stift(`/patienten/${p.id}#stammdaten`, 'kachel.stift', { text: 'Stammdaten bearbeiten' })}
     <dl class="liste-dl klein">
       <dt>Patient seit</dt><dd>${datumText(p.patientSeit)}</dd>
       <dt>Letzte Behandlung</dt><dd>${behandlung}</dd>
@@ -82,18 +83,17 @@ export function kachel(p: PatientKurz, o: { kopf?: boolean } = {}): string {
 
 // ── Liste ───────────────────────────────────────────────────────────────────
 export function listeSeite(d: { patienten: PatientKurz[]; suche: string; archiv?: boolean; lexware?: boolean }, o: Rahmen): string {
-  const leer = d.suche ? `<p class="leer">Niemand passt zu „${esc(d.suche)}“.</p>` : d.archiv ? '<p class="leer">Das Archiv ist leer.</p>' : '<p class="leer">Noch keine Patienten – mit „Neu“ den ersten anlegen.</p>';
+  const leer = d.suche ? `<p class="leer">Niemand passt zu „${esc(d.suche)}“.</p>` : d.archiv ? '<p class="leer">Das Archiv ist leer.</p>' : '<p class="leer">Noch keine Patienten – über „+“ den ersten anlegen.</p>';
   return seite({
     titel: d.archiv ? 'Patienten – Archiv' : 'Patienten', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<h1>${symbol('patient', { groesse: 26 })} ${d.archiv ? 'Patienten – Archiv' : 'Patienten'}</h1>${meldungen(o)}
 <form method="get" action="${d.archiv ? '/patienten/archiv' : '/patienten'}" class="filter patienten-filter">
   <label class="suche">Suchen<input type="search" name="suche" value="${esc(d.suche)}" placeholder="Name, Nummer, Telefon oder Mail" data-hilfe="patienten.suche" autocomplete="off"></label>
   <button class="knopf">Suchen</button>
-  ${d.archiv ? '<a class="knopf" href="/patienten">Aktive Patienten</a>' : `<a class="knopf primaer" href="/patienten/neu" data-hilfe="patienten.neu">${symbol('patient', { groesse: 18 })} Neu</a>
-  <a class="knopf" href="/patienten/archiv" data-hilfe="patienten.archiv">${symbol('archiv', { groesse: 18 })} Archiv</a>${d.lexware ? `
+  ${d.archiv ? '<a class="knopf" href="/patienten">Aktive Patienten</a>' : `<a class="knopf" href="/patienten/archiv" data-hilfe="patienten.archiv">${symbol('archiv', { groesse: 18 })} Archiv</a>${d.lexware ? `
   <a class="knopf" href="/patienten/lexware" data-hilfe="patienten.lexware">${symbol('euro', { groesse: 18 })} Aus Lexware</a>` : ''}`}
 </form>
-${d.patienten.length ? `<div class="pat-raster">${d.patienten.map((p) => kachel(p)).join('')}</div>` : leer}`,
+<div class="pat-raster">${d.archiv ? '' : plusKachel({ text: 'Neuer Patient', hilfe: 'patienten.neu', href: '/patienten/neu' })}${d.patienten.map((p) => kachel(p)).join('')}</div>${d.patienten.length ? '' : leer}`,
   });
 }
 
@@ -258,11 +258,16 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
       <span class="rechts">${k.primaer ? '' : form('kontakt_speichern', `<input type="hidden" name="kontakt_id" value="${k.id}"><input type="hidden" name="art" value="${k.art}"><input type="hidden" name="wert" value="${esc(k.wert)}"><input type="hidden" name="bezeichnung" value="${esc(k.bezeichnung ?? '')}"><input type="hidden" name="primaer" value="1"><button class="knopf klein" data-hilfe="kontakt.primaer">primär</button>`, { id: p.id, zurueck })}
         ${form('kontakt_loeschen', `<input type="hidden" name="kontakt_id" value="${k.id}"><button class="knopf klein warnend" data-hilfe="kontakt.loeschen">entfernen</button>`, { id: p.id, zurueck })}</span>
     </li>`).join('');
-  const termine = d.termine.map((t) => `<article class="tk ${t.verordnungId ? 'rezept' : ''}" data-hilfe="termine.kachel">
+  // Termin-Kachel (W114): Auskunft im Körper, alle Aktionen (WhatsApp-Texte, Status ändern) im „+“ oben rechts
+  const termine = d.termine.map((t) => {
+    const offen = t.status === 'bestaetigt' || t.status === 'vorgeschlagen';
+    const menue = offen ? plusMenue(`${waTermin(t.id)}${form('termin_status', `<input type="hidden" name="termin_id" value="${t.id}"><select name="status" data-hilfe="termin.status" data-auto-senden><option value="">ändern …</option><option value="abgesagt_patient">abgesagt (Patient)</option><option value="abgesagt_praxis">abgesagt (Praxis)</option><option value="nicht_erschienen">nicht erschienen</option></select><button class="knopf klein nur-ohne-js">ok</button>`, { id: p.id, zurueck })}`, 'termin.plus', { klein: true, label: 'Aktionen zum Termin' }) : '';
+    return `<article class="tk${t.verordnungId ? ' rezept' : ''}${offen ? ' mit-plus' : ''}" data-hilfe="termine.kachel">
     <b>${datumZeitText(t.beginn, { jahr: true })}</b><span class="hint">bis ${zeitText(t.ende)} · ${esc(t.art)}</span>
-    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}${waTermin(t.id)}</span>
-    ${t.status === 'bestaetigt' || t.status === 'vorgeschlagen' ? form('termin_status', `<input type="hidden" name="termin_id" value="${t.id}"><select name="status" data-hilfe="termin.status" data-auto-senden><option value="">ändern …</option><option value="abgesagt_patient">abgesagt (Patient)</option><option value="abgesagt_praxis">abgesagt (Praxis)</option><option value="nicht_erschienen">nicht erschienen</option></select><button class="knopf klein nur-ohne-js">ok</button>`, { id: p.id, zurueck, klasse: 'tk-fuss' }) : ''}
-  </article>`).join('');
+    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}</span>
+    ${menue}
+  </article>`;
+  }).join('');
   const ART: Record<string, string> = { einzel: 'Einzelrechnung', zwischenrechnung: 'Zwischenrechnung', abschlussrechnung: 'Abschlussrechnung', monat: 'Monatsrechnung', ausfall: 'Ausfallgebühr' };
   /** Rechnungskachel: aus dem PPM → Rechnungsseite; aus Lexware (W103) → die Datei selbst */
   const rechnungKachel = (r: RechnungKurz) => {
@@ -283,10 +288,14 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
   const jahrVon = (r: RechnungKurz) => (r.status === 'entwurf' ? 'Entwürfe' : (r.datum ?? '').slice(0, 4) || 'ohne Datum');
   const jahre = [...new Set(d.rechnungen.map(jahrVon))];
   const neuestesJahr = jahre.find((j) => j !== 'Entwürfe');
-  const rechnungen = jahre.map((j) => {
+  // „+“-Kachel (W114) vorn in der ersten (aufgeklappten) Gruppe – ohne Rechnungen ein eigenes Raster
+  const rechnungPlus = plusKachel({ text: 'Neue Rechnung', hilfe: 'rechnung.neu', inhalt: `<p class="hint">Rezepte und Serien legen ihren Entwurf selbst an – hier für Einzelleistungen. Eine Leistungsgruppe je Rechnung.</p>
+    <div class="knopfreihe">${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="heilbehandlung_steuerfrei"><button class="knopf primaer" data-hilfe="rechnung.neu.heil">${symbol('euro', { groesse: 16 })} Heilbehandlung (steuerfrei)</button>`, { id: p.id, zurueck })}
+    ${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="wellness_19"><button class="knopf" data-hilfe="rechnung.neu.wellness">${symbol('wellness', { groesse: 16 })} Wellness (19 % USt)</button>`, { id: p.id, zurueck })}</div>` });
+  const rechnungen = jahre.length ? jahre.map((j, i) => {
     const liste = d.rechnungen.filter((r) => jahrVon(r) === j);
-    return `<details class="rk-jahr"${j === 'Entwürfe' || j === neuestesJahr ? ' open' : ''}><summary data-hilfe="patient.rechnung.jahr"><b>${esc(j)}</b> <span class="hint">Anz. Rechnungen: ${liste.length}</span></summary><div class="rk-pat-raster">${liste.map(rechnungKachel).join('')}</div></details>`;
-  }).join('');
+    return `<details class="rk-jahr"${j === 'Entwürfe' || j === neuestesJahr ? ' open' : ''}><summary data-hilfe="patient.rechnung.jahr"><b>${esc(j)}</b> <span class="hint">Anz. Rechnungen: ${liste.length}</span></summary><div class="rk-pat-raster">${i === 0 ? rechnungPlus : ''}${liste.map(rechnungKachel).join('')}</div></details>`;
+  }).join('') : `<div class="rk-pat-raster">${rechnungPlus}</div>`;
   const legende = `<span class="rk-legende" data-hilfe="patient.rechnung.legende" tabindex="0"><span><i></i> aus dem PPM</span><span><i class="lexware"></i> aus Lexware</span><span><i class="gelb"></i> überfällig</span><span><i class="rot"></i> gemahnt</span></span>`;
   const bezugspersonen = p.bezugspersonen.map((b) => `<li><span>${symbol('patient', { groesse: 18 })}</span><span><b>${esc(b.name)}</b> <span class="hint">${esc(b.rolle)}${b.beziehung ? ` · ${esc(b.beziehung)}` : ''}${b.berechtigungsgrund ? ` · ${esc(b.berechtigungsgrund)}` : ''}${b.telefon ? ` · ${esc(b.telefon)}` : ''}</span></span></li>`).join('');
   const feld = (label: string, nameAttr: string, wert: string | null | undefined, typ = 'text', extra = '') => `<label>${label}<input type="${typ}" name="${nameAttr}" value="${esc(wert ?? '')}"${extra}></label>`;
@@ -322,26 +331,21 @@ ${kachel(p, { kopf: true })}
 ${offenBox}
 
 <section class="pat-abschnitt" id="rezepte"><h2>${symbol('rezept')} Rezepte und Behandlungsserien</h2>
-  ${d.verordnungen.length || d.serien.length
-    ? `<div class="rz-raster">${d.verordnungen.map((v) => rezeptKachel(v, { zurueck })).join('')}${d.serien.map((s) => serieKachel(s, { zurueck })).join('')}</div>`
-    : '<p class="leer">Kein Rezept und keine Serie hinterlegt.</p>'}
-  ${serienKnoepfe(p.id)}
+  <div class="rz-raster">${serienPlus(p.id)}${d.verordnungen.map((v) => rezeptKachel(v, { zurueck })).join('')}${d.serien.map((s) => serieKachel(s, { zurueck })).join('')}</div>
+  ${d.verordnungen.length || d.serien.length ? '' : '<p class="leer">Kein Rezept und keine Serie hinterlegt – über „+“ anlegen.</p>'}
 </section>
 
 <section class="pat-abschnitt" id="termine"><h2>${symbol('kalender')} Termine</h2>
-  ${termine ? `<div class="tk-raster">${termine}</div>` : '<p class="leer">Keine kommenden Termine.</p>'}
-  <p><a class="knopf klein" href="/patienten/${p.id}/neu/termin" data-hilfe="plus.termin">Neuer Termin</a></p>
+  <div class="tk-raster">${plusKachel({ text: 'Neuer Termin', hilfe: 'plus.termin', href: `/patienten/${p.id}/neu/termin` })}${termine}</div>
+  ${termine ? '' : '<p class="leer">Keine kommenden Termine.</p>'}
 </section>
 
 <section class="pat-abschnitt" id="rechnungen"><h2>${symbol('euro')} Rechnungen ${legende}</h2>
-  ${rechnungen || '<p class="leer">Noch keine Rechnung – Rezepte und Serien legen ihren Entwurf selbst an.</p>'}
-  <div class="knopfreihe">${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="heilbehandlung_steuerfrei"><button class="knopf klein" data-hilfe="rechnung.neu.heil">${symbol('euro', { groesse: 16 })} Neue Rechnung Heilbehandlung</button>`, { id: p.id, zurueck })}
-  ${form('rechnung_neu', `<input type="hidden" name="steuerklasse" value="wellness_19"><button class="knopf klein" data-hilfe="rechnung.neu.wellness">${symbol('wellness', { groesse: 16 })} Neue Rechnung Wellness</button>`, { id: p.id, zurueck })}</div>
+  ${rechnungen}${jahre.length ? '' : '<p class="leer">Noch keine Rechnung – Rezepte und Serien legen ihren Entwurf selbst an.</p>'}
   ${d.lexwareRechnungen ? `<p>${form('lexware_rechnungen', `<button class="knopf klein" data-hilfe="patient.lexware_rechnungen">${symbol('rechnung', { groesse: 16 })} Rechnungen und Zahlungen aus Lexware prüfen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Lexware kennt diesen Patienten als Kunden – neue Rechnungen kommen als Kacheln, bezahlte bekommen Zahldatum und Zahlungsposten.</span></p>` : ''}
   ${d.lexwareAbgleich?.abweichungen.length ? `<div class="hinweis-muster lx-abgleich" data-hilfe="patient.lexware-abgleich" tabindex="0"><p><b>Lexware-Kunde ${esc(d.lexwareAbgleich.nummer)}:</b> ${d.lexwareAbgleich.abweichungen.length} Feld${d.lexwareAbgleich.abweichungen.length === 1 ? '' : 'er'} weicht ab – der PPM-Wert bleibt, bis du den Lexware-Wert übernimmst.</p><ul class="lx-abweichungen">${d.lexwareAbgleich.abweichungen.map((a) => `<li><b>${esc(a.titel)}</b>: hier „${esc(a.ppm ?? '–')}“ · Lexware „${esc(a.lexware)}“ ${form('lexware_uebernehmen', `<input type="hidden" name="feld" value="${a.feld}"><button class="knopf klein" data-hilfe="patient.lexware-uebernehmen">Lexware-Wert übernehmen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })}</li>`).join('')}</ul></div>` : ''}
   ${d.lexwareKundeAnlegbar ? `<p>${form('lexware_kunde_anlegen', `<button class="knopf klein" data-hilfe="patient.lexware-kunde">${symbol('euro', { groesse: 16 })} In Lexware als Kunde anlegen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Noch kein Lexware-Kunde – nötig, bevor eine Rechnung nach Lexware geht (passiert sonst beim ersten „Nach Lexware“ von selbst).</span></p>` : ''}
 </section>
-${pdfFenster()}
 
 <section class="pat-abschnitt" id="nachricht"><h2>${symbol('email')} Nachricht an ${esc(p.vorname)} <span class="hint">WhatsApp vom Handy · Mail-Entwurf für Outlook</span></h2>
   ${d.whatsapp.length
@@ -373,13 +377,10 @@ ${pdfFenster()}
 </section>
 
 <section class="pat-abschnitt" id="adressen"><h2>${symbol('ordner')} Adressen</h2>
-  <div class="adr-raster">${p.adressen.map((a) => adresseKachel(p, a)).join('')}
-    <details class="adr neu"><summary data-hilfe="adresse.neu">+ Adresse</summary>
-    ${form('adresse_speichern', `<label>Bezeichnung<input name="bezeichnung" placeholder="Zuhause, Arbeit, Eltern …" maxlength="40"></label><label>Zusatz (c/o …)<input name="zusatz"></label>
+  <div class="adr-raster">${plusKachel({ text: 'Neue Adresse', hilfe: 'adresse.neu', inhalt: form('adresse_speichern', `<label>Bezeichnung<input name="bezeichnung" placeholder="Zuhause, Arbeit, Eltern …" maxlength="40"></label><label>Zusatz (c/o …)<input name="zusatz"></label>
       <div class="zwei"><label>Straße<input name="strasse"></label><label>Nr.<input name="hausnummer" class="kurz"></label></div>
       <div class="zwei"><label>PLZ<input name="plz" class="kurz"></label><label>Ort<input name="ort"></label></div><label>Land<input name="land" value="DE" maxlength="2" class="kurz"></label>
-      <label class="haken"><input type="checkbox" name="rechnungsadresse" value="1"> Rechnungsadresse</label><button class="knopf">Adresse speichern</button>`, { id: p.id, zurueck, klasse: 'formular' })}
-    </details>
+      <label class="haken"><input type="checkbox" name="rechnungsadresse" value="1"> Rechnungsadresse</label><button class="knopf primaer">Adresse speichern</button>`, { id: p.id, zurueck, klasse: 'formular' }) })}${p.adressen.map((a) => adresseKachel(p, a)).join('')}
   </div>
 </section>
 
@@ -414,7 +415,7 @@ export function akteSeite(d: AkteDaten, o: Rahmen): string {
   return seite({
     titel: `Akte – ${name(p)}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}">${esc(name(p))}</a> › Akte</p>
-<h1>${symbol('protokoll', { groesse: 26 })} Akte ${esc(name(p))} <span class="hint">${esc(p.patientennummer)}</span></h1>${meldungen(o)}${pdfFenster()}
+<h1>${symbol('protokoll', { groesse: 26 })} Akte ${esc(name(p))} <span class="hint">${esc(p.patientennummer)}</span></h1>${meldungen(o)}
 <p class="hint">Behandlungsdokumentation nach § 630f BGB. Einträge werden nicht geändert oder gelöscht – jedes Öffnen dieser Seite steht im Protokoll.</p>
 <div class="knopfreihe"><a class="knopf primaer" href="/patienten/${p.id}/neu/behandlung" data-hilfe="akte.neu">${symbol('haken', { groesse: 18 })} Behandlung erfassen</a>
   <a class="knopf" href="/patienten/${p.id}/akte.pdf" target="_blank" rel="noopener" data-hilfe="akte.pdf">${symbol('rechnung', { groesse: 18 })} Akte als PDF (§ 630g)</a></div>
