@@ -55,7 +55,7 @@ function oeffnungszeitenAbschnitt(einstellungen: Record<string, string>, jahr: n
     tage = oeffnungszeitenJeTag([]);
   }
   const formO = (aktion: string, inhalt: string, klasse = 'inline') => karteiFormular(aktion, inhalt, { zurueck: `/konfiguration?jahr=${jahr}`, klasse });
-  const zeit = (name: string, wert: string, label: string) => `<input type="time" name="${name}" value="${wert}" step="300" aria-label="${label}">`;
+  const zeit = (name: string, wert: string, label: string) => `<input type="time" name="${name}" value="${wert}" aria-label="${label}">`;
   return `<h2 id="oeffnungszeiten">Kalender: Öffnungszeiten und Pausen</h2>
 <div class="tafel">
   <p class="hint">Nur in diesen Zeiten gibt es Terminvorschläge und Buchungen (W112) – je Wochentag Beginn, Ende und eine Pause. Von Hand lassen sich Termine auch außerhalb anlegen. Outlook-Termine in diesen Fenstern zeigt der Kalender als Block.</p>

@@ -23,6 +23,7 @@ test('Öffnungszeiten: Text ↔ Tabelle je Wochentag mit Pause; Fehler bei Unsin
   assert.throws(() => oeffnungszeitenAusTagen([{ ...mo, pauseVon: '19:00', pauseBis: '20:00' }]), /Mo: die Pause muss innerhalb/);
   assert.throws(() => oeffnungszeitenAusTagen([{ ...mo, von: '18:00', bis: '08:00', pauseVon: '', pauseBis: '' }]), /Mo: Ende liegt vor dem Beginn/);
   assert.throws(() => oeffnungszeitenAusTagen([{ ...mo, von: 'acht' }]), /Mo: Beginn wie 08:00/);
+  assert.deepEqual(oeffnungszeitenAusTagen([{ ...mo, von: '8:00:00', bis: '18:00:00', pauseVon: '', pauseBis: '' }]), [{ tag: 1, von: '08:00', bis: '18:00' }], 'Sekunden aus dem Browser werden abgeschnitten');
   assert.deepEqual(oeffnungszeitenAusTagen([{ ...mo, offen: false }]), [], 'zu = kein Fenster');
 });
 

@@ -56,8 +56,9 @@ export function oeffnungszeitenJeTag(liste: Oeffnungszeit[]): OeffnungsTag[] {
 /** Aus dem Formular zurück in Fenster; wirft bei Unsinn (Ende vor Beginn, Pause außerhalb der Öffnungszeit) */
 export function oeffnungszeitenAusTagen(zeilen: OeffnungsTag[]): Oeffnungszeit[] {
   const liste: Oeffnungszeit[] = [];
+  // Browser liefern aus <input type="time"> mal „08:00“, mal „08:00:00“
   const zeit = (s: string, was: string, name: string) => {
-    const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+    const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(s.trim());
     if (!m) throw new Error(`${name}: ${was} wie 08:00 eintragen`);
     return `${m[1]!.padStart(2, '0')}:${m[2]}`;
   };
