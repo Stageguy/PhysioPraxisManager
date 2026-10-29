@@ -18,7 +18,7 @@ import { aktivSetzen, anlegen as preislisteAnlegen, freigeben as preislisteFreig
 import { slotRegeln } from '../anfragen/dienst.ts';
 import { belegteZeiten } from '../anfragen/kalender.ts';
 import { freieSlots } from '../anfragen/slots.ts';
-import { berlinMitternachtUtc, berlinZeitUtc, zeitBerlin } from '../zeit.ts';
+import { berlinMitternachtUtc, berlinZeitUtc, datumBerlin, zeitBerlin } from '../zeit.ts';
 
 /**
  * Nächste freie Anfangszeit an einem Tag ab der Wunschzeit – mit Pause, Fahrtzeiten, Öffnungszeiten und Schließtagen
@@ -31,6 +31,53 @@ async function freieZeit(db: Db, datum: string, wunsch: string, dauerMin: number
   // Ab der Wunschzeit; ist danach nichts mehr frei (oder liegt der Wunsch außerhalb der Öffnungszeit), die erste freie Zeit des Tages
   const slot = suche(berlinZeitUtc(datum, wunsch)) ?? suche(berlinMitternachtUtc(datum));
   return slot ? zeitBerlin(slot.beginn) : undefined;
+}
+
+/**
+ * Künftige Testtermine neu planen (W113d): Termine erfundener Patienten, die sich mit einem früheren Termin des Tages
+ * überlappen oder keine Pause (und Fahrt) lassen, werden abgesagt – nie gelöscht – und zur nächsten freien Zeit desselben
+ * Tages neu angelegt, wie die Oberfläche es täte. Die festen Testwochen (Kalender T-1041–1043, Hausbesuche T-1051–1053)
+ * bleiben, wie sie sind. Läuft beliebig oft; ohne Konflikte ändert sich nichts.
+ */
+export async function testtermineNeuPlanen(db: Db, wer: string): Promise<{ geprueft: number; verlegt: number; entfallen: number }> {
+  const regeln = await slotRegeln(db);
+  const { rows } = await db.query<Record<string, unknown>>(
+    `SELECT t.id::text, t.patient_id::text, p.patientennummer, t.beginn, t.ende, t.art::text, t.verordnung_id::text, t.fall_id::text, t.terminart_id::text, t.leistung_nummer,
+       t.behandlungsort, t.adresse_id::text, t.fahrt_vor_min, t.fahrt_nach_min, coalesce(ta.puffer_min, $1) AS puffer
+     FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN terminart ta ON ta.id = t.terminart_id
+     WHERE p.patientennummer LIKE 'T-%' AND t.beginn > now() AND t.status IN ('bestaetigt', 'vorgeschlagen') ORDER BY t.beginn, t.id`, [regeln.pufferMin],
+  );
+  const fest = (nr: string) => /^T-10(4[1-3]|5[1-3])$/.test(nr);
+  type Zeile = { id: string; patientId: string; nr: string; beginn: number; ende: number; frei: number; rest: Record<string, unknown> };
+  const termine: Zeile[] = rows.map((r) => ({
+    id: String(r.id), patientId: String(r.patient_id), nr: String(r.patientennummer), beginn: new Date(r.beginn as string).getTime() - Number(r.fahrt_vor_min) * 60_000,
+    ende: new Date(r.ende as string).getTime() + (Number(r.puffer) + Number(r.fahrt_nach_min)) * 60_000, frei: 0, rest: r,
+  }));
+  // Je Tag: ein Termin passt, wenn er erst nach dem Ende (mit Pause und Fahrt) des zuletzt behaltenen beginnt
+  const konflikte: Zeile[] = [];
+  let letztesEnde = 0;
+  let tag = '';
+  for (const t of termine) {
+    const d = datumBerlin(new Date(t.rest.beginn as string).toISOString());
+    if (d !== tag) { tag = d; letztesEnde = 0; }
+    if (t.beginn < letztesEnde && !fest(t.nr)) { konflikte.push(t); continue; }
+    letztesEnde = Math.max(letztesEnde, t.ende);
+  }
+  let verlegt = 0;
+  let entfallen = 0;
+  for (const k of konflikte) await terminStatus(db, k.patientId, k.id, 'abgesagt_praxis', wer);
+  for (const k of konflikte) {
+    const r = k.rest;
+    const beginn = new Date(r.beginn as string).toISOString();
+    const dauerMin = Math.round((new Date(r.ende as string).getTime() - new Date(r.beginn as string).getTime()) / 60_000);
+    const id = await terminFrei(db, k.patientId, {
+      datum: datumBerlin(beginn), zeit: zeitBerlin(beginn), dauerMin, art: String(r.art), verordnungId: (r.verordnung_id as string | null) ?? undefined, fallId: (r.fall_id as string | null) ?? undefined,
+      terminartId: (r.terminart_id as string | null) ?? undefined, leistungNummer: (r.leistung_nummer as string | null) ?? undefined,
+      behandlungsort: r.behandlungsort === 'hausbesuch' && r.adresse_id ? `adresse:${r.adresse_id}` : 'praxis',
+    }, wer);
+    if (id) verlegt++; else entfallen++;
+  }
+  return { geprueft: termine.length, verlegt, entfallen };
 }
 
 /** Termin zur nächsten freien Zeit ab Wunschzeit anlegen; undefined, wenn der Tag voll ist */

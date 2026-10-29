@@ -195,3 +195,20 @@ test('Hausbesuch-Testdaten (W113): laufen einmal, Fahrt am Dienstag 15 + 15, am 
   const cockpit = (await seite('/')).length;
   assert.ok(cockpit > 0);
 });
+
+test('Testtermine neu planen (W113d): überlappende künftige Termine erfundener Patienten werden abgesagt und mit Pause und Fahrt neu gelegt, feste Testwochen bleiben', async () => {
+  const { testtermineNeuPlanen } = await import('../src/kartei/testdaten.ts');
+  const dienstag = (await db.query<{ tag: string }>("SELECT to_char(min(t.beginn) AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS tag FROM termin t JOIN patient p ON p.id = t.patient_id WHERE p.patientennummer = 'T-1051'")).rows[0]!.tag;
+  const alt = await patientAnlegen(db, t, { patientennummer: 'T-1099', vorname: 'Alt', nachname: 'Überlapp', kontakte: [{ art: 'email', wert: 'alt@example.org' }] }, 'x');
+  // 13:10 kollidiert mit Hannas Hausbesuch 13:00–13:45 samt Fahrt; 14:35 mit Ilse 14:30 in der Praxis
+  const a = await terminAnlegen(db, alt, { datum: dienstag, zeit: '13:10', dauerMin: 30 }, 'x');
+  const b = await terminAnlegen(db, alt, { datum: dienstag, zeit: '14:35', dauerMin: 30 }, 'x');
+  const vorher = await testtermineNeuPlanen(db, 'x');
+  assert.deepEqual([vorher.verlegt, vorher.entfallen], [2, 0]);
+  assert.deepEqual([(await terminLesen(db, alt, a))!.status, (await terminLesen(db, alt, b))!.status], ['abgesagt_praxis', 'abgesagt_praxis'], 'abgesagt, nicht gelöscht');
+  const belegt = (await belegteZeiten(undefined, db, berlinMitternachtUtc(dienstag), berlinMitternachtUtc(tagPlus(dienstag, 1)), { pufferMin: 10 })).map((x) => [Date.parse(x.beginn), Date.parse(x.ende)]).sort((x, y) => x[0]! - y[0]!);
+  for (let i = 1; i < belegt.length; i++) assert.ok(belegt[i]![0]! >= belegt[i - 1]![1]!, 'nichts überlappt, Pause und Fahrt stecken in den Blöcken');
+  const hanna = (await db.query<{ n: string }>("SELECT count(*)::text AS n FROM termin t JOIN patient p ON p.id = t.patient_id WHERE p.patientennummer = 'T-1051' AND t.status = 'bestaetigt'")).rows[0]!.n;
+  assert.equal(hanna, '2', 'feste Hausbesuche bleiben');
+  assert.deepEqual(await testtermineNeuPlanen(db, 'x'), { geprueft: (await testtermineNeuPlanen(db, 'x')).geprueft, verlegt: 0, entfallen: 0 }, 'zweiter Lauf ändert nichts');
+});

@@ -9,7 +9,7 @@
  * (030) 23125 xxx – sie erreichen niemanden. Läuft nur einmal: gibt es „T-1001“ schon, passiert nichts.
  */
 import { migriere, verbinde, type Db } from '../db/index.ts';
-import { testdatenAnlegen, testdatenErweitert, testhausbesuchAnlegen, testkalenderAnlegen, testtermineAnlegen } from '../kartei/testdaten.ts';
+import { testdatenAnlegen, testdatenErweitert, testhausbesuchAnlegen, testkalenderAnlegen, testtermineAnlegen, testtermineNeuPlanen } from '../kartei/testdaten.ts';
 import { tresor } from '../tresor.ts';
 import { testAdressen, umgebung } from '../umgebung.ts';
 
@@ -36,6 +36,9 @@ try {
   console.log(z.uebersprungen ? '✓ Testtermine sind schon da' : `✓ ${z.patienten} Patienten mit 12er-Rezept und ${z.termine} Terminen in den nächsten Wochen – Kalender: npm run termine:abgleich`);
   const x = await testdatenErweitert(db as Db, tresor(), { adresse, wer: 'testdaten' });
   console.log(x.uebersprungen ? '✓ Erweiterte Testdaten sind schon da' : `✓ Erweitert: ${x.preislisten} Preislisten, ${x.patienten} Patienten, ${x.termine} Termine, ${x.rechnungen} Rechnungen (alle Phasen und Status)`);
+  // Ältere Testdaten ohne Pause: überlappende künftige Termine absagen und neu anlegen (W113d) – läuft jedes Mal, ändert ohne Konflikte nichts
+  const n = await testtermineNeuPlanen(db as Db, 'testdaten');
+  console.log(n.verlegt || n.entfallen ? `✓ Testtermine neu geplant: ${n.geprueft} geprüft, ${n.verlegt} verlegt (Pause und Fahrt eingehalten), ${n.entfallen} entfallen (Tag voll)` : `✓ ${n.geprueft} künftige Testtermine überlappen sich nicht`);
 } finally {
   await db.ende();
 }
