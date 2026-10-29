@@ -49,7 +49,7 @@ export function monatSeite(d: MonatSeiteDaten, o: Rahmen): string {
     const alle = [...tp.termine.map((t) => ({ beginn: t.beginn, html: eintrag(t) })), ...tp.bloecke.map((b) => ({ beginn: b.beginn, html: blockEintrag(b) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
     const sichtbar = alle.length > 6 ? alle.slice(0, 5) : alle;
     const mehr = alle.length > 6 ? '<span class="mk-e mehr">Mehr ›</span>' : '';
-    const hover = [...alle, ...tp.luecken.map((l) => ({ beginn: l.beginn, html: lueckeEintrag(l) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
+    const hover = [...alle, ...tp.luecken.filter((l) => l.minuten >= DAUERN[0]).map((l) => ({ beginn: l.beginn, html: lueckeEintrag(l) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
     return `<a class="mk-tag stand-${tp.stand}${tp.datum === plan.heute ? ' heute' : ''}" href="${kalenderLink({ ...basis, ansicht: 'tag', tag: tp.datum })}" data-hilfe="kalender.monat-tag">
       <span class="mk-kopf"><b>${Number(tp.datum.slice(8))}</b>${tp.freierTag ? `<small class="mk-frei">${esc(tp.freierTag)}</small>` : ''}${tp.termine.length ? `<small class="mk-zahl">${tp.termine.length}</small>` : ''}</span>
       ${sichtbar.map((x) => x.html).join('')}${mehr}

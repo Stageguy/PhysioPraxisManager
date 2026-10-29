@@ -475,8 +475,8 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const termine = await d.kalender(berlinMitternachtUtc(tage[0]!), berlinMitternachtUtc(tagPlus(tage[tage.length - 1]!, 1)));
       const freieTage = await d.freieTage(tage[0]!, tage[tage.length - 1]!);
       const umfeld = await d.kalenderUmfeld(berlinMitternachtUtc(tage[0]!), berlinMitternachtUtc(tagPlus(tage[tage.length - 1]!, 1)));
-      const luecken = ansicht === 'tag' ? (await d.tagesplan(tag))?.luecken : undefined;
-      return senden(res, 200, 'text/html', kalenderSeite({ tag, ansicht, termine, namenZeigen, heute: heuteTag, freieTage, ...umfeld, luecken, patient }, r));
+      const plan = ansicht === 'tag' ? await d.tagesplan(tag) : undefined;
+      return senden(res, 200, 'text/html', kalenderSeite({ tag, ansicht, termine, namenZeigen, heute: heuteTag, freieTage, ...umfeld, luecken: plan?.luecken, dauerMin: plan?.dauerMin, patient }, r));
     }
     if (pfad === '/kalender/termin') {
       const q = (name: string) => adresse.searchParams.get(name) ?? undefined;

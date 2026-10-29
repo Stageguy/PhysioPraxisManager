@@ -149,7 +149,7 @@ export interface KarteiDienst {
   /** Freie Anfangszeiten einer Woche für eine Dauer – das Suchfenster */
   freieWoche(o: { dauer: number; wochenstart: string }): Promise<WochenSuche>;
   /** Ein Tag aus dem Monatsplan – für die Tagesansicht mit Lücken */
-  tagesplan(datum: string): Promise<TagesPlan | undefined>;
+  tagesplan(datum: string): Promise<(TagesPlan & { dauerMin: number }) | undefined>;
   steuer(jahr: number, maskiert: boolean): Promise<SteuerListe>;
   wellness(): Promise<WellnessLeistung[]>;
   gruende(): Promise<Gespraechsgrund[]>;
@@ -281,7 +281,9 @@ export function karteiDienst(q: {
     freieWoche: (o) => freieWoche(db, q.graph, o),
     async tagesplan(datum) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return undefined;
-      return (await monatsPlan(db, q.graph, Number(datum.slice(0, 4)), Number(datum.slice(5, 7)))).tage.find((t) => t.datum === datum);
+      const plan = await monatsPlan(db, q.graph, Number(datum.slice(0, 4)), Number(datum.slice(5, 7)));
+      const tag = plan.tage.find((t) => t.datum === datum);
+      return tag ? { ...tag, dauerMin: plan.dauerMin } : undefined;
     },
     async kalenderUmfeld(von, bis) {
       const { oeffnungszeiten } = await slotRegeln(db);

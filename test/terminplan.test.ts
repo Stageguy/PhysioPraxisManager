@@ -114,11 +114,11 @@ test('Monatsansicht: Kästen mit Stand, „Mehr ›“, Zähler, Lücken im Hove
 
 test('Tagesansicht: Lücken grün mit Link, Stift und Absage am Termin; Terminwahl; Vorbelegung des Terminformulars; Anlegen aus der Wahl', async () => {
   const html = await seite(`/kalender?ansicht=tag&tag=${MONTAG}`);
-  assert.match(html, new RegExp(`<a class="kal-termin luecke" href="/kalender/termin\\?datum=${MONTAG}&zeit=08:00&dauer_min=60" data-hilfe="kalender.luecke"><b>08:00–09:00</b><span>frei · 60 Min\\.</span></a>`));
+  assert.match(html, new RegExp(`<a class="kal-termin luecke" href="/kalender/termin\\?datum=${MONTAG}&zeit=08:00&dauer_min=30" data-hilfe="kalender.luecke"><b>08:00–09:00</b><span>frei · 60 Min\\.</span></a>`), 'Standarddauer vorbelegt');
   assert.match(html, new RegExp(`href="/patienten/${pid}/termine/${tid}/bearbeiten" data-fenster="Termin bearbeiten" data-hilfe="kalender.termin-stift"`));
   assert.match(html, new RegExp(`href="/patienten/${pid}/termine/${tid}/absagen" data-fenster="Termin absagen" data-hilfe="kalender.termin-absagen"`));
   const mit = await seite(`/kalender?ansicht=tag&tag=${MONTAG}&patient=${pid}`);
-  assert.match(mit, new RegExp(`<a class="kal-termin luecke" href="/patienten/${pid}/neu/termin\\?datum=${MONTAG}&zeit=10:00&dauer_min=60" data-fenster="Neuer Termin"`));
+  assert.match(mit, new RegExp(`<a class="kal-termin luecke" href="/patienten/${pid}/neu/termin\\?datum=${MONTAG}&zeit=10:00&dauer_min=30" data-fenster="Neuer Termin"`));
   const wahl = await seite(`/kalender/termin?datum=${MONTAG}&zeit=10:00&dauer_min=40`);
   assert.match(wahl, new RegExp(`<input type="hidden" name="aktion" value="termin_anlegen">[\\s\\S]*<select name="id" required data-hilfe="termin.wahl.patient">[\\s\\S]*name="datum" required value="${MONTAG}"[\\s\\S]*name="zeit" required value="10:00"[\\s\\S]*name="dauer_min" value="40"`));
   const form = await seite(`/patienten/${pid}/neu/termin?datum=${MONTAG}&zeit=10:00&dauer_min=40`);
@@ -127,6 +127,13 @@ test('Tagesansicht: Lücken grün mit Link, Stift und Absage am Termin; Terminwa
   assert.match(ziel(r), new RegExp(`^/patienten/${pid}\\?meldung=Termin angelegt`));
   const danach = await monatsPlan(db, undefined, Number(MONAT.slice(0, 4)), Number(MONAT.slice(5, 7)));
   assert.deepEqual(danach.tage.find((x) => x.datum === MONTAG)!.luecken.map((l) => [zeitBerlin(l.beginn), zeitBerlin(l.ende)]), [['08:00', '09:00'], ['10:50', '12:00']], 'neuer Termin 10:00–10:40 + 10 Pause');
+  // 11:05–11:50 + 10 Pause lässt 10:50–11:05 (15 Min.) übrig – zu kurz für einen Termin, also kein Angebot
+  await terminAnlegen(db, pid, { datum: MONTAG, zeit: '11:05', dauerMin: 45 }, 'x');
+  const kurz = await seite(`/kalender?ansicht=tag&tag=${MONTAG}`);
+  assert.ok(!/frei · 15 Min\./.test(kurz), 'Lücke unter 20 Minuten erscheint nicht');
+  assert.match(kurz, /<b>08:00–09:00<\/b><span>frei · 60 Min\./);
+  const kurzLuecke = (await monatsPlan(db, undefined, Number(MONAT.slice(0, 4)), Number(MONAT.slice(5, 7)))).tage.find((x) => x.datum === MONTAG)!.luecken.find((l) => l.minuten < 20);
+  assert.equal(kurzLuecke?.minuten, 15, 'im Plan bleibt sie (zählt 0 Termine)');
 });
 
 test('Kalender-Testdaten (W116f): laufen einmal, Montag voll, Schließtag gesperrt, Terminart mit eigener Pause', async () => {

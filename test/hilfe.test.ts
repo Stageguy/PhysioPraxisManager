@@ -139,7 +139,7 @@ const PRUEFPUNKTE = ['Konto', 'Posteingang', 'Kalender', 'OneDrive', 'Rechte'];
 const BLOCK = { outlookId: 'ev-1', beginn: '2026-11-03T08:00:00Z', ende: '2026-11-03T09:00:00Z', webLink: 'https://outlook.example/ev-1', art: 'geblockt' as const, reserviert: false, patientennummer: null, patientId: null };
 const TERMIN_DETAIL = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', fallId: '1', terminartId: '1', leistungNummer: null };
 const PLAN = {
-  jahr: 2026, monat: 11, heute: '2026-11-02', pufferMin: 10, postfach: true, frei: [20, 30, 40, 60].map((dauer) => ({ dauer, anzahl: dauer })),
+  jahr: 2026, monat: 11, heute: '2026-11-02', pufferMin: 10, dauerMin: 30, postfach: true, frei: [20, 30, 40, 60].map((dauer) => ({ dauer, anzahl: dauer })),
   tage: Array.from({ length: 30 }, (_, i) => {
     const datum = `2026-11-${String(i + 1).padStart(2, '0')}`;
     const stand = (i === 0 ? 'vergangen' : i === 1 ? 'voll' : i === 2 ? 'teilweise' : i % 7 >= 5 ? 'zu' : 'frei') as 'zu' | 'frei' | 'teilweise' | 'voll' | 'vergangen';

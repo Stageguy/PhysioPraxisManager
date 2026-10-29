@@ -40,6 +40,8 @@ export interface MonatsPlan {
   /** Freie Termine je Dauer ab heute bis Monatsende */
   frei: { dauer: number; anzahl: number }[];
   pufferMin: number;
+  /** Standarddauer eines Termins (Konfiguration) – Vorbelegung beim Klick in eine Lücke */
+  dauerMin: number;
   postfach: boolean;
   fehler?: string;
 }
@@ -127,7 +129,7 @@ export async function monatsPlan(db: Db, graph: LeseGraph | undefined, jahr: num
     tage.push({ datum: d, stand, freierTag: freieTage[d] ?? null, termine: tTermine, bloecke: tBloecke, luecken, oeffnung });
   }
   const frei = DAUERN.map((dauer) => ({ dauer, anzahl: tage.filter((t) => t.datum >= heute).reduce((n, t) => n + passen(t.luecken, dauer, regeln.pufferMin), 0) }));
-  return { jahr, monat, heute, tage, frei, pufferMin: regeln.pufferMin, postfach: Boolean(graph), fehler };
+  return { jahr, monat, heute, tage, frei, pufferMin: regeln.pufferMin, dauerMin: regeln.dauerMin, postfach: Boolean(graph), fehler };
 }
 
 /** Freie Anfangszeiten einer Woche für eine Dauer – das Suchfenster der Monatsansicht */

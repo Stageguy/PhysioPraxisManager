@@ -6,7 +6,7 @@
  */
 import type { TerminKalender } from '../kartei/patienten.ts';
 import type { KalenderBlock } from '../kartei/outlook-termine.ts';
-import type { Luecke } from '../kartei/terminplan.ts';
+import { DAUERN, type Luecke } from '../kartei/terminplan.ts';
 import { wochentag, type Oeffnungszeit } from '../anfragen/slots.ts';
 import { zeitText } from '../format.ts';
 import { datumBerlin, tagPlus, wocheUm, zeitBerlin, ZONE } from '../zeit.ts';
@@ -33,6 +33,8 @@ export interface KalenderSeiteDaten {
   fehler?: string;
   /** Freie Zeiten des Tages (W116c) – nur in der Tagesansicht */
   luecken?: Luecke[];
+  /** Standarddauer (Konfiguration) – Vorbelegung beim Klick in eine Lücke, höchstens so lang wie die Lücke */
+  dauerMin?: number;
   /** Termin für diesen Patienten anlegen: freie Zeiten führen direkt ins Formular */
   patient?: Kontext | null;
 }
@@ -65,11 +67,12 @@ export function kalenderSeite(d: KalenderSeiteDaten, o: { wer: string; fassung: 
         <b>${sektionMarke(t.sektion)}${zeitText(t.beginn)}–${zeitText(t.ende)}</b><span>${esc(name(t))} <span class="hint">${esc(t.patientennummer)}</span></span>
         ${marken(t)}
       </a>`;
-  const lueckeHtml = (l: Luecke) => `<a class="kal-termin luecke" href="${terminZiel(d.patient ?? null, datumBerlin(l.beginn), zeitBerlin(l.beginn), Math.min(60, l.minuten))}"${d.patient ? ' data-fenster="Neuer Termin"' : ''} data-hilfe="kalender.luecke"><b>${zeitText(l.beginn)}–${zeitText(l.ende)}</b><span>frei · ${l.minuten} Min.${d.patient ? ` – Termin für ${esc(d.patient.name)}` : ''}</span></a>`;
+  const lueckeHtml = (l: Luecke) => `<a class="kal-termin luecke" href="${terminZiel(d.patient ?? null, datumBerlin(l.beginn), zeitBerlin(l.beginn), Math.min(l.minuten, d.dauerMin ?? 30))}"${d.patient ? ' data-fenster="Neuer Termin"' : ''} data-hilfe="kalender.luecke"><b>${zeitText(l.beginn)}–${zeitText(l.ende)}</b><span>frei · ${l.minuten} Min.${d.patient ? ` – Termin für ${esc(d.patient.name)}` : ''}</span></a>`;
   const spalten = tage.map((tag) => {
     const des = d.termine.filter((t) => datumBerlin(t.beginn) === tag);
     const bloecke = (d.bloecke ?? []).filter((b) => datumBerlin(b.beginn) === tag);
-    const luecken = d.ansicht === 'tag' ? (d.luecken ?? []).filter((l) => datumBerlin(l.beginn) === tag) : [];
+    // Lücken, in die kein kürzester Termin passt (unter 20 Minuten), sind keine Angebote und bleiben weg
+    const luecken = d.ansicht === 'tag' ? (d.luecken ?? []).filter((l) => datumBerlin(l.beginn) === tag && l.minuten >= DAUERN[0]) : [];
     const eintraege = [
       ...des.map((t) => ({ beginn: t.beginn, html: terminHtml(t) })),
       ...bloecke.map((b) => ({ beginn: b.beginn, html: blockHtml(b) })),
