@@ -27,6 +27,8 @@ interface TerminZeile {
   verordnung_id: string | null;
   /** Sektion (W95) – bestimmt die Farbe in Outlook */
   sektion?: string | null;
+  /** Hausbesuch (W113): nur das Wort im Ort des Ereignisses, keine Adresse (E33) */
+  behandlungsort?: string | null;
 }
 
 export const initialen = (vorname: string, nachname: string) => `${vorname.trim()[0]?.toUpperCase() ?? ''}. ${nachname.trim()[0]?.toUpperCase() ?? ''}.`;
@@ -49,7 +51,7 @@ export function ereignisKoerper(t: TerminZeile) {
     // Die erste Kategorie gibt die Farbe: Selbstzahler holzbraun, Wellness gold, sonst Brombeer (W95)
     categories: [...(t.sektion === 'selbstzahler' ? [KATEGORIEN.terminSelbstzahler.name] : t.sektion === 'wellness' ? [KATEGORIEN.terminWellness.name] : []), KATEGORIEN.termin.name, ...entwurfKategorien()],
     showAs: t.status === 'vorgeschlagen' ? 'tentative' : 'busy',
-    location: { displayName: 'Praxis' },
+    location: { displayName: t.behandlungsort === 'hausbesuch' ? 'Hausbesuch' : 'Praxis' },
     // Nur Initialen im Betreff; im Text ein Link, der die Patientenseite in der Praxis-Assistenz öffnet (nur im Tailnet erreichbar)
     body: {
       contentType: 'HTML',
@@ -65,7 +67,7 @@ export function ereignisKoerper(t: TerminZeile) {
 const lesen = async (db: Db, terminId: string): Promise<TerminZeile | undefined> =>
   (await db.query<TerminZeile>(
     `SELECT t.id::text, t.patient_id::text, p.vorname, p.nachname, p.patientennummer, t.beginn, t.ende, t.art::text, t.status::text, t.exchange_event_id, t.verordnung_id::text,
-       ${SEKTION_SQL} AS sektion
+       ${SEKTION_SQL} AS sektion, t.behandlungsort
      FROM termin t JOIN patient p ON p.id = t.patient_id LEFT JOIN behandlungsfall f ON f.id = t.fall_id LEFT JOIN terminart ta ON ta.id = t.terminart_id WHERE t.id = $1`, [terminId],
   )).rows[0];
 

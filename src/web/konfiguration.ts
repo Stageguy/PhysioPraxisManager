@@ -73,6 +73,23 @@ function oeffnungszeitenAbschnitt(einstellungen: Record<string, string>, jahr: n
 `;
 }
 
+/** Abschnitt „Hausbesuche: Fahrtzeiten“ (W113) – großzügige Schätzung ohne fremden Kartendienst */
+function fahrtzeitenAbschnitt(e: Record<string, string>, jahr: number): string {
+  return `<h2 id="fahrtzeiten">Hausbesuche: Fahrtzeiten</h2>
+<div class="tafel">
+  <p class="hint">Bei einem Hausbesuch blockt der Kalender die Fahrt davor und danach (W113). Geschätzt wird großzügig und ohne fremden Kartendienst – keine Patientenadresse verlässt die Praxis: ein Standard für unbekannte Orte, eine Zeit innerorts (zwischen zwei Hausbesuchen im selben Ort) und je Ort oder PLZ eine eigene Zeit. Am Termin lässt sich die Fahrtzeit von Hand ändern.</p>
+  ${karteiFormular('fahrtzeiten_setzen', `<div class="zwei">
+    <label>Standard: Praxis ↔ unbekannter Ort (Minuten)<input name="fahrtzeit_standard_min" value="${esc(e.fahrtzeit_standard_min ?? '30')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.fahrtzeit-standard"></label>
+    <label>Innerorts: zwischen zwei Hausbesuchen im selben Ort (Minuten)<input name="fahrtzeit_innerorts_min" value="${esc(e.fahrtzeit_innerorts_min ?? '10')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.fahrtzeit-innerorts"></label></div>
+    <label>Je Ort oder PLZ – eine Zeile „Ort = Minuten“<textarea name="fahrtzeit_orte" rows="5" placeholder="Bad Wörishofen = 10&#10;Türkheim = 15&#10;87719 = 20" data-hilfe="konfiguration.fahrtzeit-orte">${esc(e.fahrtzeit_orte ?? '')}</textarea></label>
+    <button class="knopf primaer" data-hilfe="konfiguration.fahrtzeiten-speichern">Fahrtzeiten speichern</button>`, { zurueck: `/konfiguration?jahr=${jahr}`, klasse: 'formular' })}
+  ${karteiFormular('einstellung', `<input type="hidden" name="schluessel" value="praxis_adresse">
+    <label>Praxisadresse für die Wegbeschreibung (Rückfahrt nach einem Hausbesuch)<input name="wert" value="${esc(e.praxis_adresse ?? '')}" maxlength="120" placeholder="Straße Nr., PLZ Ort" data-hilfe="konfiguration.praxis-adresse"></label>
+    <button class="knopf klein">Speichern</button>`, { zurueck: `/konfiguration?jahr=${jahr}`, klasse: 'formular zeile' })}
+</div>
+`;
+}
+
 /** Abschnitt „Regelbehandlungszeiten“ (W110) – je Leistungsnummer die Minuten aus der GKV-Liste, von Hand änderbar */
 function regelzeitenAbschnitt(liste: Regelzeit[], jahr: number): string {
   const formRz = (aktion: string, inhalt: string, klasse = 'inline') => karteiFormular(aktion, inhalt, { zurueck: `/konfiguration?jahr=${jahr}`, klasse });
@@ -164,6 +181,7 @@ export function konfigurationSeite(d: { textbausteine: Textbaustein[]; einstellu
 ${oeffnungszeitenAbschnitt(d.einstellungen, d.freieTage.jahr)}
 ${freieTageAbschnitt(d.freieTage, d.einstellungen)}
 ${regelzeitenAbschnitt(d.regelzeiten, d.freieTage.jahr)}
+${fahrtzeitenAbschnitt(d.einstellungen, d.freieTage.jahr)}
 <h2>Termine und Terminanfragen</h2>
 <div class="tafel">
   <p><a class="knopf primaer" href="/konfiguration/terminarten" data-hilfe="konfiguration.terminarten">${symbol('kalender', { groesse: 18 })} Terminarten für die Online-Anfrage (Kacheln)</a></p>

@@ -46,14 +46,14 @@ const PAT: Patient = {
   letzteBehandlung: { id: '5', datum: '2026-10-20', fallId: '1' }, naechsterTermin: { id: '7', beginn: '2026-11-02T08:00:00Z', rezept: true }, rechnungsstand: 'gelb', offeneAnrufe: 1,
   geburtsdatum: '1984-03-12', geburtsname: null, sprache: null, kommunikationshilfe: null, berufBelastung: null, notiz: null, abrechnungsmodus: 'pro_serie', zwischenrechnungQuartale: null,
   exchangeKontaktId: null, lexwareKundennummer: null, preisliste: { id: '5', name: 'Privat 2026' }, preislisteGilt: { id: '5', name: 'Privat 2026', standard: true }, rechnungsversand: 'email', kontakte: [PK, { ...PK, id: '4', primaer: false }],
-  adressen: [{ id: '1', bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kurpromenade', hausnummer: '3', plz: '86825', ort: 'Bad Wörishofen', land: 'DE', rechnungsadresse: true }],
+  adressen: [{ id: '1', bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kurpromenade', hausnummer: '3', plz: '86825', ort: 'Bad Wörishofen', land: 'DE', rechnungsadresse: true, typ: 'rechnung' as const }],
   bezugspersonen: [{ id: '1', rolle: 'notfallkontakt', name: 'Max', beziehung: 'Bruder', berechtigungsgrund: null, telefon: null, email: null }], versicherungen: [],
 };
 const VERORDNUNG = { id: '1', patientId: '1', patientName: 'Anna Test', art: 'erst' as const, langzeit: true, ausgestelltAm: '2026-10-01', gueltigBis: '2026-12-31', massnahme: 'MT', leistungNummer: '21201', frequenz: '2×/Woche',
   anzahlVerordnet: 6, abgehakt: 2, bestaetigt: 1, geplant: 1, status: 'aktiv', arzt: 'Dr. B', fallId: '1', fallNummer: 1, vorgaengerId: null, zweitschriftAm: '2026-10-05', notiz: 'x' };
 const SERIE = { id: '2', patientId: '1', patientName: 'Anna Test', nummer: 2, grundlage: 'praevention' as const, bezeichnung: 'Entspannung', wellness: { id: '1', bezeichnung: 'Wellnessmassage 60', preis: 65 }, begonnenAm: '2026-10-01', abgeschlossenAm: null, behandlungen: 2, letzteAm: '2026-10-20' };
 const WELLNESS = { id: '1', code: 'WM60', bezeichnung: 'Wellnessmassage 60', dauerMin: 60, preis: 65, aktiv: true };
-const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true };
+const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true, behandlungsort: 'hausbesuch' as const, ort: 'Türkheim' };
 const RK = { id: '1', art: 'einzel', steuerklasse: 'heilbehandlung_steuerfrei', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', statusText: 'Versendet', statusFarbe: 'preset4', gemahnt: false, positionen: 2, versandArt: 'email', lexwareAbweichung: null,
   quelle: 'ppm' as const, bezahltAm: null, storniertAm: null, dateiName: null, lexwareStatus: null, lexwareInvoiceId: null, zahlungen: [] as { datum: string | null; betrag: number; art: string }[], pdf: false };
 const PATIENT_DATEN = {
@@ -90,7 +90,7 @@ const RGE = { id: '1', patientId: '1', fallId: '1', verordnungId: '1', art: 'abs
   zahlungen: [] as { datum: string | null; betrag: number; art: string }[], bausteine: [{ id: '1', code: 'R1', kurzname: 'Steuerfrei – Heilbehandlung', text: '§ 4 Nr. 14', wirkung: 'steuerfrei_heilbehandlung' }] };
 const TB = { id: '1', code: 'R1', kurzname: 'Steuerfrei', text: 'x', wirkung: 'steuerfrei_heilbehandlung' as const, automatisch: 'heilbehandlung' as const, aktiv: true };
 const RECHNUNG_DATEN = { patient: PAT, rechnung: RGE, lexware: true, postfach: true, girocode: 'data:image/png;base64,iVBORw0KGgo=', textbausteine: [TB, { ...TB, id: '3', code: 'R3', kurzname: 'Dank', wirkung: 'keine' as const, automatisch: 'nie' as const }], preislistePositionen: [{ id: '9', nummer: '21201', bezeichnung: 'MT', preis: 46.27 }], wellness: [WELLNESS], preislisteAktuell: { id: '6', name: 'Tagesgast' } };
-const KT = { id: '7', patientId: '1', vorname: 'Anna', nachname: 'Test', patientennummer: 'P-1001', beginn: '2026-10-26T07:00:00Z', ende: '2026-10-26T07:30:00Z', art: 'behandlung', status: 'bestaetigt', rezept: true, imKalender: false, exchangeEventId: null, leistung: 'MT', sektion: 'rezept' as const };
+const KT = { id: '7', patientId: '1', vorname: 'Anna', nachname: 'Test', patientennummer: 'P-1001', beginn: '2026-10-26T07:00:00Z', ende: '2026-10-26T07:30:00Z', art: 'behandlung', status: 'bestaetigt', rezept: true, imKalender: false, exchangeEventId: null, leistung: 'MT', sektion: 'rezept' as const, behandlungsort: 'hausbesuch' as const, ort: 'Türkheim', adresse: 'Bahnhofstraße 3, 86842 Türkheim', fahrtVorMin: 15, fahrtNachMin: 0 };
 const AKTE = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', steuerklasse: 'heilbehandlung_steuerfrei', bezeichnung: 'Schulter', anlass: 'Schmerz', diagnoseArzt: 'M75.1', begonnenAm: '2026-10-01', abgeschlossenAm: null,
   behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', bestaetigung: { art: 'unterschrift' as const, zeitpunkt: '2026-10-20T10:30:00Z', werName: null, bild: true }, massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
 const TERMINARTEN = [
@@ -127,8 +127,9 @@ const AUSWERTUNG = { jahr: 2026, monate: [0, 0, 0, 0, 0, 0, 0, 0, 0, 49.95, 0, 0
 const ZEILE = { id: '1', eingang: '2026-10-20T08:00:00Z', lieferant: 'Telekom', rechnungsnummer: 'A1', betrag: 49.95, klasse: 'rechnung' as const, status: 'wartet_freigabe', onedrivePfad: 'a/b/c.pdf' };
 const STAND = { stand: 'ok' as const, daten: { zaehler: { eingegangen: 1, unklar: 0, angestossen: 0, bezahlt: 0 }, offenerBetrag: 49.95, neueste: [ZEILE] } };
 const DATEN: CockpitDaten = {
+  fahrt: { art: 'hin', beginn: '2026-11-02T11:45:00Z', bis: '2026-11-02T12:00:00Z', ziel: 'Bahnhofstraße 3, 86842 Türkheim', zielText: 'Hausbesuch H. H. · Türkheim', patientId: '1', jetzt: true },
   heute: '2026-10-20', namenZeigen: false, rechnungen: STAND,
-  termine: { stand: 'ok', daten: [{ beginn: '09:00', ende: '09:30', ganztags: false, titel: 'M. K.', frei: false, link: '/patienten/1#termine', leistung: 'MT', rezept: true, sektion: 'rezept' as const }, { beginn: '11:00', ende: '12:00', ganztags: false, titel: 'Z. L.', frei: false }] },
+  termine: { stand: 'ok', daten: [{ beginn: '09:00', ende: '09:30', ganztags: false, titel: 'M. K.', frei: false, link: '/patienten/1#termine', leistung: 'MT', rezept: true, sektion: 'rezept' as const }, { beginn: '11:00', ende: '12:00', ganztags: false, titel: 'Z. L.', frei: false, hausbesuch: true }] },
   anfragen: { stand: 'ok' as const, daten: { neu: 1, vorgeschlagen: 1, neueste: [ANFRAGE, ANFRAGE_MIT] } },
   protokoll: { stand: 'ok', daten: [{ zeit: '2026-10-20T08:00:00Z', aktion: 'rechnung_abgelegt', objekt: '1', details: { lieferant: 'Telekom' } }] },
 };
@@ -137,7 +138,7 @@ const DATEN: CockpitDaten = {
 const PRUEFPUNKTE = ['Konto', 'Posteingang', 'Kalender', 'OneDrive', 'Rechte'];
 
 const BLOCK = { outlookId: 'ev-1', beginn: '2026-11-03T08:00:00Z', ende: '2026-11-03T09:00:00Z', webLink: 'https://outlook.example/ev-1', art: 'geblockt' as const, reserviert: false, patientennummer: null, patientId: null };
-const TERMIN_DETAIL = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', fallId: '1', terminartId: '1', leistungNummer: null };
+const TERMIN_DETAIL = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', fallId: '1', terminartId: '1', leistungNummer: null, behandlungsort: 'praxis' as const, adresseId: null, fahrtVorMin: 0, fahrtNachMin: 0, fahrtManuell: false };
 const PLAN = {
   jahr: 2026, monat: 11, heute: '2026-11-02', pufferMin: 10, dauerMin: 30, postfach: true, frei: [20, 30, 40, 60].map((dauer) => ({ dauer, anzahl: dauer })),
   tage: Array.from({ length: 30 }, (_, i) => {
@@ -192,7 +193,7 @@ const seiten = () => [
   akteSeite(AKTE, R),
   terminNeuSeite(NEU_AKTION, R),
   // Ein Formular für Anlegen und Bearbeiten (W115)
-  terminNeuSeite(NEU_AKTION, { ...R, termin: { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', fallId: '1', terminartId: '1', leistungNummer: null } }),
+  terminNeuSeite(NEU_AKTION, { ...R, termin: TERMIN_DETAIL }),
   patientBearbeitenSeite({ patient: PAT, preislisten: [PL()] }, R),
   patientBearbeitenSeite({ patient: { ...PAT, status: 'archiviert' }, preislisten: [] }, R),
   adresseFormularSeite(PAT, PAT.adressen[0], R),

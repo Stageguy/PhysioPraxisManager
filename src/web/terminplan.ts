@@ -42,14 +42,19 @@ export function monatSeite(d: MonatSeiteDaten, o: Rahmen): string {
   const nach = plan.monat === 12 ? `${plan.jahr + 1}-01` : `${plan.jahr}-${String(plan.monat + 1).padStart(2, '0')}`;
   const sucheParam = d.suche ? { suche: String(d.suche.dauer), woche: d.suche.wochenstart } : {};
   const kurz = (t: TerminKalender) => (d.namenZeigen ? `${t.vorname} ${t.nachname}` : `${t.vorname[0]}. ${t.nachname[0]}.`);
-  const eintrag = (t: TerminKalender) => `<span class="mk-e sek-${t.sektion ?? 'rezept'}${t.status === 'erledigt' ? ' erledigt' : ''}"><small>${zeitText(t.beginn)}–${zeitText(t.ende)} (${dauerVon(t.beginn, t.ende)})</small> ${esc(kurz(t))}</span>`;
+  const eintrag = (t: TerminKalender) => `<span class="mk-e sek-${t.sektion ?? 'rezept'}${t.status === 'erledigt' ? ' erledigt' : ''}"><small>${zeitText(t.beginn)}–${zeitText(t.ende)} (${dauerVon(t.beginn, t.ende)})</small> ${esc(kurz(t))}${t.behandlungsort === 'hausbesuch' ? ` ${symbol('haus', { groesse: 11, titel: 'Hausbesuch' })}` : ''}</span>`;
+  // Fahrten zu und von Hausbesuchen (W113) nur im Hover – die Kästen bleiben übersichtlich
+  const fahrtEintraege = (t: TerminKalender) => [
+    ...(t.fahrtVorMin > 0 ? [{ beginn: new Date(Date.parse(t.beginn) - t.fahrtVorMin * 60_000).toISOString(), html: `<span class="mk-e fahrt"><small>${zeitText(new Date(Date.parse(t.beginn) - t.fahrtVorMin * 60_000).toISOString())}–${zeitText(t.beginn)} (${t.fahrtVorMin})</small> Fahrt</span>` }] : []),
+    ...(t.fahrtNachMin > 0 ? [{ beginn: t.ende, html: `<span class="mk-e fahrt"><small>${zeitText(t.ende)}–${zeitText(new Date(Date.parse(t.ende) + t.fahrtNachMin * 60_000).toISOString())} (${t.fahrtNachMin})</small> Fahrt</span>` }] : []),
+  ];
   const blockEintrag = (b: KalenderBlock) => `<span class="mk-e block"><small>${zeitText(b.beginn)}–${zeitText(b.ende)} (${dauerVon(b.beginn, b.ende)})</small> ${b.reserviert ? 'reserviert' : b.art === 'patient' ? esc(b.patientennummer ?? 'Patient') : 'geblockt'}</span>`;
   const lueckeEintrag = (l: Luecke) => `<span class="mk-e luecke"><small>${zeitText(l.beginn)}–${zeitText(l.ende)} (${l.minuten})</small> frei</span>`;
   const zelle = (tp: TagesPlan) => {
     const alle = [...tp.termine.map((t) => ({ beginn: t.beginn, html: eintrag(t) })), ...tp.bloecke.map((b) => ({ beginn: b.beginn, html: blockEintrag(b) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
     const sichtbar = alle.length > 6 ? alle.slice(0, 5) : alle;
     const mehr = alle.length > 6 ? '<span class="mk-e mehr">Mehr ›</span>' : '';
-    const hover = [...alle, ...tp.luecken.filter((l) => l.minuten >= DAUERN[0]).map((l) => ({ beginn: l.beginn, html: lueckeEintrag(l) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
+    const hover = [...alle, ...tp.termine.flatMap(fahrtEintraege), ...tp.luecken.filter((l) => l.minuten >= DAUERN[0]).map((l) => ({ beginn: l.beginn, html: lueckeEintrag(l) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
     return `<a class="mk-tag stand-${tp.stand}${tp.datum === plan.heute ? ' heute' : ''}" href="${kalenderLink({ ...basis, ansicht: 'tag', tag: tp.datum })}" data-hilfe="kalender.monat-tag">
       <span class="mk-kopf"><b>${Number(tp.datum.slice(8))}</b>${tp.freierTag ? `<small class="mk-frei">${esc(tp.freierTag)}</small>` : ''}${tp.termine.length ? `<small class="mk-zahl">${tp.termine.length}</small>` : ''}</span>
       ${sichtbar.map((x) => x.html).join('')}${mehr}

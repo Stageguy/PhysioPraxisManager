@@ -10,7 +10,7 @@ import { datumText, datumZeitText } from '../format.ts';
 import { datumBerlin, tagPlus, zeitBerlin } from '../zeit.ts';
 import { esc, seite } from './layout.ts';
 import { karteiFormular as form, meldungen, type Rahmen } from './bausteine.ts';
-import { kopfzeile } from './patienten.ts';
+import { behandlungsortFeld, kopfzeile } from './patienten.ts';
 import { symbol } from './symbole.ts';
 
 const TAGESZEITEN: [string, string][] = [['', 'egal'], ['vormittag', 'vormittags (bis 12 Uhr)'], ['nachmittag', 'nachmittags (12–17 Uhr)'], ['abend', 'abends (ab 17 Uhr)']];
@@ -40,6 +40,7 @@ export function rezeptTermineSeite(d: RezeptTermineDaten, o: Rahmen): string {
   ${d.vorschlaege.length < d.offen ? `<p class="warn">Nur ${d.vorschlaege.length} von ${d.offen} Terminen gefunden – die übrigen später planen.</p>` : ''}
   <ul class="tv-wochen">${[...wochen].map(([montag, slots]) => `<li><b>Woche ab ${datumText(montag)}</b><ul>${slots.map(zeile).join('')}</ul></li>`).join('')}</ul>
   <p class="hint">Haken weg = Vorschlag auslassen. Die Termine kommen in die Kartei und in den Kalender des Postfachs – dort nur mit Initialen und Patientennummer.</p>
+  ${behandlungsortFeld(p, 'praxis', 'rezept-termine.behandlungsort')}
   <button class="knopf primaer" data-hilfe="rezept-termine.anlegen">${symbol('kalender', { groesse: 18 })} Angehakte Termine anlegen</button>`, { id: p.id, zurueck: pfad, klasse: 'formular' });
   return seite({
     titel: 'Termine zum Rezept', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,

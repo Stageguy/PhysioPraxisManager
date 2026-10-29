@@ -8,7 +8,15 @@
  */
 import type { CockpitDaten, Quelle, RechnungZeile, Rechnungsstand, Termin } from '../cockpit/daten.ts';
 import { esc, seite } from './layout.ts';
-import { datumText, datumZeitText, euroText } from '../format.ts';
+import { datumText, datumZeitText, euroText, zeitText } from '../format.ts';
+import { routenLinks } from '../kartei/hausbesuche.ts';
+
+/** Wegbeschreibung (W113c): Apple Karten und Google Maps mit dem Ziel – als Knöpfe oder als kleine Textlinks */
+export function routeHtml(ziel: string, hilfe: string, o: { klein?: boolean } = {}): string {
+  const r = routenLinks(ziel);
+  const a = (href: string, text: string) => `<a class="${o.klein ? 'route' : 'knopf klein'}" href="${esc(href)}" target="_blank" rel="noopener" data-hilfe="${hilfe}">${text}</a>`;
+  return `${a(r.apple, o.klein ? 'Karten' : 'Apple Karten')}${o.klein ? ' · ' : ' '}${a(r.google, 'Google Maps')}`;
+}
 import { STATUS_TEXT as ANFRAGE_STATUS } from '../anfragen/anfragen.ts';
 import { chip, sektionMarke } from './bausteine.ts';
 import { symbol, type Symbol } from './symbole.ts';
@@ -174,7 +182,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
     <h2 id="t-te">${symbol('kalender')} Termine heute</h2>
     ${d.freie?.length ? `<p class="freie-zeile" data-hilfe="termine.frei">Nächste freie Zeiten:${d.freie.map((f) => `<a href="/kalender?ansicht=tag&tag=${f.tag}">${esc(f.text)}</a>`).join(' · ')}</p>` : ''}
     ${leer(d.termine, (t) => `${tagesleiste(t, o.jetzt)}
-      ${t.length ? `<ul class="zeilen">${t.map((x) => `<li><span class="zeit">${x.ganztags ? 'ganztags' : `${x.beginn}–${x.ende}`}</span><b>${sektionMarke(x.sektion)}${x.link ? `<a href="${esc(x.link)}" data-hilfe="termine.patient">${esc(x.titel)}</a>` : esc(x.titel)}</b>${x.leistung ? `<span class="marke${x.rezept ? ' jetzt' : ''}" data-hilfe="termine.leistung">${esc(x.leistung)}</span>` : ''}${x.frei ? '<span class="rechts hint">frei</span>' : ''}</li>`).join('')}</ul>`
+      ${t.length ? `<ul class="zeilen">${t.map((x) => `<li><span class="zeit">${x.ganztags ? 'ganztags' : `${x.beginn}–${x.ende}`}</span><b>${sektionMarke(x.sektion)}${x.link ? `<a href="${esc(x.link)}" data-hilfe="termine.patient">${esc(x.titel)}</a>` : esc(x.titel)}</b>${x.leistung ? `<span class="marke${x.rezept ? ' jetzt' : ''}" data-hilfe="termine.leistung">${esc(x.leistung)}</span>` : ''}${x.hausbesuch ? `<span class="marke hausbesuch" data-hilfe="termine.hausbesuch">${symbol('haus', { groesse: 12 })} Hausbesuch</span>` : ''}${x.adresse ? `<span class="rechts hint">${routeHtml(x.adresse, 'termine.route', { klein: true })}</span>` : x.frei ? '<span class="rechts hint">frei</span>' : ''}</li>`).join('')}</ul>`
         : '<p class="leer">Heute stehen keine Termine im Kalender.</p>'}`)}
     <a class="mehr" data-hilfe="termine.namen" href="${d.namenZeigen ? '/' : '/?namen=1'}">${symbol(d.namenZeigen ? 'schloss' : 'auge', { groesse: 16 })} ${d.namenZeigen ? 'Nur Initialen zeigen' : 'Namen zeigen'}</a>
   </section>`;
@@ -186,9 +194,12 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
       : '<p class="leer">In den letzten sieben Tagen hat sich nichts geändert.</p>')}
   </section>`;
 
+  // Nächste Fahrt (W113c): steht sie unmittelbar bevor, fragt die Zeile nach der Karten-App – Start ist der Standort des Handys
+  const fahrt = d.fahrt ? `<p class="meldung fahrt${d.fahrt.jetzt ? ' jetzt' : ''}" data-hilfe="termine.fahrt">${symbol('auto', { groesse: 20 })}<span><b>${d.fahrt.jetzt ? 'Gleich Fahrt' : 'Nächste Fahrt'} ${zeitText(d.fahrt.beginn)}</b> → ${esc(d.fahrt.zielText)}${d.fahrt.art === 'weiter' ? ' <span class="hint">(weiter vom Hausbesuch)</span>' : ''}${d.fahrt.jetzt ? '<br>Wegbeschreibung öffnen mit: ' : ' · '}${routeHtml(d.fahrt.ziel, 'termine.route', { klein: !d.fahrt.jetzt })}</span></p>` : '';
   return seite({
     titel: 'Praxis-Cockpit', aktiv: 'cockpit', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<header class="kopf"><h1>Praxis-Cockpit</h1><p>${esc(heute)}</p></header>
+${fahrt}
 <div class="cockpit">
   <div class="bereiche">
     <section class="bereich" aria-labelledby="b-fi"><h2 id="b-fi" data-hilfe="bereich.finanzen" tabindex="0">${symbol('euro')} Finanzen</h2>

@@ -48,6 +48,8 @@ export interface KalenderUmfeld {
   oeffnungszeiten: Oeffnungszeit[];
   postfach: boolean;
   fehler?: string;
+  /** Ziel der Rückfahrt nach einem Hausbesuch (W113c): Praxisadresse aus der Konfiguration, sonst der Praxisname */
+  praxisAdresse: string;
 }
 
 /** GiroCode für offene Rechnungen aus Lexware (W102) – nur mit hinterlegter Bankverbindung und Rechnungsnummer */
@@ -57,6 +59,19 @@ async function girocodeFuer(db: Db, r: Rechnung): Promise<string | null> {
   return bank ? girocodeDataUri({ bank, betrag: r.betrag, verwendungszweck: r.nummer }) : null;
 }
 import type { EingehendeNachricht, WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
+import { fahrtenBerechnen, fahrtzeitOrteLesen } from './hausbesuche.ts';
+import { praxisName } from '../praxis.ts';
+
+/** Fahrtzeit aus dem Formular (W113): leer = automatisch, Zahl = von Hand, alles andere lehnt die Kartei ab */
+const fahrtMinuten = (wert: string | undefined): number | null => {
+  const s = (wert ?? '').trim();
+  return s === '' ? null : /^\d{1,3}$/.test(s) ? Number(s) : -1;
+};
+/** Hinweis auf Überschneidungen mit Fahrtzeiten an diesem Tag */
+const fahrtHinweis = async (db: Db, datum: string | undefined): Promise<string> => {
+  const e = await fahrtenBerechnen(db, datum ?? '');
+  return e.kollisionen ? ` Achtung: ${e.kollisionen} Überschneidung${e.kollisionen === 1 ? '' : 'en'} mit Fahrtzeiten an diesem Tag – Termin oder Fahrtzeit anpassen.` : '';
+};
 
 export { KarteiFehler };
 
@@ -287,12 +302,13 @@ export function karteiDienst(q: {
     },
     async kalenderUmfeld(von, bis) {
       const { oeffnungszeiten } = await slotRegeln(db);
-      if (!q.graph) return { bloecke: [], oeffnungszeiten, postfach: false };
+      const praxisAdresse = (await einstellungen(db)).praxis_adresse?.trim() || praxisName();
+      if (!q.graph) return { bloecke: [], oeffnungszeiten, postfach: false, praxisAdresse };
       try {
-        return { bloecke: await outlookBloecke(db, q.graph, von, bis, oeffnungszeiten), oeffnungszeiten, postfach: true };
+        return { bloecke: await outlookBloecke(db, q.graph, von, bis, oeffnungszeiten), oeffnungszeiten, postfach: true, praxisAdresse };
       } catch (err) {
         console.warn(`Kalender: ${(err as Error).message.slice(0, 200)}`);
-        return { bloecke: [], oeffnungszeiten, postfach: true, fehler: 'Der Kalender des Postfachs war nicht erreichbar – Outlook-Termine fehlen in dieser Ansicht.' };
+        return { bloecke: [], oeffnungszeiten, postfach: true, praxisAdresse, fehler: 'Der Kalender des Postfachs war nicht erreichbar – Outlook-Termine fehlen in dieser Ansicht.' };
       }
     },
     steuer: (jahr, maskiert) => steuerfreieUmsaetze(db, { jahr, maskiert }),
@@ -394,6 +410,23 @@ export function karteiDienst(q: {
         await einstellungSetzen(db, 'oeffnungszeiten', text, wer);
         return nach('/konfiguration#oeffnungszeiten', `Öffnungszeiten gespeichert: ${text}`);
       }
+      // Fahrtzeiten für Hausbesuche (W113) – ohne Patient
+      if (aktion === 'fahrtzeiten_setzen') {
+        const minuten = (name: string, was: string) => {
+          const s = (g(name) ?? '').trim();
+          if (!/^\d{1,3}$/.test(s) || Number(s) > 240) throw new KarteiFehler(`${was}: 0 bis 240 Minuten`);
+          return s;
+        };
+        const standard = minuten('fahrtzeit_standard_min', 'Standard-Fahrtzeit');
+        const innerorts = minuten('fahrtzeit_innerorts_min', 'Fahrtzeit innerorts');
+        const zeilen = (g('fahrtzeit_orte') ?? '').split(/\r?\n/).map((z) => z.trim()).filter(Boolean);
+        const unlesbar = zeilen.find((z) => !fahrtzeitOrteLesen(z).size);
+        if (unlesbar !== undefined) throw new KarteiFehler(`Zeile nicht lesbar: „${unlesbar}“ – erwartet wird „Ort = Minuten“ (höchstens 240)`);
+        await einstellungSetzen(db, 'fahrtzeit_standard_min', standard, wer);
+        await einstellungSetzen(db, 'fahrtzeit_innerorts_min', innerorts, wer);
+        await einstellungSetzen(db, 'fahrtzeit_orte', zeilen.join('\n'), wer);
+        return nach('/konfiguration#fahrtzeiten', `Fahrtzeiten gespeichert: Standard ${standard} Min., innerorts ${innerorts} Min., ${zeilen.length} Ort${zeilen.length === 1 ? '' : 'e'} mit eigener Zeit – gilt für neue und geänderte Termine.`);
+      }
       // Regelbehandlungszeiten (W110) – ohne Patient
       if (aktion === 'regelzeiten_uebernehmen') {
         const e = await regelzeitenUebernehmen(db, wer);
@@ -485,7 +518,7 @@ export function karteiDienst(q: {
         case 'adresse_speichern':
           await adresseSpeichern(db, id, {
             adresseId: g('adresse_id'), bezeichnung: g('bezeichnung'), zusatz: g('zusatz'), strasse: g('strasse'), hausnummer: g('hausnummer'), plz: g('plz'), ort: g('ort'), land: g('land'),
-            rechnungsadresse: f.has('rechnungsadresse'),
+            rechnungsadresse: f.has('rechnungsadresse'), typ: (g('typ') ?? 'rechnung') as 'rechnung' | 'hausbesuch' | 'betreuer',
           }, wer);
           return nach(`${seite}#adressen`, 'Adresse gespeichert.');
         case 'adresse_loeschen':
@@ -507,8 +540,11 @@ export function karteiDienst(q: {
           await verlaufEintragen(db, t, id, { art: g('art') ?? 'notiz', grund: g('grund'), notiz: g('notiz'), kontaktId: g('kontakt_id') }, wer);
           return nach(`${seite}#verlauf`, 'Eintrag gespeichert.');
         case 'termin_anlegen': {
-          const terminId = await terminAnlegen(db, id, { datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), fallId: g('fall_id'), terminartId: g('terminart_id') }, wer);
-          return nach(`${seite}#termine`, `Termin angelegt.${await spiegeln(terminId, wer)}`);
+          const terminId = await terminAnlegen(db, id, {
+            datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), fallId: g('fall_id'), terminartId: g('terminart_id'),
+            behandlungsort: g('behandlungsort'), fahrtVorMin: fahrtMinuten(g('fahrt_vor_min')), fahrtNachMin: fahrtMinuten(g('fahrt_nach_min')),
+          }, wer);
+          return nach(`${seite}#termine`, `Termin angelegt.${await spiegeln(terminId, wer)}${await fahrtHinweis(db, g('datum'))}`);
         }
         case 'termin_status':
           await terminStatus(db, id, g('termin_id') ?? '', g('status') ?? '', wer);
@@ -523,8 +559,11 @@ export function karteiDienst(q: {
         }
         case 'termin_aendern': {
           const terminId = g('termin_id') ?? '';
-          await terminAendern(db, id, terminId, { datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), terminartId: g('terminart_id') }, wer);
-          return nach(`${seite}#termine`, `Termin geändert.${await spiegeln(terminId, wer)}`);
+          await terminAendern(db, id, terminId, {
+            datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), terminartId: g('terminart_id'),
+            behandlungsort: g('behandlungsort') ?? 'praxis', fahrtVorMin: fahrtMinuten(g('fahrt_vor_min')), fahrtNachMin: fahrtMinuten(g('fahrt_nach_min')),
+          }, wer);
+          return nach(`${seite}#termine`, `Termin geändert.${await spiegeln(terminId, wer)}${await fahrtHinweis(db, g('datum'))}`);
         }
         case 'rezept_termine_anlegen': {
           // Terminserie zum Rezept (W110): nur angehakte Vorschläge, nie mehr als noch offen sind
@@ -537,7 +576,7 @@ export function karteiDienst(q: {
           if (werte.length > offen) throw new KarteiFehler(`Auf dem Rezept ${offen <= 0 ? 'ist keine Behandlung mehr' : `sind nur noch ${offen} Behandlung${offen === 1 ? '' : 'en'}`} offen – ${werte.length} Termine gewählt`);
           const hinweise = new Set<string>();
           for (const w of werte) {
-            const terminId = await terminAnlegen(db, id, { ...w, verordnungId: vid, fallId: v.fallId ?? undefined, leistungNummer: v.leistungNummer ?? undefined }, wer);
+            const terminId = await terminAnlegen(db, id, { ...w, verordnungId: vid, fallId: v.fallId ?? undefined, leistungNummer: v.leistungNummer ?? undefined, behandlungsort: g('behandlungsort') }, wer);
             const h = await spiegeln(terminId, wer);
             if (h) hinweise.add(h);
           }

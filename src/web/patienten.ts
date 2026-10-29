@@ -8,6 +8,7 @@ import type { AkteDaten, LexwareKundenDaten, NeuAktionDaten, PatientSeiteDaten }
 import type { KundeStand, LexwareKundeStand } from '../kartei/lexware-kunden.ts';
 import { kundenName, type LexwareKunde } from '../lexware/kunden.ts';
 import { BESTAETIGUNG_TEXT, VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz, type RechnungKurz, type TerminDetail } from '../kartei/patienten.ts';
+import { ADRESSE_TYP_TEXT, ADRESSE_TYPEN } from '../kartei/hausbesuche.ts';
 import { VORLAGEN } from '../nachrichten/vorlagen.ts';
 import { SEKTION_REIHE, SEKTIONEN, type Terminart } from '../kartei/terminarten.ts';
 import { rezeptKachel, serieKachel, serienPlus } from './rezepte.ts';
@@ -269,11 +270,24 @@ export function adresseFormularSeite(p: Patient, a: Adresse | undefined, o: Rahm
   <div class="zwei"><label>Bezeichnung<input name="bezeichnung" value="${wert(a?.bezeichnung)}" placeholder="Zuhause, Arbeit, Eltern …" maxlength="40"></label><label>Zusatz (c/o …)<input name="zusatz" value="${wert(a?.zusatz)}"></label></div>
   <div class="zwei"><label>Straße<input name="strasse" value="${wert(a?.strasse)}"></label><label>Nr.<input name="hausnummer" class="kurz" value="${wert(a?.hausnummer)}"></label></div>
   <div class="zwei"><label>PLZ<input name="plz" class="kurz" inputmode="numeric" value="${wert(a?.plz)}"></label><label>Ort<input name="ort" value="${wert(a?.ort)}"></label></div>
-  <label>Land<input name="land" value="${esc(a?.land ?? 'DE')}" maxlength="2" class="kurz"></label>
+  <div class="zwei"><label>Land<input name="land" value="${esc(a?.land ?? 'DE')}" maxlength="2" class="kurz"></label>
+  <label>Art der Adresse<select name="typ" data-hilfe="adresse.typ">${ADRESSE_TYPEN.map((x) => `<option value="${x}"${(a?.typ ?? 'rechnung') === x ? ' selected' : ''}>${esc(ADRESSE_TYP_TEXT[x])}</option>`).join('')}</select></label></div>
   <label class="haken"><input type="checkbox" name="rechnungsadresse" value="1"${a?.rechnungsadresse ? ' checked' : ''}> Rechnungsadresse</label>`,
-      hinweis: 'Die erste Adresse eines Patienten ist automatisch Rechnungsadresse.',
+      hinweis: 'Die erste Adresse eines Patienten ist automatisch Rechnungsadresse. Eine Hausbesuchadresse lässt sich am Termin als Behandlungsort wählen (W113).',
     }),
   });
+}
+
+/**
+ * Behandlungsort wählen (W113): Praxis, eine Hausbesuchadresse des Patienten oder – gibt es noch keine – die
+ * Rechnungsadresse als Hausbesuchadresse übernehmen (legt sie beim Speichern an). Auch im Rezept-Serienformular.
+ */
+export function behandlungsortFeld(p: Pick<Patient, 'id' | 'adressen'>, gewaehlt: string, hilfe = 'termin.behandlungsort'): string {
+  const adr = (a: Adresse) => [a.bezeichnung, [a.strasse, a.hausnummer].filter(Boolean).join(' '), [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const haus = p.adressen.filter((a) => a.typ === 'hausbesuch' || `adresse:${a.id}` === gewaehlt);
+  const rechnung = p.adressen.find((a) => a.rechnungsadresse) ?? p.adressen[0];
+  const opt = (wert: string, text: string, aus = false) => `<option value="${wert}"${wert === gewaehlt ? ' selected' : ''}${aus ? ' disabled' : ''}>${esc(text)}</option>`;
+  return `<label>Behandlungsort<select name="behandlungsort" data-hilfe="${hilfe}">${opt('praxis', 'Praxis')}${haus.map((a) => opt(`adresse:${a.id}`, `Hausbesuch: ${adr(a)}`)).join('')}${!haus.length && rechnung ? opt('rechnung_kopieren', `Hausbesuch: Rechnungsadresse als Hausbesuchadresse übernehmen (${adr(rechnung)})`) : ''}${p.adressen.length ? '' : opt('keine', 'Hausbesuch: zuerst eine Adresse anlegen', true)}</select></label>`;
 }
 
 /** Neue Rechnung: Leistungsgruppe wählen, der Entwurf entsteht beim Anlegen (W115) */
@@ -296,7 +310,7 @@ export function rechnungNeuSeite(p: Patient, o: Rahmen): string {
 function adresseKachel(p: Patient, a: Adresse): string {
   const zeilen = [a.zusatz ?? '', [a.strasse, a.hausnummer].filter(Boolean).join(' '), [a.plz, a.ort].filter(Boolean).join(' '), a.land !== 'DE' ? a.land : ''].filter(Boolean);
   return `<article class="adr${a.rechnungsadresse ? ' aktiv' : ''}" data-hilfe="adresse.kachel">
-    <b>${esc(a.bezeichnung ?? 'Adresse')}</b>
+    <b>${esc(a.bezeichnung ?? 'Adresse')}</b>${a.typ !== 'rechnung' ? `<span class="rz-marken"><span class="marke hausbesuch" data-hilfe="adresse.typ" tabindex="0">${a.typ === 'hausbesuch' ? symbol('haus', { groesse: 12 }) : ''} ${esc(ADRESSE_TYP_TEXT[a.typ])}</span></span>` : ''}
     <p>${zeilen.map((z) => esc(z)).join('<br>')}</p>
     ${stift(`/patienten/${p.id}/adressen/${a.id}`, 'adresse.bearbeiten', { fenster: 'Adresse bearbeiten', text: 'Adresse bearbeiten' })}
     ${form('rechnungsadresse', `<label class="pk-aktiv" data-hilfe="adresse.rechnungsadresse"><input type="radio" name="adresse_id" value="${a.id}"${a.rechnungsadresse ? ' checked' : ''} data-auto-senden> Rechnungsadresse</label><button class="knopf klein nur-ohne-js">setzen</button>`, { id: p.id, zurueck: `/patienten/${p.id}`, klasse: 'adr-fuss' })}
@@ -334,7 +348,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen & { vorwahl?: { vor
     const menue = offen ? plusMenue(`${waTermin(t.id)}${form('termin_status', `<input type="hidden" name="termin_id" value="${t.id}"><select name="status" data-hilfe="termin.status" data-auto-senden><option value="">ändern …</option><option value="abgesagt_patient">abgesagt (Patient)</option><option value="abgesagt_praxis">abgesagt (Praxis)</option><option value="nicht_erschienen">nicht erschienen</option></select><button class="knopf klein nur-ohne-js">ok</button>`, { id: p.id, zurueck })}`, 'termin.plus', { klein: true, label: 'Aktionen zum Termin' }) : '';
     return `<article class="tk${t.verordnungId ? ' rezept' : ''}${offen ? ' mit-plus' : ''}" data-hilfe="termine.kachel">
     <b>${datumZeitText(t.beginn, { jahr: true })}</b><span class="hint">bis ${zeitText(t.ende)} · ${esc(t.art)}</span>
-    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span><span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}</span>
+    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span>${t.behandlungsort === 'hausbesuch' ? `<span class="marke hausbesuch" data-hilfe="termin.hausbesuch" tabindex="0">${symbol('haus', { groesse: 12 })} Hausbesuch${t.ort ? ` · ${esc(t.ort)}` : ''}</span>` : ''}<span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}</span>
     ${menue}${offen ? stift(`/patienten/${p.id}/termine/${t.id}/bearbeiten`, 'termin.bearbeiten', { fenster: 'Termin bearbeiten', text: 'Termin bearbeiten' }) : ''}
   </article>`;
   }).join('');
@@ -502,8 +516,11 @@ export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminD
   <div class="zwei"><label>Dauer (Minuten)<input type="number" name="dauer_min" value="${dauer}" min="5" step="5"></label>
     <label>Art<select name="art">${art('behandlung', 'Behandlung')}${art('erstgespraech', 'Erstgespräch')}${art('sonstige', 'Sonstiges')}</select></label></div>
   <label>Rezept<select name="verordnung_id"><option value="">kein Rezept (Individualtermin)</option>${rezepte}</select></label>
-  <label>Terminart <span class="hint">(Farbe und Symbol im Kalender)</span><select name="terminart_id" data-hilfe="termin.terminart"><option value="">– aus Rezept bzw. Fall –</option>${terminartOptionen(d.terminarten, t?.terminartId)}</select></label>`,
-      hinweis: 'Der Termin steht in der Kartei und wird in den Kalender des Postfachs gespiegelt – dort mit Kategorie „Praxis-Termin“, Betreff nur Initialen und Patientennummer (Testumgebung: Kalender „Praxis-Test“).',
+  <label>Terminart <span class="hint">(Farbe und Symbol im Kalender)</span><select name="terminart_id" data-hilfe="termin.terminart"><option value="">– aus Rezept bzw. Fall –</option>${terminartOptionen(d.terminarten, t?.terminartId)}</select></label>
+  ${behandlungsortFeld(p, t?.behandlungsort === 'hausbesuch' ? (t.adresseId ? `adresse:${t.adresseId}` : 'rechnung_kopieren') : 'praxis')}
+  <div class="zwei"><label>Fahrt davor (Minuten) <span class="hint">nur Hausbesuch</span><input type="number" name="fahrt_vor_min" min="0" max="240" step="5" value="${t?.fahrtManuell ? t.fahrtVorMin : ''}" placeholder="${t?.behandlungsort === 'hausbesuch' && !t.fahrtManuell ? `automatisch: ${t.fahrtVorMin}` : 'automatisch'}" data-hilfe="termin.fahrt"></label>
+    <label>Fahrt danach (Minuten)<input type="number" name="fahrt_nach_min" min="0" max="240" step="5" value="${t?.fahrtManuell ? t.fahrtNachMin : ''}" placeholder="${t?.behandlungsort === 'hausbesuch' && !t.fahrtManuell ? `automatisch: ${t.fahrtNachMin}` : 'automatisch'}" data-hilfe="termin.fahrt"></label></div>`,
+      hinweis: 'Der Termin steht in der Kartei und wird in den Kalender des Postfachs gespiegelt – dort mit Kategorie „Praxis-Termin“, Betreff nur Initialen und Patientennummer (Testumgebung: Kalender „Praxis-Test“). Hausbesuch: Fahrtzeiten leer lassen, dann schätzt der Kalender sie aus der Konfiguration und blockt sie mit.',
     }),
   });
 }

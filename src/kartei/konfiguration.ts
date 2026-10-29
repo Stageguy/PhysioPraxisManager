@@ -82,7 +82,9 @@ export function ibanNormieren(eingabe: string): string | null {
 }
 
 export async function einstellungSetzen(db: Db, schluessel: string, wert: string, wer: string): Promise<void> {
-  if (!['kleinunternehmer', 'ust_satz_wellness', 'oeffnungszeiten', 'termin_dauer_min', 'termin_puffer_min', 'anfragen_mailordner', 'buchung_vorlauf_stunden', 'buchung_tage', 'buchung_hinweis', 'buchung_letzte_nr', 'bank_inhaber', 'bank_iban', 'bank_bic', 'kalender_wochenende'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
+  if (!['kleinunternehmer', 'ust_satz_wellness', 'oeffnungszeiten', 'termin_dauer_min', 'termin_puffer_min', 'anfragen_mailordner', 'buchung_vorlauf_stunden', 'buchung_tage', 'buchung_hinweis', 'buchung_letzte_nr', 'bank_inhaber', 'bank_iban', 'bank_bic', 'kalender_wochenende', 'fahrtzeit_standard_min', 'fahrtzeit_innerorts_min', 'fahrtzeit_orte', 'praxis_adresse'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
+  // Fahrtzeiten für Hausbesuche (W113): ganze Minuten bis 240
+  if ((schluessel === 'fahrtzeit_standard_min' || schluessel === 'fahrtzeit_innerorts_min') && (!/^\d{1,3}$/.test(wert) || Number(wert) > 240)) throw new KarteiFehler('Fahrtzeit: 0 bis 240 Minuten');
   if (schluessel === 'kalender_wochenende' && !['gesperrt', 'offen'].includes(wert)) throw new KarteiFehler('Wochenende: gesperrt oder offen');
   if (schluessel === 'kleinunternehmer' && !['ja', 'nein'].includes(wert)) throw new KarteiFehler('Kleinunternehmer: ja oder nein');
   // Bankverbindung für den GiroCode (W102): IBAN mit Prüfziffer, BIC 8 oder 11 Zeichen oder leer

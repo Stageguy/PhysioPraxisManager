@@ -33,6 +33,9 @@ const PFADE = {
   brief: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h8M8 12h8M8 16h4"/>',
   /** Bearbeiten (Kachel-Regeln W114) */
   stift: '<path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M13 8l3 3"/>',
+  /** Hausbesuch und Fahrt (W113) */
+  haus: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+  auto: '<path d="M5 16l1.5-5h11L19 16"/><rect x="3" y="16" width="18" height="4" rx="1"/><circle cx="7" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/>',
 } as const;
 
 export type Symbol = keyof typeof PFADE;

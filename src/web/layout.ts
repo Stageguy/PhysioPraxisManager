@@ -144,6 +144,7 @@ h3{font-size:15px;margin:0 0 8px}
 .meldung{display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:10px;margin:12px 0}
 .meldung[hidden]{display:none}
 .meldung.ok{background:color-mix(in srgb,var(--ok) 14%,transparent)}.meldung.fehler{background:color-mix(in srgb,var(--fehler) 14%,transparent)}
+.meldung.fahrt{background:color-mix(in srgb,var(--grau) 10%,transparent);align-items:flex-start}.meldung.fahrt.jetzt{background:color-mix(in srgb,var(--ok) 16%,transparent);border:2px solid var(--ok)}.meldung.fahrt .knopf{margin:4px 4px 0 0}a.route{white-space:nowrap}
 .rk-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin:12px 0 20px}
 .rk{position:relative;display:flex;flex-direction:column;background:var(--karte);border:1px solid var(--rand);border-radius:14px;min-width:0}
 .rk.spaeter{opacity:.7}
@@ -404,6 +405,7 @@ table.regelzeiten td:nth-child(3){white-space:nowrap}details.regelzeiten-liste>s
 .kal-termin{display:flex;flex-direction:column;gap:2px;background:var(--karte);border:1px solid var(--rand);border-left:5px solid var(--rand);border-radius:10px;padding:6px 10px;margin-bottom:6px;color:var(--fg);text-decoration:none;font-size:14px}
 .kal-termin.rezept{border-left-color:var(--ok)}
 .kal-termin.block{border-left-color:var(--grau);color:var(--grau);background:color-mix(in srgb,var(--grau) 9%,var(--karte))}.kal-termin.outlook-patient{border-left-color:var(--akzent);border-style:dashed}
+.kal-termin.fahrt{border-left-color:var(--grau);border-style:dashed;color:var(--grau);background:repeating-linear-gradient(135deg,transparent 0 8px,color-mix(in srgb,var(--grau) 10%,transparent) 8px 12px)}.marke.hausbesuch{border-color:#8a5a1e;color:#8a5a1e}.mk-e.fahrt{color:var(--grau);font-style:italic}.mk-e .sym{vertical-align:-2px}
 .kal-oeff{margin:-2px 0 6px;font-size:12px;color:var(--grau)}.kal-tag.zu{opacity:.7}
 /* Terminkalender zum Buchen (W116): Tagesansicht mit Lücken und Aktionen, Monatsansicht, Suchfenster */
 .kal-termin.luecke{border-left-color:#1f7a3f;color:#1f7a3f;background:color-mix(in srgb,#1f7a3f 8%,var(--karte))}.kal-termin.luecke b{color:#1f7a3f}

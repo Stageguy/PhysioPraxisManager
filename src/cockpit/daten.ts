@@ -13,6 +13,9 @@ import { zeitText } from '../format.ts';
 import type { GraphClient } from '../graph.ts';
 import { termineZeitraum, type TerminKalender } from '../kartei/patienten.ts';
 import { naechsteFreie } from '../kartei/terminplan.ts';
+import { naechsteFahrt, type Fahrt } from '../kartei/hausbesuche.ts';
+import { einstellungen } from '../kartei/konfiguration.ts';
+import { praxisName } from '../praxis.ts';
 import { kalenderBasis } from '../umgebung.ts';
 import { berlinMitternachtUtc, datumBerlin, OUTLOOK_ZONE, tagPlus } from '../zeit.ts';
 
@@ -49,6 +52,9 @@ export interface Termin {
   rezept?: boolean;
   /** Sektion (W95) – Symbol und Farbe wie in der Kalenderseite */
   sektion?: Sektion;
+  /** Hausbesuch (W113) – mit Adresse für die Wegbeschreibung */
+  hausbesuch?: boolean;
+  adresse?: string;
 }
 
 export interface LogEintrag {
@@ -68,6 +74,8 @@ export interface CockpitDaten {
   anfragen: Quelle<AnfragenStand>;
   protokoll: Quelle<LogEintrag[]>;
   namenZeigen: boolean;
+  /** Die nächste Fahrt heute (W113c): hin zum Hausbesuch oder weiter zum Folgetermin; null = keine */
+  fahrt?: Fahrt | null;
 }
 
 const KEINE_DB = 'Die Praxis-Datenbank ist noch nicht verbunden – Rechnungen erscheinen, sobald der Rechnungseingang läuft.';
@@ -142,7 +150,7 @@ export async function termineHeute(
   const name = (k: { vorname: string; nachname: string }) => (namenZeigen ? `${k.vorname} ${k.nachname}` : `${k.vorname[0]!.toUpperCase()}. ${k.nachname[0]!.toUpperCase()}.`);
   if (!graph) {
     if (!kartei.length) return { stand: 'nicht-verbunden', hinweis: 'Keine Verbindung zum Kalender.' };
-    return { stand: 'ok', daten: kartei.map((k) => ({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept, sektion: k.sektion ?? undefined })) };
+    return { stand: 'ok', daten: kartei.map((k) => ({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept, sektion: k.sektion ?? undefined, hausbesuch: k.behandlungsort === 'hausbesuch', adresse: k.adresse ?? undefined })) };
   }
   try {
     const termine: Termin[] = [];
@@ -167,12 +175,12 @@ export async function termineHeute(
         ganztags: e.isAllDay,
         titel: k ? name(k) : namenZeigen ? titel : initialen(titel),
         frei: e.showAs === 'free',
-        ...(k ? { link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept, sektion: k.sektion ?? undefined } : {}),
+        ...(k ? { link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept, sektion: k.sektion ?? undefined, hausbesuch: k.behandlungsort === 'hausbesuch', adresse: k.adresse ?? undefined } : {}),
       });
     }
     // Kartei-Termine, die (noch) nicht im Kalender stehen, trotzdem zeigen
     for (const k of kartei.filter((x) => !gesehen.has(x.id))) {
-      termine.push({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept, sektion: k.sektion ?? undefined });
+      termine.push({ beginn: zeitText(k.beginn), ende: zeitText(k.ende), ganztags: false, titel: name(k), frei: false, link: `/patienten/${k.patientId}#termine`, leistung: k.leistung ?? undefined, rezept: k.rezept, sektion: k.sektion ?? undefined, hausbesuch: k.behandlungsort === 'hausbesuch', adresse: k.adresse ?? undefined });
     }
     termine.sort((a, b) => a.beginn.localeCompare(b.beginn));
     return { stand: 'ok', daten: termine };
@@ -211,6 +219,20 @@ async function anfragenStand(stand?: () => Promise<AnfragenStand>): Promise<Quel
   }
 }
 
+/** Die nächste Fahrt des Tages (W113c): Ziel ist der echte Folgetermin – Hausbesuchadresse oder die Praxis (Standard) */
+async function fahrtHeute(db: Db | undefined, heute: string, jetzt: Date, namenZeigen: boolean): Promise<Fahrt | null> {
+  if (!db) return null;
+  try {
+    const termine = await termineZeitraum(db, berlinMitternachtUtc(heute), berlinMitternachtUtc(tagPlus(heute, 1)));
+    if (!termine.some((t) => t.behandlungsort === 'hausbesuch')) return null;
+    const e = await einstellungen(db);
+    return naechsteFahrt(termine, jetzt, { adresse: e.praxis_adresse?.trim() || praxisName(), name: 'Praxis' }, { name: namenZeigen ? (t) => `${t.vorname} ${t.nachname}` : undefined });
+  } catch (err) {
+    console.warn(`Fahrt: ${(err as Error).message.slice(0, 160)}`);
+    return null;
+  }
+}
+
 export async function cockpitDaten(q: {
   db?: Db;
   graph?: Pick<GraphClient, 'paginate' | 'get' | 'post'>;
@@ -220,14 +242,15 @@ export async function cockpitDaten(q: {
   anfragen?: () => Promise<AnfragenStand>;
 }): Promise<CockpitDaten> {
   const heute = datumBerlin((q.jetzt ?? new Date()).toISOString());
-  const [rechnungen, termine, anfragen, log, freie] = await Promise.all([
+  const [rechnungen, termine, anfragen, log, freie, fahrt] = await Promise.all([
     rechnungsstand(q.db),
     termineHeute(q.graph, heute, q.namenZeigen, q.db),
     anfragenStand(q.anfragen),
     protokoll(q.db),
     freieZeiten(q.db, q.graph, q.jetzt),
+    fahrtHeute(q.db, heute, q.jetzt ?? new Date(), q.namenZeigen),
   ]);
-  return { heute, rechnungen, termine, anfragen, protokoll: log, namenZeigen: q.namenZeigen, freie };
+  return { heute, rechnungen, termine, anfragen, protokoll: log, namenZeigen: q.namenZeigen, freie, fahrt };
 }
 
 const FREIE_FORMAT = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });

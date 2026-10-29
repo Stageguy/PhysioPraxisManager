@@ -30,10 +30,13 @@ interface Ereignis {
  */
 export async function belegteZeiten(graph: LeseGraph | undefined, db: Db, von: string, bis: string, o: { ohneAnfrage?: string; pufferMin?: number } = {}): Promise<Belegt[]> {
   const liste: Belegt[] = [];
-  // Kartei-Termine samt Pause danach (W116a): Pause der Terminart, sonst der Standard aus der Konfiguration
+  // Kartei-Termine samt Pause danach (W116a): Pause der Terminart, sonst der Standard aus der Konfiguration;
+  // bei Hausbesuchen (W113) dazu die Fahrt davor und danach
   const { rows } = await db.query<{ beginn: Date | string; ende: Date | string }>(
-    `SELECT t.beginn, t.ende + make_interval(mins => coalesce(ta.puffer_min, $3)) AS ende FROM termin t LEFT JOIN terminart ta ON ta.id = t.terminart_id
-     WHERE t.beginn < $2 AND t.ende > $1 AND t.status IN ('vorgeschlagen', 'bestaetigt')`, [von, bis, Math.max(0, Math.round(o.pufferMin ?? 0))],
+    `SELECT t.beginn - make_interval(mins => t.fahrt_vor_min) AS beginn, t.ende + make_interval(mins => coalesce(ta.puffer_min, $3) + t.fahrt_nach_min) AS ende
+     FROM termin t LEFT JOIN terminart ta ON ta.id = t.terminart_id
+     WHERE t.beginn - make_interval(mins => t.fahrt_vor_min) < $2 AND t.ende + make_interval(mins => t.fahrt_nach_min) > $1 AND t.status IN ('vorgeschlagen', 'bestaetigt')`,
+    [von, bis, Math.max(0, Math.round(o.pufferMin ?? 0))],
   );
   for (const r of rows) liste.push({ beginn: new Date(r.beginn).toISOString(), ende: new Date(r.ende).toISOString() });
   const reserviert = await db.query<{ id: string; vorschlaege: unknown }>("SELECT id::text, vorschlaege FROM terminanfrage WHERE status IN ('neu', 'vorgeschlagen') AND vorschlaege::text <> '[]'");

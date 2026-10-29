@@ -13,6 +13,7 @@ import { datumBerlin, tagPlus, wocheUm, zeitBerlin, ZONE } from '../zeit.ts';
 import { sektionLegende, sektionMarke } from './bausteine.ts';
 import { esc, seite } from './layout.ts';
 import { symbol } from './symbole.ts';
+import { routeHtml } from './cockpit.ts';
 import { kalenderLink, terminZiel, type Kontext } from './terminplan.ts';
 
 const TAG_KURZ = new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -37,6 +38,8 @@ export interface KalenderSeiteDaten {
   dauerMin?: number;
   /** Termin für diesen Patienten anlegen: freie Zeiten führen direkt ins Formular */
   patient?: Kontext | null;
+  /** Ziel der Rückfahrt nach einem Hausbesuch (W113c) */
+  praxisAdresse?: string;
 }
 
 const blockHtml = (b: KalenderBlock): string => {
@@ -55,13 +58,26 @@ export function kalenderSeite(d: KalenderSeiteDaten, o: { wer: string; fassung: 
   const mit = { namen: d.namenZeigen ? '1' : undefined, patient: d.patient?.id };
   const link = (tag: string, ansicht = d.ansicht) => kalenderLink({ tag, ansicht, ...mit });
   const name = (t: TerminKalender) => (d.namenZeigen ? `${t.vorname} ${t.nachname}` : `${t.vorname[0]}. ${t.nachname[0]}.`);
-  const marken = (t: TerminKalender) => `<span class="rz-marken">${t.leistung ? `<span class="marke jetzt" data-hilfe="termine.leistung">${esc(t.leistung)}</span>` : ''}<span class="marke">${t.rezept ? 'Rezept' : t.art === 'erstgespraech' ? 'Erstgespräch' : 'Individual'}</span>${t.imKalender ? '' : '<span class="marke">nicht im Kalender</span>'}${t.status === 'vorgeschlagen' ? '<span class="marke">vorgeschlagen</span>' : ''}</span>`;
+  const marken = (t: TerminKalender) => `<span class="rz-marken">${t.leistung ? `<span class="marke jetzt" data-hilfe="termine.leistung">${esc(t.leistung)}</span>` : ''}<span class="marke">${t.rezept ? 'Rezept' : t.art === 'erstgespraech' ? 'Erstgespräch' : 'Individual'}</span>${t.behandlungsort === 'hausbesuch' ? `<span class="marke hausbesuch" data-hilfe="kalender.hausbesuch">${symbol('haus', { groesse: 12 })} Hausbesuch${t.ort ? ` · ${esc(t.ort)}` : ''}</span>` : ''}${t.imKalender ? '' : '<span class="marke">nicht im Kalender</span>'}${t.status === 'vorgeschlagen' ? '<span class="marke">vorgeschlagen</span>' : ''}</span>`;
+  // Fahrt vor und nach einem Hausbesuch (W113) – geschätzt aus der Konfiguration, am Termin änderbar; mit Wegbeschreibung zum Ziel
+  const fahrtHtml = (t: TerminKalender, wann: 'vor' | 'nach', ziel: string | null) => {
+    const min = wann === 'vor' ? t.fahrtVorMin : t.fahrtNachMin;
+    const beginn = wann === 'vor' ? new Date(Date.parse(t.beginn) - min * 60_000).toISOString() : t.ende;
+    const ende = wann === 'vor' ? t.beginn : new Date(Date.parse(t.ende) + min * 60_000).toISOString();
+    return { beginn, html: `<div class="kal-termin fahrt" data-hilfe="kalender.fahrt"><b>${symbol('auto', { groesse: 14 })} ${zeitText(beginn)}–${zeitText(ende)}</b><span>Fahrt ${wann === 'vor' ? 'zum Hausbesuch' : 'zurück'} · ${min} Min.${ziel ? ` · ${routeHtml(ziel, 'kalender.route', { klein: true })}` : ''}</span></div>` };
+  };
+  // Ziel der Rückfahrt: der nächste Hausbesuch des Tages, sonst die Praxis
+  const fahrten = (liste: TerminKalender[]) => liste.flatMap((t, i) => {
+    const naechster = liste[i + 1];
+    const zurueck = naechster?.behandlungsort === 'hausbesuch' && naechster.adresse ? naechster.adresse : d.praxisAdresse ?? null;
+    return [...(t.fahrtVorMin > 0 ? [fahrtHtml(t, 'vor', t.adresse)] : []), ...(t.fahrtNachMin > 0 ? [fahrtHtml(t, 'nach', zurueck)] : [])];
+  });
   const klasse = (t: TerminKalender) => `kal-termin${t.sektion ? ` sek-${t.sektion}` : t.rezept ? ' rezept' : ''}${t.status === 'erledigt' ? ' erledigt' : ''}`;
   // Tagesansicht: Kachel mit Stift und Absage (W116c); Wochenansicht: die Kachel ist der Link zum Patienten
   const terminHtml = (t: TerminKalender) => d.ansicht === 'tag'
     ? `<div class="${klasse(t)}" data-hilfe="kalender.termin">
         <b>${sektionMarke(t.sektion)}${zeitText(t.beginn)}–${zeitText(t.ende)}</b><span><a href="/patienten/${t.patientId}#termine" data-hilfe="kalender.termin-patient">${esc(name(t))}</a> <span class="hint">${esc(t.patientennummer)}</span></span>
-        ${marken(t)}${t.status === 'bestaetigt' || t.status === 'vorgeschlagen' ? `<span class="kal-aktionen"><a href="/patienten/${t.patientId}/termine/${t.id}/bearbeiten" data-fenster="Termin bearbeiten" data-hilfe="kalender.termin-stift">${symbol('stift', { groesse: 14 })} bearbeiten</a><a href="/patienten/${t.patientId}/termine/${t.id}/absagen" data-fenster="Termin absagen" data-hilfe="kalender.termin-absagen">${symbol('kreuz', { groesse: 14 })} absagen</a></span>` : ''}
+        ${marken(t)}${t.status === 'bestaetigt' || t.status === 'vorgeschlagen' ? `<span class="kal-aktionen"><a href="/patienten/${t.patientId}/termine/${t.id}/bearbeiten" data-fenster="Termin bearbeiten" data-hilfe="kalender.termin-stift">${symbol('stift', { groesse: 14 })} bearbeiten</a><a href="/patienten/${t.patientId}/termine/${t.id}/absagen" data-fenster="Termin absagen" data-hilfe="kalender.termin-absagen">${symbol('kreuz', { groesse: 14 })} absagen</a>${t.behandlungsort === 'hausbesuch' && t.adresse ? `<span class="hint">${routeHtml(t.adresse, 'kalender.route', { klein: true })}</span>` : ''}</span>` : ''}
       </div>`
     : `<a class="${klasse(t)}" href="/patienten/${t.patientId}#termine" data-hilfe="kalender.termin">
         <b>${sektionMarke(t.sektion)}${zeitText(t.beginn)}–${zeitText(t.ende)}</b><span>${esc(name(t))} <span class="hint">${esc(t.patientennummer)}</span></span>
@@ -75,6 +91,7 @@ export function kalenderSeite(d: KalenderSeiteDaten, o: { wer: string; fassung: 
     const luecken = d.ansicht === 'tag' ? (d.luecken ?? []).filter((l) => datumBerlin(l.beginn) === tag && l.minuten >= DAUERN[0]) : [];
     const eintraege = [
       ...des.map((t) => ({ beginn: t.beginn, html: terminHtml(t) })),
+      ...fahrten(des.filter((t) => t.status === 'bestaetigt' || t.status === 'vorgeschlagen')),
       ...bloecke.map((b) => ({ beginn: b.beginn, html: blockHtml(b) })),
       ...luecken.map((l) => ({ beginn: l.beginn, html: lueckeHtml(l) })),
     ].sort((a, b) => a.beginn.localeCompare(b.beginn));

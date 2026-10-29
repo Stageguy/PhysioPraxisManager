@@ -15,6 +15,29 @@ import { einstellungSetzen, textbausteinSpeichern, textbausteine } from './konfi
 import { terminartSpeichern } from './terminarten.ts';
 import { schliesstageAnlegen } from './freie-tage.ts';
 import { aktivSetzen, anlegen as preislisteAnlegen, freigeben as preislisteFreigeben, quellen, standardSetzen } from '../preise/preislisten.ts';
+import { slotRegeln } from '../anfragen/dienst.ts';
+import { belegteZeiten } from '../anfragen/kalender.ts';
+import { freieSlots } from '../anfragen/slots.ts';
+import { berlinMitternachtUtc, berlinZeitUtc, zeitBerlin } from '../zeit.ts';
+
+/**
+ * Nächste freie Anfangszeit an einem Tag ab der Wunschzeit – mit Pause, Fahrtzeiten, Öffnungszeiten und Schließtagen
+ * wie in der Oberfläche (W113d: Testtermine überlappen sich nie und halten die Pause ein); undefined, wenn nichts frei ist
+ */
+async function freieZeit(db: Db, datum: string, wunsch: string, dauerMin: number): Promise<string | undefined> {
+  const regeln = await slotRegeln(db);
+  const belegt = await belegteZeiten(undefined, db, berlinMitternachtUtc(datum), berlinMitternachtUtc(tagPlusKalender(datum, 1)), { pufferMin: regeln.pufferMin });
+  const suche = (ab: string) => freieSlots({ ab, tage: 1, belegt, regeln: { ...regeln, dauerMin, rasterMin: 5 } })[0];
+  // Ab der Wunschzeit; ist danach nichts mehr frei (oder liegt der Wunsch außerhalb der Öffnungszeit), die erste freie Zeit des Tages
+  const slot = suche(berlinZeitUtc(datum, wunsch)) ?? suche(berlinMitternachtUtc(datum));
+  return slot ? zeitBerlin(slot.beginn) : undefined;
+}
+
+/** Termin zur nächsten freien Zeit ab Wunschzeit anlegen; undefined, wenn der Tag voll ist */
+async function terminFrei(db: Db, patientId: string, d: Omit<Parameters<typeof terminAnlegen>[2], 'zeit'> & { zeit: string }, wer: string): Promise<string | undefined> {
+  const zeit = await freieZeit(db, d.datum, d.zeit, d.dauerMin);
+  return zeit ? terminAnlegen(db, patientId, { ...d, zeit }, wer) : undefined;
+}
 
 const PERSONEN: { vorname: string; nachname: string; anrede: string; geboren: string; ort: string; strasse: string; plz: string; besonderheiten?: string; ansprache?: string; sprache?: string }[] = [
   { vorname: 'Anna', nachname: 'Beispiel', anrede: 'Frau', geboren: '1984-03-12', ort: 'Bad Wörishofen', strasse: 'Kurpromenade 3', plz: '86825' },
@@ -83,7 +106,7 @@ export async function testtermineAnlegen(db: Db, t: Tresor, o: { adresse: string
       d.setUTCDate(d.getUTCDate() + v);
       if (!p.tage.includes(d.getUTCDay())) continue;
       const tag = d.toISOString().slice(0, 10);
-      await terminAnlegen(db, id, { datum: tag, zeit: p.zeit, dauerMin: p.dauer, verordnungId: rezept, fallId: fall }, wer);
+      if (!(await terminFrei(db, id, { datum: tag, zeit: p.zeit, dauerMin: p.dauer, verordnungId: rezept, fallId: fall }, wer))) continue;
       gesetzt++;
       termine++;
     }
@@ -155,12 +178,10 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
       // Kommende Termine: mit Rezept (solange offen) oder Individualtermin
       const offen = 6 - erledigt;
       for (let k = 0; k < Math.min(offen, 2); k++) {
-        await terminAnlegen(db, id, { datum: tag(2 + i + k * 3), zeit: `${String(8 + (i + k) % 9).padStart(2, '0')}:${k ? '30' : '00'}`, dauerMin: 30, verordnungId: offen ? rezept : undefined }, wer);
-        termine++;
+        if (await terminFrei(db, id, { datum: tag(2 + i + k * 3), zeit: `${String(8 + (i + k) % 9).padStart(2, '0')}:${k ? '30' : '00'}`, dauerMin: 30, verordnungId: offen ? rezept : undefined }, wer)) termine++;
       }
     } else if (i === 8) {
-      await terminAnlegen(db, id, { datum: tag(5), zeit: '15:00', dauerMin: 30, art: 'erstgespraech' }, wer);
-      termine++;
+      if (await terminFrei(db, id, { datum: tag(5), zeit: '15:00', dauerMin: 30, art: 'erstgespraech' }, wer)) termine++;
     } else {
       // Jonas: Wellness-Serie und eine Behandlung ohne Rezept (Direktzugang)
       const wf = await fallAnlegen(db, t, id, { grundlage: 'praevention', wellnessLeistungId: wellness[1], begonnenAm: tag(-20) }, wer);
@@ -170,8 +191,7 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
       const df = await fallAnlegen(db, t, id, { grundlage: 'direktzugang', bezeichnung: 'Nacken, Verspannung', anlass: 'Verspannung nach Bildschirmarbeit (erfunden)', begonnenAm: tag(-10) }, wer);
       await behandlungErfassen(db, t, id, { fallId: df, datum: tag(-10), dauerMin: 30, leistungNummer: '21201', massnahmen: 'Manuelle Therapie HWS (erfunden)', behandeltVon: 'Lilli' }, wer);
       behandlungen++;
-      await terminAnlegen(db, id, { datum: tag(4), zeit: '11:00', dauerMin: 60, fallId: wf }, wer);
-      termine++;
+      if (await terminFrei(db, id, { datum: tag(4), zeit: '11:00', dauerMin: 60, fallId: wf }, wer)) termine++;
     }
     // Greta: Folgerezept mit Langzeit und Zweitschrift, Hakim: Korrektur
     if (i === 6 || i === 7) {
@@ -212,7 +232,8 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
     }
     // Heute immer etwas im Blick: drei Termine am Erzeugungstag (Anna, Elif, Greta)
     if (i === 0 || i === 4 || i === 6) {
-      await terminAnlegen(db, id, { datum: tag(0), zeit: { 0: '09:00', 4: '11:00', 6: '14:30' }[i]!, dauerMin: 30 }, wer);
+      const wunsch = { 0: '09:00', 4: '11:00', 6: '14:30' }[i]!;
+      await terminAnlegen(db, id, { datum: tag(0), zeit: (await freieZeit(db, tag(0), wunsch, 30)) ?? wunsch, dauerMin: 30 }, wer);
       termine++;
     }
     // Kontaktverlauf: ein paar Gespräche, bei Anna ein offener Anruf
@@ -231,7 +252,8 @@ async function termineVerteilen(db: Db, patientId: string, rezept: string, fallI
     d.setUTCHours(12, 0, 0, 0);
     d.setUTCDate(d.getUTCDate() + v);
     if (!tage.includes(d.getUTCDay())) continue;
-    ids.push(await terminAnlegen(db, patientId, { datum: d.toISOString().slice(0, 10), zeit, dauerMin: dauer, verordnungId: rezept, fallId }, wer));
+    const id = await terminFrei(db, patientId, { datum: d.toISOString().slice(0, 10), zeit, dauerMin: dauer, verordnungId: rezept, fallId }, wer);
+    if (id) ids.push(id);
   }
   return ids;
 }
@@ -289,6 +311,49 @@ const tagPlusKalender = (datum: string, n: number): string => {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
+
+/**
+ * Hausbesuch-Testdaten (W113): zwei Patienten mit Hausbesuchadresse (einer außerhalb mit eigener Fahrtzeit, einer am
+ * Ort), eine Betreueradresse, Hausbesuche in der übernächsten Woche (Dienstag und Mittwoch) – mit automatischer
+ * Fahrt davor und danach. Läuft nur einmal (T-1051).
+ */
+export async function testhausbesuchAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; termine: number }> {
+  if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1051'")).rows.length) return { uebersprungen: true, patienten: 0, termine: 0 };
+  const [lokal, domain] = o.adresse.split('@');
+  const wer = o.wer;
+  const orte = (await db.query<{ wert: string }>("SELECT wert FROM praxis_einstellung WHERE schluessel = 'fahrtzeit_orte'")).rows[0]?.wert ?? '';
+  if (!/türkheim/i.test(orte)) await einstellungSetzen(db, 'fahrtzeit_orte', [orte.trim(), 'Türkheim = 15'].filter(Boolean).join('\n'), wer);
+  let montag = werktag(8);
+  while (new Date(`${montag}T12:00:00Z`).getUTCDay() !== 1) montag = tagPlusKalender(montag, 1);
+  const hanna = await patientAnlegen(db, t, {
+    patientennummer: 'T-1051', anrede: 'Frau', vorname: 'Hanna', nachname: 'Hausbesuch', geburtsdatum: '1948-03-12', patientSeit: werktag(-30),
+    kontakte: [{ art: 'telefon', wert: '030 23125 051' }, { art: 'email', wert: `${lokal}+hanna@${domain}` }],
+    adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kneippstraße', hausnummer: '5', plz: '86825', ort: 'Bad Wörishofen' },
+  }, wer);
+  await adresseSpeichern(db, hanna, { bezeichnung: 'Pflegeheim Sonnenhof', zusatz: 'Zimmer 12', strasse: 'Bahnhofstraße', hausnummer: '3', plz: '86842', ort: 'Türkheim', typ: 'hausbesuch' }, wer, { ohneProtokoll: true });
+  await adresseSpeichern(db, hanna, { bezeichnung: 'Tochter (Betreuerin)', zusatz: 'Heike Hausbesuch', strasse: 'Am Anger', hausnummer: '9', plz: '86825', ort: 'Bad Wörishofen', typ: 'betreuer' }, wer, { ohneProtokoll: true });
+  const hugo = await patientAnlegen(db, t, {
+    patientennummer: 'T-1052', anrede: 'Herr', vorname: 'Hugo', nachname: 'Heimweg', geburtsdatum: '1951-07-24', patientSeit: werktag(-30),
+    kontakte: [{ art: 'mobil', wert: '030 23125 052' }, { art: 'email', wert: `${lokal}+hugo@${domain}` }],
+    adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Hauptstraße', hausnummer: '44', plz: '86825', ort: 'Bad Wörishofen' },
+  }, wer);
+  // Ilse kommt in die Praxis – ihre Termine sind die echten Folgetermine nach den Hausbesuchen (Rückfahrt zur Praxis)
+  const ilse = await patientAnlegen(db, t, {
+    patientennummer: 'T-1053', anrede: 'Frau', vorname: 'Ilse', nachname: 'Innerorts', geburtsdatum: '1969-02-02', patientSeit: werktag(-30),
+    kontakte: [{ art: 'mobil', wert: '030 23125 053' }, { art: 'email', wert: `${lokal}+ilse@${domain}` }],
+    adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kurpromenade', hausnummer: '8', plz: '86825', ort: 'Bad Wörishofen' },
+  }, wer);
+  // Dienstag: Hausbesuch in Türkheim (Fahrt 15 hin, 15 zurück), danach Ilse in der Praxis.
+  // Mittwoch: Türkheim → Hausbesuch in Bad Wörishofen (Transfer hängt am zweiten Termin) → Ilse in der Praxis (Rückfahrt).
+  const dienstag = tagPlusKalender(montag, 1);
+  const mittwoch = tagPlusKalender(montag, 2);
+  await terminAnlegen(db, hanna, { datum: dienstag, zeit: '13:00', dauerMin: 45, behandlungsort: 'rechnung_kopieren' }, wer);
+  await terminAnlegen(db, ilse, { datum: dienstag, zeit: '14:30', dauerMin: 30 }, wer);
+  await terminAnlegen(db, hanna, { datum: mittwoch, zeit: '14:00', dauerMin: 30, behandlungsort: 'rechnung_kopieren' }, wer);
+  await terminAnlegen(db, hugo, { datum: mittwoch, zeit: '15:00', dauerMin: 30, behandlungsort: 'rechnung_kopieren' }, wer);
+  await terminAnlegen(db, ilse, { datum: mittwoch, zeit: '16:00', dauerMin: 30 }, wer);
+  return { uebersprungen: false, patienten: 3, termine: 5 };
+}
 
 export async function testdatenErweitert(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; preislisten: number; patienten: number; termine: number; rechnungen: number }> {
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1021'")).rows.length) return { uebersprungen: true, preislisten: 0, patienten: 0, termine: 0, rechnungen: 0 };
