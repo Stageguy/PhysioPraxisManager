@@ -10,6 +10,6 @@
     { "name": "tag", "pfad": "/kalender?ansicht=tag&tag=2026-11-09" },
     { "name": "tag-patient", "pfad": "/kalender?ansicht=tag&tag=2026-11-10&patient=86" },
     { "name": "cockpit", "pfad": "/" },
-    { "name": "absagen", "pfad": "/patienten/86/termine/0/absagen" }
+    { "name": "absagen", "pfad": "/patienten/113/termine/511/absagen" }
   ]
 }

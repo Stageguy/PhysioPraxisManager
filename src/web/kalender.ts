@@ -95,7 +95,7 @@ export function kalenderSeite(d: KalenderSeiteDaten, o: { wer: string; fassung: 
   <a class="knopf klein" href="${kalenderLink({ tag: d.tag, ansicht: d.ansicht, patient: d.patient?.id, namen: d.namenZeigen ? undefined : '1' })}" data-hilfe="kalender.namen">${symbol(d.namenZeigen ? 'schloss' : 'auge', { groesse: 16 })} ${d.namenZeigen ? 'Nur Initialen' : 'Namen zeigen'}</a>
 </div></header>
 ${sektionLegende()}
-${d.patient ? `<p class="meldung ok" data-hilfe="kalender.patient-kontext">${symbol('patient', { groesse: 18 })} Termin für <b>${esc(d.patient.name)}</b>: eine freie Zeit (grün) anklicken. <a href="/patienten/${d.patient.id}#termine">Abbrechen</a></p>` : ''}
+${d.patient ? `<p class="meldung ok" data-hilfe="kalender.patient-kontext">${symbol('patient', { groesse: 18 })}<span>Termin für <b>${esc(d.patient.name)}</b>: eine freie Zeit (grün) anklicken. <a href="/patienten/${d.patient.id}#termine">Abbrechen</a></span></p>` : ''}
 ${d.fehler ? `<p class="warn">${esc(d.fehler)}</p>` : ''}
 <p class="hint">Termine aus der Kartei. Was im Kalender des Postfachs innerhalb der Öffnungszeiten steht, erscheint als grauer Block (Link öffnet Outlook); Praxis-Termine mit Patientennummer übernimmt der Abgleich in die Kartei.${d.ansicht === 'tag' ? ' Grün: freie Zeiten – ein Klick legt dort einen Termin an.' : ''} Öffnungszeiten und Pausen: Konfiguration.${d.postfach === false ? ' Kein Postfach verbunden – Outlook-Termine fehlen.' : ''}</p>
 <div class="kal ${d.ansicht}">${spalten}</div>`,

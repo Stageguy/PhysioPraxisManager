@@ -253,8 +253,9 @@ export async function testkalenderAnlegen(db: Db, t: Tresor, o: { adresse: strin
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1041'")).rows.length) return { uebersprungen: true, patienten: 0, termine: 0, montag: '' };
   const [lokal, domain] = o.adresse.split('@');
   const wer = o.wer;
-  // Standard-Pause nur setzen, wenn noch keine eingetragen ist
-  if (!(await db.query("SELECT 1 FROM praxis_einstellung WHERE schluessel = 'termin_puffer_min'")).rows.length) await einstellungSetzen(db, 'termin_puffer_min', '10', wer);
+  // Standard-Pause 10 Minuten, wenn keine (oder 0) eingetragen ist – die Kalender-Testdaten sind darauf gerechnet
+  const pause = (await db.query<{ wert: string }>("SELECT wert FROM praxis_einstellung WHERE schluessel = 'termin_puffer_min'")).rows[0]?.wert;
+  if (!Number(pause)) await einstellungSetzen(db, 'termin_puffer_min', '10', wer);
   const vorhandene = (await db.query<{ id: string }>("SELECT id::text FROM terminart WHERE kurz = 'Lymphdrainage 45 + Rüstzeit'")).rows[0]?.id;
   const terminart = vorhandene ?? await terminartSpeichern(db, { sektion: 'rezept', kurz: 'Lymphdrainage 45 + Rüstzeit', lang: 'Manuelle Lymphdrainage 45 Minuten, danach 15 Minuten Rüstzeit (erfunden)', dauerMin: 45, leistungNummer: '20201', pufferMin: 15 }, wer);
   // Übernächste Woche: Montag voll, Dienstag halb, Mittwoch eine lange Behandlung, Donnerstag frei, Freitag Schließtag

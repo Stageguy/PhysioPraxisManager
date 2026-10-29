@@ -82,7 +82,7 @@ export function monatSeite(d: MonatSeiteDaten, o: Rahmen): string {
   <a class="knopf klein" href="${kalenderLink({ ...basis, ansicht: 'woche', tag: plan.heute })}" data-hilfe="kalender.ansicht-woche">Woche</a>
   <a class="knopf klein primaer" href="${kalenderLink({ ...basis, monat: monatParam })}" data-hilfe="kalender.ansicht-monat">Monat</a>
 </div></header>${meldungen(o)}
-${d.patient ? `<p class="meldung ok" data-hilfe="kalender.patient-kontext">${symbol('patient', { groesse: 18 })} Termin für <b>${esc(d.patient.name)}</b>: eine freie Zeit anklicken – im Suchfenster oder in der Tagesansicht. <a href="/patienten/${d.patient.id}#termine">Abbrechen</a></p>` : ''}
+${d.patient ? `<p class="meldung ok" data-hilfe="kalender.patient-kontext">${symbol('patient', { groesse: 18 })}<span>Termin für <b>${esc(d.patient.name)}</b>: eine freie Zeit anklicken – im Suchfenster oder in der Tagesansicht. <a href="/patienten/${d.patient.id}#termine">Abbrechen</a></span></p>` : ''}
 ${plan.fehler ? `<p class="warn">${esc(plan.fehler)}</p>` : ''}
 <div class="mk-kopfzeile"><span class="hint">Frei bis Monatsende:</span><span class="mk-zaehler-reihe" data-hilfe="kalender.frei-zaehler" tabindex="0">${zaehler}</span>
   <span class="mk-legende" data-hilfe="kalender.legende" tabindex="0">${sektionLegende()}<span class="mk-l frei">frei</span><span class="mk-l teilweise">noch Platz</span><span class="mk-l voll">voll</span><span class="mk-l luecke">Lücke</span><span class="mk-l block">geblockt</span></span>
