@@ -1,46 +1,37 @@
 /**
  * Kartei-Dienst für den Praxisdienst: Seitendaten und Aktionen (W63–W68, W73–W74). Schreibt nur in
  * die eigene Datenbank – in Test und Produktion gleichermaßen erlaubt (die Testdatenbank enthält nur
- * erfundene Patienten, N28).
+ * erfundene Patienten, N28). Die Aktionen aus Formularen stehen je Fachgebiet in `aktionen/` (A32).
  */
 import type { Db } from '../db/index.ts';
 import { istId } from '../db/werte.ts';
-import type { GraphClient } from '../graph.ts';
-import type { Tresor } from '../tresor.ts';
 import { terminSpiegeln } from './kalender.ts';
 import {
-  adresseLoeschen, adresseSpeichern, akte, anrufBeginnen, behandlungErfassen, BESTAETIGUNG_TEXT, bestaetigungBild, bestaetigungSpeichern, fallAnlegen, gespraechsgruende, KarteiFehler, kontaktLoeschen, kontaktSpeichern, kontaktverlauf,
-  offeneFaelle, patientAnlegen, patientenListe, patientLesen, rechnungen, rechnungsadresseSetzen, serieAbschliessen, serien, stammdatenSpeichern, statusSetzen, terminAnlegen,
-  terminAendern, terminLesen, terminStatus, termine, verlaufAbschliessen, verlaufEintragen, verlaufVerwerfen, verordnungAbbrechen, verordnungAnlegen, verordnungen, wellnessAktiv, wellnessLeistungen,
-  type TerminDetail,
-  wellnessSpeichern, zweitschriftVermerken,
-  type Fall, type Gespraechsgrund, type Kontaktart, type Patient, type PatientKurz, type RechnungKurz, type Serie, type TerminKurz, type VerlaufEintrag, type VerordnungKurz,
-  type WellnessLeistung,
+  akte, bestaetigungBild, gespraechsgruende, KarteiFehler, kontaktverlauf, offeneFaelle, patientenListe, patientLesen, rechnungen, serien, terminLesen, termine, termineZeitraum, verordnungen,
+  wellnessLeistungen, type Fall, type Gespraechsgrund, type Patient, type PatientKurz, type RechnungKurz, type Serie, type TerminDetail, type TerminKalender, type TerminKurz,
+  type VerlaufEintrag, type VerordnungKurz, type WellnessLeistung,
 } from './patienten.ts';
-import { anamneseErfassen, befundErfassen, erklaerungErfassen, erklaerungWiderrufen, fallDetails, phaseSetzen, PHASEN, PHASEN_NAMEN, pinnwand, type FallDetails, type Phase, type Spalte } from './pinnwand.ts';
-import { einstellungen, einstellungSetzen, textbausteinAktiv, textbausteine, textbausteinSpeichern, type Textbaustein } from './konfiguration.ts';
-import {
-  bausteinAendern, bausteinEntfernen, bausteinHinzufuegen, positionAendern, positionHinzufuegen, positionLoeschen, preiseAktualisieren, rechnungAnlegen, rechnungLesen, rechnungPdf, rechnungStatus, type Rechnung,
-} from './rechnungen.ts';
-import { termineZeitraum, type TerminKalender } from './patienten.ts';
+import { fallDetails, pinnwand, type FallDetails, type Spalte } from './pinnwand.ts';
+import { einstellungen, textbausteine, type Textbaustein } from './konfiguration.ts';
+import { rechnungLesen, rechnungPdf, type Rechnung } from './rechnungen.ts';
 import { listen as preislistenListen, type Preisliste } from '../preise/preislisten.ts';
 import { steuerfreieUmsaetze, type SteuerListe } from './steuer.ts';
-import { dokumente, mailEntwurf, rechnungSenden, whatsappAngebote, whatsappEingang, whatsappSenden, whatsappVermerken, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
+import { dokumente, whatsappAngebote, whatsappEingang, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
 import { akteExport } from './akte-export.ts';
-import { terminartAktiv, terminarten, terminartSpeichern, type Terminart } from './terminarten.ts';
-import { feldUebernehmen, kundeInLexwareAnlegen, kundenAbgleich, kundenAbweichungen, lexwareLoesen, lexwareNummerFrei, lexwareVerknuepfen, patientenAusKunden, type Abweichung, type LexwareKundeStand } from './lexware-kunden.ts';
-import { kontaktIdNachtragen, rechnungenUebernehmen, rechnungNachLexware, uebernahmeText } from './lexware-rechnungen.ts';
-import type { LexwareKunde, LexwareKunden } from '../lexware/kunden.ts';
-import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
+import { terminarten, type Terminart } from './terminarten.ts';
+import { kundenAbgleich, kundenAbweichungen, type Abweichung, type LexwareKundeStand } from './lexware-kunden.ts';
+import type { LexwareKunde } from '../lexware/kunden.ts';
 import { bankverbindung, girocodeDataUri } from '../rechnungen/girocode.ts';
-import { brueckentageSetzen, feiertageImportieren, freierTagLoeschen, freierTagSperren, freieTageDaten, freieTageZeitraum, schliesstageAnlegen, type FreieTageDaten } from './freie-tage.ts';
-import { regelzeiten, regelzeitenUebernehmen, regelzeitSetzen, type Regelzeit } from './regelzeiten.ts';
-import { rezeptTermineDaten, terminWerte, type RezeptTermineDaten } from './rezept-termine.ts';
+import { freieTageDaten, freieTageZeitraum, type FreieTageDaten } from './freie-tage.ts';
+import { regelzeiten, type Regelzeit } from './regelzeiten.ts';
+import { rezeptTermineDaten, type RezeptTermineDaten } from './rezept-termine.ts';
 import { outlookBloecke, type KalenderBlock } from './outlook-termine.ts';
 import { freieWoche, monatsPlan, type MonatsPlan, type TagesPlan, type WochenSuche } from './terminplan.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
-import { oeffnungszeitenAusTagen, oeffnungszeitenText, type Oeffnungszeit } from '../anfragen/slots.ts';
-import { WOCHENTAG_KURZ } from './freie-tage.ts';
+import type { Oeffnungszeit } from '../anfragen/slots.ts';
+import type { EingehendeNachricht } from '../whatsapp/schnittstelle.ts';
+import { praxisName } from '../praxis.ts';
+import { aktionAusfuehren, type DienstQuellen } from './aktionen/index.ts';
 
 /** Was die Kalenderseite neben den Kartei-Terminen zeigt (W112): Outlook-Blöcke im Öffnungsfenster und die Öffnungszeiten */
 export interface KalenderUmfeld {
@@ -58,22 +49,9 @@ async function girocodeFuer(db: Db, r: Rechnung): Promise<string | null> {
   const bank = await bankverbindung(db);
   return bank ? girocodeDataUri({ bank, betrag: r.betrag, verwendungszweck: r.nummer }) : null;
 }
-import type { EingehendeNachricht, WhatsAppCloud } from '../whatsapp/schnittstelle.ts';
-import { fahrtenBerechnen, fahrtzeitOrteLesen } from './hausbesuche.ts';
-import { praxisName } from '../praxis.ts';
-
-/** Fahrtzeit aus dem Formular (W113): leer = automatisch, Zahl = von Hand, alles andere lehnt die Kartei ab */
-const fahrtMinuten = (wert: string | undefined): number | null => {
-  const s = (wert ?? '').trim();
-  return s === '' ? null : /^\d{1,3}$/.test(s) ? Number(s) : -1;
-};
-/** Hinweis auf Überschneidungen mit Fahrtzeiten an diesem Tag */
-const fahrtHinweis = async (db: Db, datum: string | undefined): Promise<string> => {
-  const e = await fahrtenBerechnen(db, datum ?? '');
-  return e.kollisionen ? ` Achtung: ${e.kollisionen} Überschneidung${e.kollisionen === 1 ? '' : 'en'} mit Fahrtzeiten an diesem Tag – Termin oder Fahrtzeit anpassen.` : '';
-};
 
 export { KarteiFehler };
+export type { DienstQuellen };
 
 export interface PatientSeiteDaten {
   patient: Patient;
@@ -183,19 +161,8 @@ export interface KarteiDienst {
   aktion(f: URLSearchParams, wer: string): Promise<{ ziel: string; meldung: string }>;
 }
 
-const ARTEN: Kontaktart[] = ['mobil', 'telefon', 'whatsapp', 'email', 'sonstige'];
-const kontaktart = (s: string | null): Kontaktart => (ARTEN.includes(s as Kontaktart) ? (s as Kontaktart) : 'sonstige');
-const ganz = (s: string | null, standard = 0) => (s && /^\d+$/.test(s.trim()) ? Number(s) : standard);
 
-export function karteiDienst(q: {
-  db: Db; tresor: Tresor; graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete' | 'postOhneAntwort' | 'paginate'>; whatsapp?: WhatsAppCloud; buchung?: { url: string; oeffentlich: boolean };
-  /** Kunden aus Lexware (W99) */
-  lexware?: LexwareKunden;
-  /** Rechnungen aus Lexware (W103) */
-  lexwareRechnungen?: LexwareRechnungen;
-  /** Abruf für Dienste im Netz (feiertage-api.de) – Tests geben eine Attrappe */
-  abruf?: typeof fetch;
-}): KarteiDienst {
+export function karteiDienst(q: DienstQuellen): KarteiDienst {
   const { db, tresor: t } = q;
   /** Termin in den Kalender spiegeln; scheitert der Kalender, bleibt der Termin in der Kartei und die Meldung sagt es */
   const spiegeln = async (terminId: string, wer: string): Promise<string> => {
@@ -337,395 +304,10 @@ export function karteiDienst(q: {
         return undefined;
       }
     },
-    async aktion(f, wer) {
-      const id = f.get('id') ?? '';
-      const g = (name: string) => f.get(name) ?? undefined;
-      const nach = (pfad: string, meldung: string) => ({ ziel: pfad, meldung });
-      const seite = `/patienten/${id}`;
-      const aktion = f.get('aktion');
-      if (aktion === 'anlegen') {
-        const kontakte: { art: Kontaktart; wert: string }[] = [];
-        if (g('mobil')) kontakte.push({ art: 'mobil', wert: g('mobil')! });
-        if (g('telefon')) kontakte.push({ art: 'telefon', wert: g('telefon')! });
-        if (g('mobil') && f.has('whatsapp_wie_mobil')) kontakte.push({ art: 'whatsapp', wert: g('mobil')! });
-        else if (g('whatsapp')) kontakte.push({ art: 'whatsapp', wert: g('whatsapp')! });
-        if (g('email')) kontakte.push({ art: 'email', wert: g('email')! });
-        // Aus Lexware (W99): die Kundennummer muss frei sein, bevor der Patient entsteht
-        const lexwareNummer = g('lexware_kundennummer')?.trim() || undefined;
-        if (lexwareNummer) await lexwareNummerFrei(db, lexwareNummer);
-        const neu = await patientAnlegen(db, t, {
-          anrede: g('anrede'), titel: g('titel'), vorname: g('vorname') ?? '', nachname: g('nachname') ?? '', geburtsdatum: g('geburtsdatum'), patientSeit: g('patient_seit'),
-          ansprache: g('ansprache'), besonderheiten: g('besonderheiten'), sprache: g('sprache'), kontakte,
-          geburtsname: g('geburtsname'), kommunikationshilfe: g('kommunikationshilfe'), berufBelastung: g('beruf_belastung'), notiz: g('notiz'),
-          adresse: { bezeichnung: g('adresse_bezeichnung') ?? 'Zuhause', zusatz: null, strasse: g('strasse') ?? null, hausnummer: g('hausnummer') ?? null, plz: g('plz') ?? null, ort: g('ort') ?? null, land: g('land') },
-        }, wer);
-        if (lexwareNummer) {
-          await lexwareVerknuepfen(db, neu, { nummer: lexwareNummer, kontaktId: g('lexware_kontakt_id') }, wer);
-          return nach(`/patienten/${neu}`, `Patient angelegt und mit Lexware-Kunde ${lexwareNummer} verknüpft.`);
-        }
-        // Aus einer Terminanfrage angelegt (A15): zuordnen und zurück zur Anfrage
-        const anfrageId = g('anfrage_id');
-        if (anfrageId && istId(anfrageId)) {
-          await db.query('UPDATE terminanfrage SET patient_id = $2, geaendert_am = now() WHERE id = $1 AND patient_id IS NULL', [anfrageId, neu]);
-          return nach(`/anfragen/${anfrageId}`, 'Patient angelegt und der Anfrage zugeordnet.');
-        }
-        return nach(`/patienten/${neu}`, 'Patient angelegt.');
-      }
-      // Wellness-Katalog (W74) – ohne Patient
-      if (aktion === 'wellness_speichern') {
-        await wellnessSpeichern(db, { id: g('wellness_id'), code: g('code') ?? '', bezeichnung: g('bezeichnung') ?? '', dauerMin: ganz(f.get('dauer_min')) || undefined, preis: g('preis') ?? '' }, wer);
-        return nach('/rezepte/wellness', 'Wellness-Leistung gespeichert.');
-      }
-      // Konfiguration (W80) – ohne Patient
-      if (aktion === 'textbaustein_speichern') {
-        await textbausteinSpeichern(db, { id: g('textbaustein_id'), kurzname: g('kurzname') ?? '', text: g('text') ?? '', wirkung: g('wirkung'), automatisch: g('automatisch') }, wer);
-        return nach('/konfiguration', 'Textbaustein gespeichert.');
-      }
-      if (aktion === 'textbaustein_aktiv') {
-        await textbausteinAktiv(db, g('textbaustein_id') ?? '', f.get('aktiv') === '1', wer);
-        return nach('/konfiguration', f.get('aktiv') === '1' ? 'Textbaustein wieder im Angebot.' : 'Textbaustein ausgeblendet – auf bestehenden Rechnungen bleibt er.');
-      }
-      if (aktion === 'einstellung') {
-        const schluessel = g('schluessel') ?? '';
-        await einstellungSetzen(db, schluessel, schluessel === 'kleinunternehmer' ? (f.has('wert_ja') ? 'ja' : 'nein') : schluessel === 'kalender_wochenende' ? (f.has('wert_gesperrt') ? 'gesperrt' : 'offen') : (g('wert') ?? '').trim(), wer);
-        return nach(schluessel === 'kalender_wochenende' ? '/konfiguration#freie-tage' : '/konfiguration', 'Einstellung gespeichert.');
-      }
-      // Freie Tage (A26/W111) – ohne Patient
-      if (aktion === 'feiertage_importieren') {
-        const e = await feiertageImportieren(db, ganz(f.get('jahr')), wer, { abruf: q.abruf });
-        return nach(`/konfiguration?jahr=${e.jahr}#freie-tage`, `${e.anzahl} Feiertage ${e.jahr} eingetragen (Quelle: ${e.quelle}).`);
-      }
-      // Öffnungszeiten und Pausen je Wochentag (W112) – ohne Patient
-      if (aktion === 'oeffnungszeiten_setzen') {
-        const zeilen = [1, 2, 3, 4, 5, 6, 7].map((tag) => ({
-          tag, name: WOCHENTAG_KURZ[tag - 1]!, offen: f.has(`offen_${tag}`), von: g(`von_${tag}`) ?? '', bis: g(`bis_${tag}`) ?? '', pauseVon: g(`pause_von_${tag}`) ?? '', pauseBis: g(`pause_bis_${tag}`) ?? '',
-        }));
-        let text: string;
-        try {
-          text = oeffnungszeitenText(oeffnungszeitenAusTagen(zeilen));
-        } catch (err) {
-          throw new KarteiFehler((err as Error).message);
-        }
-        if (!text) throw new KarteiFehler('Mindestens ein Tag muss geöffnet sein');
-        await einstellungSetzen(db, 'oeffnungszeiten', text, wer);
-        return nach('/konfiguration#oeffnungszeiten', `Öffnungszeiten gespeichert: ${text}`);
-      }
-      // Fahrtzeiten für Hausbesuche (W113) – ohne Patient
-      if (aktion === 'fahrtzeiten_setzen') {
-        const minuten = (name: string, was: string) => {
-          const s = (g(name) ?? '').trim();
-          if (!/^\d{1,3}$/.test(s) || Number(s) > 240) throw new KarteiFehler(`${was}: 0 bis 240 Minuten`);
-          return s;
-        };
-        const standard = minuten('fahrtzeit_standard_min', 'Standard-Fahrtzeit');
-        const innerorts = minuten('fahrtzeit_innerorts_min', 'Fahrtzeit innerorts');
-        const zeilen = (g('fahrtzeit_orte') ?? '').split(/\r?\n/).map((z) => z.trim()).filter(Boolean);
-        const unlesbar = zeilen.find((z) => !fahrtzeitOrteLesen(z).size);
-        if (unlesbar !== undefined) throw new KarteiFehler(`Zeile nicht lesbar: „${unlesbar}“ – erwartet wird „Ort = Minuten“ (höchstens 240)`);
-        await einstellungSetzen(db, 'fahrtzeit_standard_min', standard, wer);
-        await einstellungSetzen(db, 'fahrtzeit_innerorts_min', innerorts, wer);
-        await einstellungSetzen(db, 'fahrtzeit_orte', zeilen.join('\n'), wer);
-        return nach('/konfiguration#fahrtzeiten', `Fahrtzeiten gespeichert: Standard ${standard} Min., innerorts ${innerorts} Min., ${zeilen.length} Ort${zeilen.length === 1 ? '' : 'e'} mit eigener Zeit – gilt für neue und geänderte Termine.`);
-      }
-      // Regelbehandlungszeiten (W110) – ohne Patient
-      if (aktion === 'regelzeiten_uebernehmen') {
-        const e = await regelzeitenUebernehmen(db, wer);
-        return nach('/konfiguration#regelzeiten', `${e.uebernommen} Regelbehandlungszeit${e.uebernommen === 1 ? '' : 'en'} übernommen (${e.vorhanden} Positionen mit Angabe).`);
-      }
-      if (aktion === 'regelzeit_setzen') {
-        await regelzeitSetzen(db, { nummer: g('nummer') ?? '', bezeichnung: g('bezeichnung'), vonMin: g('von_min')?.trim() ? ganz(f.get('von_min')) : null, bisMin: ganz(f.get('bis_min')) }, wer);
-        return nach('/konfiguration#regelzeiten', 'Regelbehandlungszeit gespeichert.');
-      }
-      if (aktion === 'brueckentage_setzen') {
-        const jahr = ganz(f.get('jahr'));
-        const e = await brueckentageSetzen(db, jahr, f.getAll('tag'), wer);
-        return nach(`/konfiguration?jahr=${jahr}#freie-tage`, `${e.gesperrt} Brückentag${e.gesperrt === 1 ? '' : 'e'} ${jahr} gesperrt.`);
-      }
-      if (aktion === 'schliesstage_anlegen') {
-        const e = await schliesstageAnlegen(db, { von: g('von') ?? '', bis: g('bis'), name: g('name'), art: g('art') ?? '' }, wer);
-        return nach(`/konfiguration?jahr=${(g('von') ?? '').slice(0, 4)}#freie-tage`, `${e.tage} Schließtag${e.tage === 1 ? '' : 'e'} eingetragen.`);
-      }
-      if (aktion === 'freier_tag_sperren' || aktion === 'freier_tag_loeschen') {
-        const datum = g('datum') ?? '';
-        if (aktion === 'freier_tag_loeschen') await freierTagLoeschen(db, datum, wer);
-        else await freierTagSperren(db, datum, g('gesperrt') === 'ja', wer);
-        return nach(`/konfiguration?jahr=${datum.slice(0, 4)}#freie-tage`, aktion === 'freier_tag_loeschen' ? 'Tag entfernt.' : g('gesperrt') === 'ja' ? 'Tag gesperrt.' : 'Tag freigegeben – an diesem Tag sind Termine möglich.');
-      }
-      // Terminarten der Online-Anfrage (W94) – ohne Patient
-      if (aktion === 'terminart_speichern') {
-        const tid = await terminartSpeichern(db, {
-          id: g('terminart_id'), sektion: g('sektion'), kurz: g('kurz') ?? '', lang: g('lang'), dauerMin: ganz(f.get('dauer_min')), leistungNummer: g('leistung_nummer'),
-          pufferMin: g('puffer_min')?.trim() ? (/^\d{1,3}$/.test(g('puffer_min')!.trim()) ? Number(g('puffer_min')) : -1) : null,
-        }, wer);
-        return nach(`/konfiguration/terminarten#ta-${tid}`, g('terminart_id') ? 'Terminart gespeichert.' : 'Terminart angelegt – noch inaktiv.');
-      }
-      if (aktion === 'terminart_aktiv') {
-        const tid = g('terminart_id') ?? '';
-        await terminartAktiv(db, tid, f.get('aktiv') === '1', wer);
-        return nach(`/konfiguration/terminarten#ta-${tid}`, f.get('aktiv') === '1' ? 'Aktiv – steht jetzt im Dropdown der Online-Anfrage.' : 'Inaktiv – nicht mehr im Dropdown.');
-      }
-      if (aktion === 'wellness_aktiv') {
-        await wellnessAktiv(db, g('wellness_id') ?? '', f.get('aktiv') === '1');
-        return nach('/rezepte/wellness', f.get('aktiv') === '1' ? 'Leistung wieder anbietbar.' : 'Leistung ausgeblendet – bestehende Serien bleiben.');
-      }
-      // Sammelübernahme aus Lexware (W99b) – ohne Patient
-      if (aktion === 'lexware_anlegen_mehrere') {
-        if (!q.lexware) throw new KarteiFehler('Lexware ist nicht angebunden');
-        const nummern = f.getAll('kunde');
-        if (!nummern.length) throw new KarteiFehler('Keine Kunden ausgewählt');
-        const e = await patientenAusKunden(db, t, (await q.lexware.alle()).kunden, nummern, wer);
-        return nach('/patienten/lexware', `${e.angelegt} Patient${e.angelegt === 1 ? '' : 'en'} aus Lexware angelegt.${e.uebersprungen.length ? ` Übersprungen: ${e.uebersprungen.join(', ')}.` : ''}`);
-      }
-      if (!istId(id)) throw new KarteiFehler('Unbekannter Patient');
-      const fallSeite = (fallId: string) => `/patienten/${id}/faelle/${fallId}`;
-      switch (aktion) {
-        case 'fall_anlegen': {
-          const grundlage = g('grundlage') ?? 'verordnung';
-          const fallId = await fallAnlegen(db, t, id, { grundlage, bezeichnung: g('bezeichnung'), anlass: g('anlass'), diagnoseArzt: g('diagnose_arzt'), wellnessLeistungId: g('wellness_id'), phase: 'anfrage' }, wer);
-          return nach(fallSeite(fallId), 'Fall angelegt – er steht auf der Pinnwand unter „Anfrage“.');
-        }
-        case 'phase': {
-          const nachPhase = g('nach') as Phase;
-          if (!PHASEN.includes(nachPhase)) throw new KarteiFehler('Unbekannte Phase');
-          await phaseSetzen(db, id, g('fall_id') ?? '', nachPhase, wer, g('grund'));
-          return nach(g('zurueck')?.startsWith('/pinnwand') ? g('zurueck')! : fallSeite(g('fall_id') ?? ''), `Verschoben nach „${PHASEN_NAMEN[nachPhase]}“.`);
-        }
-        case 'anamnese_erfassen':
-          await anamneseErfassen(db, t, id, g('fall_id') ?? '', { erhobenAm: g('erhoben_am'), art: g('art'), beschwerden: g('beschwerden'), vorgeschichte: g('vorgeschichte'), medikamente: g('medikamente'), allergien: g('allergien'), risiken: g('risiken'), sonstiges: g('sonstiges') }, wer);
-          return nach(`${fallSeite(g('fall_id') ?? '')}#anamnese`, 'Anamnese gespeichert.');
-        case 'befund_erfassen':
-          await befundErfassen(db, t, id, g('fall_id') ?? '', { erhobenAm: g('erhoben_am'), art: g('art') ?? '', text: g('text'), messwerte: g('messwerte') }, wer);
-          return nach(`${fallSeite(g('fall_id') ?? '')}#befunde`, 'Befund gespeichert.');
-        case 'erklaerung_erfassen':
-          await erklaerungErfassen(db, t, id, { fallId: g('fall_id'), art: g('art') ?? '', am: g('am'), form: g('form'), inhalt: g('inhalt'), fassung: g('fassung'), gueltigBis: g('gueltig_bis') }, wer);
-          return nach(g('fall_id') ? `${fallSeite(g('fall_id')!)}#erklaerungen` : seite, 'Erklärung gespeichert.');
-        case 'erklaerung_widerrufen':
-          await erklaerungWiderrufen(db, id, g('erklaerung_id') ?? '', g('grund') ?? '', wer);
-          return nach(g('fall_id') ? `${fallSeite(g('fall_id')!)}#erklaerungen` : seite, 'Erklärung widerrufen.');
-        case 'stammdaten':
-          await stammdatenSpeichern(db, t, id, {
-            anrede: g('anrede'), titel: g('titel'), vorname: g('vorname') ?? '', nachname: g('nachname') ?? '', geburtsname: g('geburtsname'), geburtsdatum: g('geburtsdatum'),
-            patientSeit: g('patient_seit'), ansprache: g('ansprache'), besonderheiten: g('besonderheiten'), sprache: g('sprache'), kommunikationshilfe: g('kommunikationshilfe'),
-            berufBelastung: g('beruf_belastung'), notiz: g('notiz'), preislisteId: f.has('preisliste_id') ? (g('preisliste_id') || 'standard') : undefined, rechnungsversand: g('rechnungsversand'),
-          }, wer);
-          return nach(seite, 'Stammdaten gespeichert.');
-        case 'kontakt_speichern':
-          await kontaktSpeichern(db, id, { kontaktId: g('kontakt_id'), art: kontaktart(f.get('art')), wert: g('wert') ?? '', bezeichnung: g('bezeichnung'), primaer: f.has('primaer') }, wer);
-          return nach(`${seite}#kontakte`, 'Kontakt gespeichert.');
-        case 'kontakt_loeschen':
-          await kontaktLoeschen(db, id, g('kontakt_id') ?? '', wer);
-          return nach(`${seite}#kontakte`, 'Kontakt entfernt.');
-        case 'adresse_speichern':
-          await adresseSpeichern(db, id, {
-            adresseId: g('adresse_id'), bezeichnung: g('bezeichnung'), zusatz: g('zusatz'), strasse: g('strasse'), hausnummer: g('hausnummer'), plz: g('plz'), ort: g('ort'), land: g('land'),
-            rechnungsadresse: f.has('rechnungsadresse'), typ: (g('typ') ?? 'rechnung') as 'rechnung' | 'hausbesuch' | 'betreuer',
-          }, wer);
-          return nach(`${seite}#adressen`, 'Adresse gespeichert.');
-        case 'adresse_loeschen':
-          await adresseLoeschen(db, id, g('adresse_id') ?? '', wer);
-          return nach(`${seite}#adressen`, 'Adresse entfernt.');
-        case 'rechnungsadresse':
-          await rechnungsadresseSetzen(db, id, g('adresse_id') ?? '', wer);
-          return nach(`${seite}#adressen`, 'Rechnungsadresse gesetzt.');
-        case 'anruf':
-          await anrufBeginnen(db, id, g('kontakt_id'), wer);
-          return nach(`${seite}#verlauf`, 'Anruf vermerkt – nach dem Gespräch bitte den Grund wählen.');
-        case 'verlauf_abschliessen':
-          await verlaufAbschliessen(db, t, id, g('eintrag_id') ?? '', { grund: g('grund') ?? '', notiz: g('notiz') }, wer);
-          return nach(`${seite}#verlauf`, 'Gespräch eingetragen.');
-        case 'verlauf_verwerfen':
-          await verlaufVerwerfen(db, id, g('eintrag_id') ?? '');
-          return nach(`${seite}#verlauf`, 'Eintrag verworfen – es kam kein Gespräch zustande.');
-        case 'verlauf_eintragen':
-          await verlaufEintragen(db, t, id, { art: g('art') ?? 'notiz', grund: g('grund'), notiz: g('notiz'), kontaktId: g('kontakt_id') }, wer);
-          return nach(`${seite}#verlauf`, 'Eintrag gespeichert.');
-        case 'termin_anlegen': {
-          const terminId = await terminAnlegen(db, id, {
-            datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), fallId: g('fall_id'), terminartId: g('terminart_id'),
-            behandlungsort: g('behandlungsort'), fahrtVorMin: fahrtMinuten(g('fahrt_vor_min')), fahrtNachMin: fahrtMinuten(g('fahrt_nach_min')),
-          }, wer);
-          return nach(`${seite}#termine`, `Termin angelegt.${await spiegeln(terminId, wer)}${await fahrtHinweis(db, g('datum'))}`);
-        }
-        case 'termin_status':
-          await terminStatus(db, id, g('termin_id') ?? '', g('status') ?? '', wer);
-          return nach(`${seite}#termine`, `Termin geändert.${await spiegeln(g('termin_id') ?? '', wer)}`);
-        case 'termin_absagen': {
-          // Absage aus dem Kalender (W116c): Status setzen, Kalender bereinigen, dann die Nachricht vorwählen – nichts geht automatisch raus
-          const terminId = g('termin_id') ?? '';
-          const status = ['abgesagt_patient', 'abgesagt_praxis', 'nicht_erschienen'].includes(g('status') ?? '') ? g('status')! : 'abgesagt_praxis';
-          await terminStatus(db, id, terminId, status, wer);
-          const hinweis = await spiegeln(terminId, wer);
-          return nach(`${seite}?vorlage=absage_ersatztermin&termin=${terminId}#nachricht`, `Termin ${status === 'nicht_erschienen' ? 'als „nicht erschienen“ vermerkt' : 'abgesagt'}.${hinweis} Nachricht an den Patienten? Vorlage und Termin sind unten vorgewählt – nichts geht automatisch raus.`);
-        }
-        case 'termin_aendern': {
-          const terminId = g('termin_id') ?? '';
-          await terminAendern(db, id, terminId, {
-            datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), terminartId: g('terminart_id'),
-            behandlungsort: g('behandlungsort') ?? 'praxis', fahrtVorMin: fahrtMinuten(g('fahrt_vor_min')), fahrtNachMin: fahrtMinuten(g('fahrt_nach_min')),
-          }, wer);
-          return nach(`${seite}#termine`, `Termin geändert.${await spiegeln(terminId, wer)}${await fahrtHinweis(db, g('datum'))}`);
-        }
-        case 'rezept_termine_anlegen': {
-          // Terminserie zum Rezept (W110): nur angehakte Vorschläge, nie mehr als noch offen sind
-          const vid = g('verordnung_id') ?? '';
-          const v = (await verordnungen(db, { patientId: id })).find((x) => x.id === vid);
-          if (!v) throw new KarteiFehler('Dieses Rezept gibt es nicht');
-          if (v.status !== 'aktiv') throw new KarteiFehler('Termine lassen sich nur zu aktiven Rezepten planen');
-          const werte = terminWerte(f.getAll('termin'), ganz(f.get('dauer_min')));
-          const offen = v.anzahlVerordnet - v.abgehakt - v.geplant;
-          if (werte.length > offen) throw new KarteiFehler(`Auf dem Rezept ${offen <= 0 ? 'ist keine Behandlung mehr' : `sind nur noch ${offen} Behandlung${offen === 1 ? '' : 'en'}`} offen – ${werte.length} Termine gewählt`);
-          const hinweise = new Set<string>();
-          for (const w of werte) {
-            const terminId = await terminAnlegen(db, id, { ...w, verordnungId: vid, fallId: v.fallId ?? undefined, leistungNummer: v.leistungNummer ?? undefined, behandlungsort: g('behandlungsort') }, wer);
-            const h = await spiegeln(terminId, wer);
-            if (h) hinweise.add(h);
-          }
-          return nach(`${seite}#termine`, `${werte.length} Termin${werte.length === 1 ? '' : 'e'} zum Rezept angelegt.${[...hinweise].join('')}`);
-        }
-        case 'verordnung_anlegen': {
-          const art = g('art') ?? 'erst';
-          const vid = await verordnungAnlegen(db, t, id, {
-            ausgestelltAm: g('ausgestellt_am') ?? '', arzt: g('arzt'), massnahme: g('massnahme') ?? '', leistungNummer: g('leistung_nummer'), anzahl: ganz(f.get('anzahl')),
-            frequenz: g('frequenz'), diagnose: g('diagnose'), gueltigBis: g('gueltig_bis'), fallId: g('fall_id') || undefined,
-            art, langzeit: f.has('langzeit'), vorgaengerId: art === 'erst' ? undefined : g('vorgaenger_id') || undefined, notiz: g('notiz'),
-          }, wer);
-          if (art === 'korrektur') return nach(`${seite}#rezepte`, 'Korrektur angelegt – das alte Rezept gilt als ersetzt, seine Haken zählen weiter.');
-          // Gleich weiter zu den Terminvorschlägen (W110)
-          return nach(`/patienten/${id}/rezepte/${vid}/termine`, 'Rezept angelegt – hier die Termine dazu planen.');
-        }
-        case 'zweitschrift':
-          await zweitschriftVermerken(db, id, g('verordnung_id') ?? '', g('datum'), wer);
-          return nach(`${seite}#rezepte`, 'Zweitschrift vermerkt – kein neues Kontingent.');
-        case 'verordnung_abbrechen':
-          await verordnungAbbrechen(db, id, g('verordnung_id') ?? '', g('grund') ?? '', wer);
-          return nach(`${seite}#rezepte`, 'Rezept abgebrochen. Die Abschlussrechnung kommt mit der Abrechnung (Prompt 14).');
-        case 'serie_anlegen': {
-          const grundlage = g('grundlage') === 'praevention' ? 'praevention' : 'direktzugang';
-          await fallAnlegen(db, t, id, { grundlage, bezeichnung: g('bezeichnung'), anlass: g('anlass'), begonnenAm: g('begonnen_am'), wellnessLeistungId: g('wellness_id') }, wer);
-          return nach(`${seite}#rezepte`, grundlage === 'praevention' ? 'Wellness-Serie angelegt.' : 'Behandlungsserie ohne Rezept angelegt.');
-        }
-        case 'serie_abschliessen':
-          await serieAbschliessen(db, id, g('fall_id') ?? '', wer);
-          return nach(`${seite}#rezepte`, 'Serie abgeschlossen.');
-        case 'behandlung_erfassen': {
-          const neu = g('fall_id') === 'neu';
-          const e = await behandlungErfassen(db, t, id, {
-            fallId: neu ? undefined : g('fall_id'),
-            neuerFall: neu ? { grundlage: g('grundlage') ?? '', bezeichnung: g('fall_bezeichnung'), anlass: g('anlass'), diagnoseArzt: g('diagnose_arzt') } : undefined,
-            datum: g('datum') ?? '', dauerMin: ganz(f.get('dauer_min')) || undefined, terminId: g('termin_id') || undefined, verordnungId: g('verordnung_id') || undefined,
-            leistungNummer: g('leistung_nummer'), massnahmen: g('massnahmen'), verlaufWirkung: g('verlauf_wirkung'), reaktionen: g('reaktionen'), uebungen: g('uebungen'),
-          }, wer);
-          // Bestätigung des Patienten (W107a): Unterschrift am Bildschirm, Papier oder mündlich – „keine“ lässt sie weg
-          const art = g('bestaetigung') ?? 'keine';
-          if (art !== 'keine') {
-            try {
-              await bestaetigungSpeichern(db, t, id, e.behandlungId, { art, unterschrift: g('unterschrift'), werName: g('bestaetigt_von') }, wer);
-            } catch (err) {
-              if (err instanceof KarteiFehler) return nach(`/patienten/${id}/akte#b-${e.behandlungId}`, `Behandlung in der Akte eingetragen – ohne Bestätigung: ${err.message}`);
-              throw err;
-            }
-            return nach(`/patienten/${id}/akte#b-${e.behandlungId}`, `Behandlung in der Akte eingetragen und vom Patienten bestätigt (${BESTAETIGUNG_TEXT[art as keyof typeof BESTAETIGUNG_TEXT] ?? art}).`);
-          }
-          return nach(`/patienten/${id}/akte#b-${e.behandlungId}`, 'Behandlung in der Akte eingetragen.');
-        }
-        // Rechnungen (W79, W81)
-        case 'rechnung_neu': {
-          const rid = await rechnungAnlegen(db, id, { steuerklasse: g('steuerklasse') === 'wellness_19' ? 'wellness_19' : 'heilbehandlung_steuerfrei', fallId: g('fall_id') }, wer);
-          return nach(`/patienten/${id}/rechnungen/${rid}`, 'Rechnungsentwurf angelegt.');
-        }
-        case 'rechnung_position_hinzufuegen':
-          await positionHinzufuegen(db, id, g('rechnung_id') ?? '', { nummer: g('nummer'), wellnessId: g('wellness_id'), bezeichnung: g('bezeichnung'), anzahl: ganz(f.get('anzahl'), 1), einzelpreis: g('einzelpreis'), datum: g('datum') }, wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Position hinzugefügt.');
-        case 'rechnung_position_aendern':
-          await positionAendern(db, id, g('rechnung_id') ?? '', g('position_id') ?? '', { datum: g('datum'), bezeichnung: g('bezeichnung'), anzahl: ganz(f.get('anzahl'), 1), einzelpreis: g('einzelpreis') }, wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Position geändert.');
-        case 'rechnung_position_loeschen':
-          await positionLoeschen(db, id, g('rechnung_id') ?? '', g('position_id') ?? '', wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Position entfernt.');
-        case 'rechnung_baustein_hinzufuegen':
-          await bausteinHinzufuegen(db, id, g('rechnung_id') ?? '', g('textbaustein_id') ?? '', wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Text hinzugefügt.');
-        case 'rechnung_baustein_aendern':
-          await bausteinAendern(db, id, g('rechnung_id') ?? '', g('baustein_id') ?? '', g('text') ?? '', wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Text übernommen.');
-        case 'rechnung_baustein_entfernen':
-          await bausteinEntfernen(db, id, g('rechnung_id') ?? '', g('baustein_id') ?? '', wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, 'Text entfernt.');
-        case 'rechnung_preise': {
-          const e = await preiseAktualisieren(db, id, g('rechnung_id') ?? '', wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, `Preise aus „${e.name}“ übernommen – ${e.geaendert} Position(en) angepasst.`);
-        }
-        case 'rechnung_status': {
-          const a = g('status_aktion') as Parameters<typeof rechnungStatus>[3];
-          if (!['fertig', 'zurueck', 'in_lexware', 'versendet', 'bezahlt', 'storno'].includes(a)) throw new KarteiFehler('Unbekannte Aktion');
-          const meldung = await rechnungStatus(db, id, g('rechnung_id') ?? '', a, { versandArt: g('versand_art'), grund: g('grund'), nummer: g('nummer'), datum: g('datum') }, wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, meldung);
-        }
-        // Rechnung in zwei Klicks (W100/A28): Klick 1 nach Lexware, Klick 2 versenden
-        case 'rechnung_lexware': {
-          if (!q.lexwareRechnungen) throw new KarteiFehler('Lexware ist nicht angebunden');
-          const e = await rechnungNachLexware(db, t, q.lexwareRechnungen, id, g('rechnung_id') ?? '', wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, `In Lexware mit Nummer ${e.nummer} – PDF liegt im Tresor.${e.kontaktNeu ? ' Der Empfänger wurde in Lexware als Kunde angelegt.' : ''} Jetzt „Versenden“.`);
-        }
-        case 'rechnung_versenden': {
-          const e = await rechnungSenden(db, t, q.graph, id, g('rechnung_id') ?? '', { art: g('versand_art') }, wer);
-          return nach(`/patienten/${id}/rechnungen/${g('rechnung_id')}`, e.meldung);
-        }
-        // Nachrichten (W90, W91)
-        case 'mail_entwurf': {
-          const e = await mailEntwurf(db, t, q.graph, id, {
-            vorlage: g('vorlage') ?? '', terminId: g('termin_id') || undefined, rechnungId: g('rechnung_id') || undefined, freitext: g('freitext'),
-            anhangRechnungen: f.getAll('anhang_rechnung'), anhangDokumente: f.getAll('anhang_dokument'),
-          }, wer);
-          return nach(`${seite}#verlauf`, `Entwurf liegt im Postfach – in Outlook unter „Entwürfe“ prüfen und senden.${e.anhaenge ? ` ${e.anhaenge} Anhang dabei.` : ''}${e.hinweise.length ? ` ${e.hinweise.join(' ')}` : ''}`);
-        }
-        case 'whatsapp_senden': {
-          if (!q.whatsapp) throw new KarteiFehler('WhatsApp-Versand ist nicht eingerichtet – der WhatsApp-Knopf öffnet die Nachricht auf dem Handy');
-          await whatsappSenden(db, t, q.whatsapp, id, { vorlage: g('vorlage') ?? '', terminId: g('termin_id') || undefined, rechnungId: g('rechnung_id') || undefined, freitext: g('freitext') }, wer);
-          return nach(`${seite}#verlauf`, 'WhatsApp-Nachricht gesendet und im Verlauf vermerkt.');
-        }
-        case 'whatsapp_vermerken':
-          await whatsappVermerken(db, t, id, { vorlage: g('vorlage') ?? '', terminId: g('termin_id') || undefined }, wer);
-          return nach(`${seite}#verlauf`, 'WhatsApp vermerkt.');
-        // Rechnungen aus Lexware (W103): für diesen Patienten holen – Kacheln mit Datei im Tresor; nichts wird gelöscht
-        case 'lexware_rechnungen': {
-          if (!q.lexwareRechnungen) throw new KarteiFehler('Lexware ist nicht angebunden');
-          await kontaktIdNachtragen(db, q.lexware, id);
-          const e = await rechnungenUebernehmen(db, t, q.lexwareRechnungen, { patientId: id, wer });
-          return nach(`${seite}#rechnungen`, `Aus Lexware: ${uebernahmeText(e)}`);
-        }
-        // Abgleich der gemeinsamen Felder (W99b): ein Lexware-Wert auf Klick; Patient als Kunde nach Lexware
-        case 'lexware_uebernehmen': {
-          const kunde = await lexwareKundeZu((await patientLesen(db, t, id))?.lexwareKundennummer ?? null);
-          if (!kunde) throw new KarteiFehler('Der Lexware-Kunde ist gerade nicht erreichbar oder der Patient nicht verknüpft');
-          const titel = await feldUebernehmen(db, t, id, kunde, g('feld') ?? '', wer);
-          return nach(`${seite}#rechnungen`, `${titel} aus Lexware übernommen.`);
-        }
-        case 'lexware_kunde_anlegen': {
-          if (!q.lexwareRechnungen) throw new KarteiFehler('Lexware ist nicht angebunden');
-          const { nummer } = await kundeInLexwareAnlegen(db, t, q.lexwareRechnungen, id, wer);
-          if (q.lexware && !q.lexware.attrappe) await q.lexware.alle({ neu: true }).catch(() => undefined);
-          return nach(`${seite}#rechnungen`, `In Lexware als Kunde ${nummer} angelegt.`);
-        }
-        // Lexware-Kunden (W99): nur die Verknüpfung über die Kundennummer – keine Stammdaten aus Lexware
-        case 'lexware_zuordnen': {
-          const nummer = (g('kundennummer') ?? '').trim();
-          const { name } = await lexwareVerknuepfen(db, id, { nummer, kontaktId: g('kontakt_id') }, wer);
-          return nach(`/patienten/lexware#lx-${nummer}`, `Lexware-Kunde ${nummer} ist jetzt ${name} zugeordnet.`);
-        }
-        case 'lexware_loesen': {
-          const { nummer } = await lexwareLoesen(db, id, wer);
-          return nach(nummer ? `/patienten/lexware#lx-${nummer}` : '/patienten/lexware', nummer ? `Verknüpfung mit Lexware-Kunde ${nummer} gelöst.` : 'Der Patient war mit keinem Lexware-Kunden verknüpft.');
-        }
-        case 'archivieren':
-          await statusSetzen(db, id, 'archiviert', wer);
-          return nach('/patienten', 'Patient archiviert – die Akte bleibt erhalten.');
-        case 'reaktivieren':
-          await statusSetzen(db, id, 'aktiv', wer);
-          return nach(seite, 'Patient ist wieder aktiv.');
-        default:
-          throw new KarteiFehler('Unbekannte Aktion');
-      }
-    },
+    // Aktionen aus Formularen (A32): Tabelle je Fachgebiet in aktionen/, hier nur der Kontext
+    aktion: (f, wer) => aktionAusfuehren({
+      db, t, q, f, wer, id: f.get('id') ?? '', g: (name) => f.get(name) ?? undefined, seite: `/patienten/${f.get('id') ?? ''}`,
+      nach: (ziel, meldung) => ({ ziel, meldung }), spiegeln: (terminId) => spiegeln(terminId, wer), lexwareKundeZu,
+    }),
   };
 }
