@@ -49,6 +49,18 @@ export interface WochenSuche { dauer: number; wochenstart: string; tage: { datum
 const minuten = (a: string, b: string): number => Math.round((Date.parse(b) - Date.parse(a)) / 60_000);
 export const montagVon = (datum: string): string => tagPlus(datum, 1 - wochentag(datum));
 
+/** Einträge nach deutschem Kalendertag ihres Beginns gruppieren – einmal rechnen statt je Tag filtern */
+function nachTag<T extends { beginn: string }>(liste: T[]): Map<string, T[]> {
+  const m = new Map<string, T[]>();
+  for (const e of liste) {
+    const tag = datumBerlin(e.beginn);
+    const bisher = m.get(tag);
+    if (bisher) bisher.push(e); else m.set(tag, [e]);
+  }
+  return m;
+}
+const leer: never[] = [];
+
 /** Lücken eines Tages: Öffnungsfenster minus belegte Blöcke (deren Pause steckt schon im Ende), frühestens `ab` */
 export function tagesLuecken(datum: string, regeln: SlotRegeln, belegt: Belegt[], ab?: string): Luecke[] {
   if (tagGesperrt(datum, regeln)) return [];
@@ -99,12 +111,15 @@ export async function monatsPlan(db: Db, graph: LeseGraph | undefined, jahr: num
   if (graph && !fehler) {
     try { bloecke = await outlookBloecke(db, graph, von, bis, regeln.oeffnungszeiten); } catch (err) { console.warn(`Kalender: ${(err as Error).message.slice(0, 200)}`); }
   }
+  const termineJeTag = nachTag(termine);
+  const bloeckeJeTag = nachTag(bloecke);
+  const belegtJeTag = nachTag(belegt);
   const tage: TagesPlan[] = [];
   for (let d = erster; d < naechster; d = tagPlus(d, 1)) {
     const oeffnung = tagGesperrt(d, regeln) ? [] : regeln.oeffnungszeiten.filter((f) => f.tag === wochentag(d));
-    const tTermine = termine.filter((t) => datumBerlin(t.beginn) === d);
-    const tBloecke = bloecke.filter((b) => datumBerlin(b.beginn) === d);
-    const luecken = d < heute ? [] : tagesLuecken(d, regeln, belegt.filter((b) => datumBerlin(b.beginn) === d), d === heute ? jetzt.toISOString() : undefined);
+    const tTermine = termineJeTag.get(d) ?? leer;
+    const tBloecke = bloeckeJeTag.get(d) ?? leer;
+    const luecken = d < heute ? [] : tagesLuecken(d, regeln, belegtJeTag.get(d) ?? leer, d === heute ? jetzt.toISOString() : undefined);
     const stand: TagesPlan['stand'] = d < heute ? 'vergangen'
       : !oeffnung.length ? 'zu'
         : !tTermine.length && !tBloecke.length && luecken.length ? 'frei'
@@ -122,9 +137,10 @@ export async function freieWoche(db: Db, graph: LeseGraph | undefined, o: { daue
   const start = montagVon(o.wochenstart);
   const regeln = await slotRegeln(db);
   const { belegt } = await belegtSicher(graph, db, berlinMitternachtUtc(start), berlinMitternachtUtc(tagPlus(start, 7)), regeln.pufferMin);
+  const belegtJeTag = nachTag(belegt);
   const tage = Array.from({ length: 7 }, (_, i) => tagPlus(start, i)).map((datum) => ({
     datum,
-    zeiten: datum < heute ? [] : anfaenge(tagesLuecken(datum, regeln, belegt.filter((b) => datumBerlin(b.beginn) === datum), datum === heute ? jetzt.toISOString() : undefined), o.dauer, regeln.pufferMin),
+    zeiten: datum < heute ? [] : anfaenge(tagesLuecken(datum, regeln, belegtJeTag.get(datum) ?? leer, datum === heute ? jetzt.toISOString() : undefined), o.dauer, regeln.pufferMin),
   }));
   return { dauer: o.dauer, wochenstart: start, tage };
 }
@@ -136,9 +152,10 @@ export async function naechsteFreie(db: Db, graph: LeseGraph | undefined, o: { a
   const regeln = await slotRegeln(db);
   const tage = o.tage ?? 14;
   const { belegt } = await belegtSicher(graph, db, berlinMitternachtUtc(heute), berlinMitternachtUtc(tagPlus(heute, tage)), regeln.pufferMin);
+  const belegtJeTag = nachTag(belegt);
   const liste: { beginn: string; ende: string }[] = [];
   for (let i = 0, datum = heute; i < tage && liste.length < (o.anzahl ?? 2); i++, datum = tagPlus(datum, 1)) {
-    const luecken = tagesLuecken(datum, regeln, belegt.filter((b) => datumBerlin(b.beginn) === datum), datum === heute ? jetzt.toISOString() : undefined);
+    const luecken = tagesLuecken(datum, regeln, belegtJeTag.get(datum) ?? leer, datum === heute ? jetzt.toISOString() : undefined);
     for (const l of luecken) {
       if (l.minuten < regeln.dauerMin || liste.length >= (o.anzahl ?? 2)) continue;
       liste.push({ beginn: l.beginn, ende: new Date(Date.parse(l.beginn) + regeln.dauerMin * 60_000).toISOString() });

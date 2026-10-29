@@ -31,12 +31,12 @@ interface TerminZeile {
 
 export const initialen = (vorname: string, nachname: string) => `${vorname.trim()[0]?.toUpperCase() ?? ''}. ${nachname.trim()[0]?.toUpperCase() ?? ''}.`;
 
+// Einmal angelegt – jedes `new Intl.DateTimeFormat` kostet nativen Speicher (ICU)
+const ORTSZEIT_FORMAT = new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
 /** Ortszeit "2026-11-03T09:30:00" für den Kalender */
 export function ortszeit(d: Date | string): string {
-  const teile = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      .formatToParts(new Date(d)).map((p) => [p.type, p.value]),
-  ) as Record<string, string>;
+  const teile = Object.fromEntries(ORTSZEIT_FORMAT.formatToParts(new Date(d)).map((p) => [p.type, p.value])) as Record<string, string>;
   return `${teile.year}-${teile.month}-${teile.day}T${teile.hour}:${teile.minute}:${teile.second}`;
 }
 

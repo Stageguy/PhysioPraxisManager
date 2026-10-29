@@ -15,7 +15,9 @@ import { esc, seite } from './layout.ts';
 import { symbol } from './symbole.ts';
 import { kalenderLink, terminZiel, type Kontext } from './terminplan.ts';
 
-const tagText = (tag: string, lang = false) => new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, weekday: lang ? 'long' : 'short', day: '2-digit', month: '2-digit', ...(lang ? { year: 'numeric' } : {}) }).format(new Date(`${tag}T12:00:00Z`));
+const TAG_KURZ = new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, weekday: 'short', day: '2-digit', month: '2-digit' });
+const TAG_LANG = new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+const tagText = (tag: string, lang = false) => (lang ? TAG_LANG : TAG_KURZ).format(new Date(`${tag}T12:00:00Z`));
 
 export interface KalenderSeiteDaten {
   tag: string;

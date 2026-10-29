@@ -3,22 +3,15 @@ export const ZONE = 'Europe/Berlin';
 /** So heißt dieselbe Zone in Outlook-Terminen */
 export const OUTLOOK_ZONE = 'W. Europe Standard Time';
 
+// Formatierer einmal anlegen: jedes `new Intl.DateTimeFormat` kostet nativen Speicher (ICU), und die Kalenderrechnung
+// ruft diese Helfer tausendfach – ohne Zwischenspeicher wuchs der Dienst je Monatsseite um 250 MB (W116, OOM im Test)
+const VERSATZ_FORMAT = new Intl.DateTimeFormat('en-US', { timeZone: ZONE, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const DATUM_FORMAT = new Intl.DateTimeFormat('en-CA', { timeZone: ZONE });
+const ZEIT_FORMAT = new Intl.DateTimeFormat('en-GB', { timeZone: ZONE, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' });
+
 /** Abstand der deutschen Ortszeit zu UTC in Minuten zum Zeitpunkt t (60 im Winter, 120 im Sommer) */
 function versatzMinuten(t: number): number {
-  const teile = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: ZONE,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-      .formatToParts(new Date(t))
-      .map((p) => [p.type, Number(p.value)]),
-  ) as Record<string, number>;
+  const teile = Object.fromEntries(VERSATZ_FORMAT.formatToParts(new Date(t)).map((p) => [p.type, Number(p.value)])) as Record<string, number>;
   const alsUtc = Date.UTC(teile.year!, teile.month! - 1, teile.day!, teile.hour!, teile.minute!, teile.second!);
   return Math.round((alsUtc - t) / 60_000);
 }
@@ -49,12 +42,12 @@ export function berlinZeitUtc(datum: string, zeit: string): string {
 
 /** Zeitpunkt (ISO, UTC) → Kalendertag in Deutschland, "2026-10-20" */
 export function datumBerlin(iso: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: ZONE }).format(new Date(iso));
+  return DATUM_FORMAT.format(new Date(iso));
 }
 
 /** Zeitpunkt (ISO, UTC) → Uhrzeit in Deutschland, "09:00" (rechnet, formatiert nicht – für Vergleiche) */
 export function zeitBerlin(iso: string): string {
-  return new Intl.DateTimeFormat('en-GB', { timeZone: ZONE, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+  return ZEIT_FORMAT.format(new Date(iso));
 }
 
 /** Der heutige Kalendertag in Deutschland, "2026-10-26" */

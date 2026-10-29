@@ -143,8 +143,10 @@ function tagesleiste(termine: Termin[], jetzt: string | undefined): string {
 }
 
 // ── Cockpit ─────────────────────────────────────────────────────────────────
+const HEUTE_FORMAT = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
 export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string; jetzt?: string; skriptInline?: string }): string {
-  const heute = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${d.heute}T12:00:00Z`));
+  const heute = HEUTE_FORMAT.format(new Date(`${d.heute}T12:00:00Z`));
 
   const rechnungen = `<section class="tafel" data-hilfe="uebersicht.rechnungen" aria-labelledby="t-re">
     <h2 id="t-re">${symbol('rechnung')} Neue Rechnungseingänge</h2>

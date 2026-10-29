@@ -230,12 +230,13 @@ export async function cockpitDaten(q: {
   return { heute, rechnungen, termine, anfragen, protokoll: log, namenZeigen: q.namenZeigen, freie };
 }
 
+const FREIE_FORMAT = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
 /** Die nächsten zwei freien Zeiten (W116d) – ohne Datenbank oder bei Störung leer */
 async function freieZeiten(db: Db | undefined, graph: Pick<GraphClient, 'paginate' | 'get' | 'post'> | undefined, jetzt?: Date): Promise<CockpitDaten['freie']> {
   if (!db) return [];
   try {
-    const format = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    return (await naechsteFreie(db, graph, { anzahl: 2, jetzt })).map((f) => ({ tag: datumBerlin(f.beginn), text: format.format(new Date(f.beginn)) }));
+    return (await naechsteFreie(db, graph, { anzahl: 2, jetzt })).map((f) => ({ tag: datumBerlin(f.beginn), text: FREIE_FORMAT.format(new Date(f.beginn)) }));
   } catch (err) {
     console.warn(`Freie Zeiten: ${(err as Error).message.slice(0, 160)}`);
     return [];
