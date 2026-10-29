@@ -140,10 +140,10 @@ test('Plausibilität: Hausbesuch ohne Adresse, fremde Adresse, Praxis ohne Fahrt
 
 test('Oberfläche: Terminformular mit Behandlungsort und Fahrt, Adressformular mit Art, Kalender mit Marke und Fahrt-Blöcken, Konfiguration', async () => {
   const formAnna = await seite(`/patienten/${anna}/neu/termin`);
-  assert.match(formAnna, /<select name="behandlungsort" data-hilfe="termin.behandlungsort"><option value="praxis" selected>Praxis<\/option><option value="adresse:\d+">Hausbesuch: Hausbesuch, Kneippstraße 1, 86825 Bad Wörishofen<\/option><\/select>/);
+  assert.match(formAnna, /<select name="behandlungsort" data-hilfe="termin.behandlungsort"><option value="praxis" selected>Praxis<\/option><option value="adresse:\d+">Hausbesuch: Hausbesuch \(Bad Wörishofen\)<\/option><\/select>/);
   assert.match(formAnna, /name="fahrt_vor_min"[^>]*placeholder="automatisch"/);
   const ohneHaus = await patientAnlegen(db, t, { vorname: 'Nora', nachname: 'Neu', kontakte: [{ art: 'email', wert: 'nora@example.org' }], adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Weg', hausnummer: '1', plz: '86825', ort: 'Bad Wörishofen' } }, 'x');
-  assert.match(await seite(`/patienten/${ohneHaus}/neu/termin`), /<option value="rechnung_kopieren">Hausbesuch: Rechnungsadresse als Hausbesuchadresse übernehmen \(Zuhause, Weg 1, 86825 Bad Wörishofen\)<\/option>/);
+  assert.match(await seite(`/patienten/${ohneHaus}/neu/termin`), /<option value="rechnung_kopieren">Hausbesuch: Rechnungsadresse übernehmen \(Bad Wörishofen\)<\/option>/);
   const bearbeiten = await seite(`/patienten/${bert}/termine/${bertTermin}/bearbeiten`);
   assert.match(bearbeiten, /<option value="adresse:\d+" selected>Hausbesuch: Pflegeheim/);
   assert.match(bearbeiten, /name="fahrt_vor_min"[^>]*value=""[^>]*placeholder="automatisch: 30"/);

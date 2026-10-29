@@ -283,11 +283,12 @@ export function adresseFormularSeite(p: Patient, a: Adresse | undefined, o: Rahm
  * Rechnungsadresse als Hausbesuchadresse übernehmen (legt sie beim Speichern an). Auch im Rezept-Serienformular.
  */
 export function behandlungsortFeld(p: Pick<Patient, 'id' | 'adressen'>, gewaehlt: string, hilfe = 'termin.behandlungsort'): string {
-  const adr = (a: Adresse) => [a.bezeichnung, [a.strasse, a.hausnummer].filter(Boolean).join(' '), [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  // Kurz halten: lange Optionstexte machen das Auswahlfeld am Handy breiter als die Seite (WebKit)
+  const adr = (a: Adresse) => `${a.bezeichnung ?? [a.strasse, a.hausnummer].filter(Boolean).join(' ') ?? 'Adresse'} (${a.ort ?? a.plz ?? '–'})`;
   const haus = p.adressen.filter((a) => a.typ === 'hausbesuch' || `adresse:${a.id}` === gewaehlt);
   const rechnung = p.adressen.find((a) => a.rechnungsadresse) ?? p.adressen[0];
   const opt = (wert: string, text: string, aus = false) => `<option value="${wert}"${wert === gewaehlt ? ' selected' : ''}${aus ? ' disabled' : ''}>${esc(text)}</option>`;
-  return `<label>Behandlungsort<select name="behandlungsort" data-hilfe="${hilfe}">${opt('praxis', 'Praxis')}${haus.map((a) => opt(`adresse:${a.id}`, `Hausbesuch: ${adr(a)}`)).join('')}${!haus.length && rechnung ? opt('rechnung_kopieren', `Hausbesuch: Rechnungsadresse als Hausbesuchadresse übernehmen (${adr(rechnung)})`) : ''}${p.adressen.length ? '' : opt('keine', 'Hausbesuch: zuerst eine Adresse anlegen', true)}</select></label>`;
+  return `<label>Behandlungsort<select name="behandlungsort" data-hilfe="${hilfe}">${opt('praxis', 'Praxis')}${haus.map((a) => opt(`adresse:${a.id}`, `Hausbesuch: ${adr(a)}`)).join('')}${!haus.length && rechnung ? opt('rechnung_kopieren', `Hausbesuch: Rechnungsadresse übernehmen (${rechnung.ort ?? rechnung.plz ?? '–'})`) : ''}${p.adressen.length ? '' : opt('keine', 'Hausbesuch: zuerst eine Adresse anlegen', true)}</select></label>`;
 }
 
 /** Neue Rechnung: Leistungsgruppe wählen, der Entwurf entsteht beim Anlegen (W115) */
