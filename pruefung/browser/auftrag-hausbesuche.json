@@ -1,0 +1,17 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "patient", "pfad": "/patienten/116" },
+    { "name": "termin-neu", "pfad": "/patienten/116/neu/termin" },
+    { "name": "termin-bearbeiten", "pfad": "/patienten/116/termine/528/bearbeiten" },
+    { "name": "adresse-neu", "pfad": "/patienten/116/adressen/neu" },
+    { "name": "tag-dienstag", "pfad": "/kalender?ansicht=tag&tag=2026-11-10" },
+    { "name": "tag-mittwoch", "pfad": "/kalender?ansicht=tag&tag=2026-11-11" },
+    { "name": "monat", "pfad": "/kalender?ansicht=monat&monat=2026-11" },
+    { "name": "konfiguration", "pfad": "/konfiguration" }
+  ]
+}

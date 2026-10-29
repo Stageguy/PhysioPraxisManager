@@ -263,7 +263,7 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .wahl-chip:has(input:checked){background:var(--akzent);color:var(--bg);border-color:var(--akzent)}.wahl-chip input{accent-color:var(--akzent);min-height:0;width:18px;height:18px}
 .formular textarea{font:inherit;font-size:15px;color:var(--fg);background:var(--bg);border:1px solid var(--rand);border-radius:8px;padding:8px 10px}
 .formular .zwei{display:grid;grid-template-columns:1fr 1fr;gap:12px}.formular input.kurz{max-width:8em}
-.formular label,.formular .zwei>*{min-width:0}.formular select,.formular textarea{max-width:100%;width:100%;box-sizing:border-box}
+.formular label,.formular .zwei>*{min-width:0}.formular select,.formular textarea{max-width:100%;width:100%;box-sizing:border-box}.formular label>select,.formular label>input,.formular label>textarea{min-width:0}
 .formular.zeile{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end}.formular.zeile .haken{grid-column:1/-1}.formular.zeile .knopf{grid-column:1/-1;justify-self:start}
 .mehr-form summary{display:inline-flex;list-style:none;margin-top:8px}.mehr-form summary::-webkit-details-marker{display:none}.mehr-form .formular{margin-top:10px}
 .adr-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
@@ -393,7 +393,7 @@ table.regelzeiten td:nth-child(3){white-space:nowrap}details.regelzeiten-liste>s
 .kal-termin{display:flex;flex-direction:column;gap:2px;background:var(--karte);border:1px solid var(--rand);border-left:5px solid var(--rand);border-radius:10px;padding:6px 10px;margin-bottom:6px;color:var(--fg);text-decoration:none;font-size:14px}
 .kal-termin.rezept{border-left-color:var(--ok)}
 .kal-termin.block{border-left-color:var(--grau);color:var(--grau);background:color-mix(in srgb,var(--grau) 9%,var(--karte))}.kal-termin.outlook-patient{border-left-color:var(--akzent);border-style:dashed}
-.kal-termin.fahrt{border-left-color:var(--grau);border-style:dashed;color:var(--grau);background:repeating-linear-gradient(135deg,transparent 0 8px,color-mix(in srgb,var(--grau) 10%,transparent) 8px 12px)}.marke.hausbesuch{border-color:#8a5a1e;color:#8a5a1e}.mk-e.fahrt{color:var(--grau);font-style:italic}.mk-e .sym{vertical-align:-2px}
+.kal-termin.fahrt{border-left-color:var(--grau);border-style:dashed;border-left-style:solid;color:var(--grau);background:repeating-linear-gradient(135deg,transparent 0 8px,color-mix(in srgb,var(--grau) 10%,transparent) 8px 12px)}.marke.hausbesuch{border-color:#8a5a1e;color:#8a5a1e}.mk-e.fahrt{color:var(--grau);font-style:italic}.mk-e .sym{vertical-align:-2px}
 .kal-oeff{margin:-2px 0 6px;font-size:12px;color:var(--grau)}.kal-tag.zu{opacity:.7}
 /* Terminkalender zum Buchen (W116): Tagesansicht mit Lücken und Aktionen, Monatsansicht, Suchfenster */
 .kal-termin.luecke{border-left-color:#1f7a3f;color:#1f7a3f;background:color-mix(in srgb,#1f7a3f 8%,var(--karte))}.kal-termin.luecke b{color:#1f7a3f}

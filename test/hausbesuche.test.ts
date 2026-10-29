@@ -200,8 +200,8 @@ test('Testtermine neu planen (W113d): überlappende künftige Termine erfundener
   const { testtermineNeuPlanen } = await import('../src/kartei/testdaten.ts');
   const dienstag = (await db.query<{ tag: string }>("SELECT to_char(min(t.beginn) AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS tag FROM termin t JOIN patient p ON p.id = t.patient_id WHERE p.patientennummer = 'T-1051'")).rows[0]!.tag;
   const alt = await patientAnlegen(db, t, { patientennummer: 'T-1099', vorname: 'Alt', nachname: 'Überlapp', kontakte: [{ art: 'email', wert: 'alt@example.org' }] }, 'x');
-  // 13:10 kollidiert mit Hannas Hausbesuch 13:00–13:45 samt Fahrt; 14:35 mit Ilse 14:30 in der Praxis
-  const a = await terminAnlegen(db, alt, { datum: dienstag, zeit: '13:10', dauerMin: 30 }, 'x');
+  // 12:55 beginnt vor Hannas Hausbesuch (13:00), liegt aber in dessen Fahrt hin (12:45–13:00) – der feste Termin gewinnt; 14:35 kollidiert mit Ilse 14:30 in der Praxis
+  const a = await terminAnlegen(db, alt, { datum: dienstag, zeit: '12:55', dauerMin: 30 }, 'x');
   const b = await terminAnlegen(db, alt, { datum: dienstag, zeit: '14:35', dauerMin: 30 }, 'x');
   const vorher = await testtermineNeuPlanen(db, 'x');
   assert.deepEqual([vorher.verlegt, vorher.entfallen], [2, 0]);

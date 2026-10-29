@@ -53,15 +53,13 @@ export async function testtermineNeuPlanen(db: Db, wer: string): Promise<{ gepru
     id: String(r.id), patientId: String(r.patient_id), nr: String(r.patientennummer), beginn: new Date(r.beginn as string).getTime() - Number(r.fahrt_vor_min) * 60_000,
     ende: new Date(r.ende as string).getTime() + (Number(r.puffer) + Number(r.fahrt_nach_min)) * 60_000, frei: 0, rest: r,
   }));
-  // Je Tag: ein Termin passt, wenn er erst nach dem Ende (mit Pause und Fahrt) des zuletzt behaltenen beginnt
+  // Die festen Testtermine bleiben immer stehen; jeder andere passt, wenn sein Block (mit Fahrt, Pause) keinen behaltenen Block berührt
   const konflikte: Zeile[] = [];
-  let letztesEnde = 0;
-  let tag = '';
+  const behalten: Zeile[] = termine.filter((t) => fest(t.nr));
   for (const t of termine) {
-    const d = datumBerlin(new Date(t.rest.beginn as string).toISOString());
-    if (d !== tag) { tag = d; letztesEnde = 0; }
-    if (t.beginn < letztesEnde && !fest(t.nr)) { konflikte.push(t); continue; }
-    letztesEnde = Math.max(letztesEnde, t.ende);
+    if (fest(t.nr)) continue;
+    if (behalten.some((b) => t.beginn < b.ende && t.ende > b.beginn)) konflikte.push(t);
+    else behalten.push(t);
   }
   let verlegt = 0;
   let entfallen = 0;
