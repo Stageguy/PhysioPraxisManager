@@ -57,7 +57,8 @@ test('Freie Zeiten: Öffnungszeiten, Belegtes, Puffer, Feiertag, Zeitumstellung'
   // Belegt 08:10–08:40 am Montag: erst wieder ab 08:45 (Raster), mit Puffer 10 ab 09:00
   const belegt = [{ beginn: '2026-10-26T07:10:00Z', ende: '2026-10-26T07:40:00Z' }];
   assert.deepEqual(freieSlots({ ab: '2026-10-26T00:00:00Z', tage: 1, belegt, regeln: REGELN }).map((x) => x.beginn).slice(0, 2), ['2026-10-26T07:45:00.000Z', '2026-10-26T08:00:00.000Z']);
-  assert.equal(freieSlots({ ab: '2026-10-26T00:00:00Z', tage: 1, belegt, regeln: { ...REGELN, pufferMin: 10 } })[0]!.beginn, '2026-10-26T08:00:00.000Z');
+  // Pause (W116a): die Pause eines Blocks steckt in seinem Ende, vor dem Block bleibt die Pause des neuen Termins frei – nach dem Block geht es ab 08:45 weiter
+  assert.equal(freieSlots({ ab: '2026-10-26T00:00:00Z', tage: 1, belegt, regeln: { ...REGELN, pufferMin: 10 } })[0]!.beginn, '2026-10-26T07:45:00.000Z');
   // Feiertag: Freitag 25.12.2026 fällt weg
   assert.equal(freieSlots({ ab: '2026-12-25T00:00:00Z', tage: 1, belegt: [], regeln: REGELN }).length, 0);
   // Ganztägig belegt

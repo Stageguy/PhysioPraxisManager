@@ -405,6 +405,27 @@ table.regelzeiten td:nth-child(3){white-space:nowrap}details.regelzeiten-liste>s
 .kal-termin.rezept{border-left-color:var(--ok)}
 .kal-termin.block{border-left-color:var(--grau);color:var(--grau);background:color-mix(in srgb,var(--grau) 9%,var(--karte))}.kal-termin.outlook-patient{border-left-color:var(--akzent);border-style:dashed}
 .kal-oeff{margin:-2px 0 6px;font-size:12px;color:var(--grau)}.kal-tag.zu{opacity:.7}
+/* Terminkalender zum Buchen (W116): Tagesansicht mit Lücken und Aktionen, Monatsansicht, Suchfenster */
+.kal-termin.luecke{border-left-color:#1f7a3f;color:#1f7a3f;background:color-mix(in srgb,#1f7a3f 8%,var(--karte))}.kal-termin.luecke b{color:#1f7a3f}
+.kal-aktionen{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}.kal-aktionen a{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--akzent);text-decoration:none;min-height:28px;padding:0 8px;border:1px solid var(--rand);border-radius:999px}
+.freie-zeile{margin:-4px 0 10px;font-size:14px}.freie-zeile a{font-weight:600}
+.mk-kopfzeile{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:8px 0}.mk-zaehler-reihe{display:flex;gap:14px;flex-wrap:wrap}.mk-zaehler{white-space:nowrap}.mk-zaehler b{font-size:18px}
+.mk-legende{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px}.mk-legende .legende{margin:0}.mk-l{display:inline-flex;align-items:center;gap:4px}.mk-l::before{content:"";width:14px;height:14px;border-radius:4px;border:2px solid var(--rand);background:var(--karte)}
+.mk-l.frei::before{border-color:#2e9d57}.mk-l.teilweise::before{border-color:#e0b000}.mk-l.voll::before{border-color:#d93025}.mk-l.luecke::before{background:#1f7a3f;border-color:#1f7a3f}.mk-l.block::before{background:var(--grau);border-color:var(--grau)}
+.mk-namen{margin-left:auto}.mk-suche{margin:8px 0}
+.mk-panel{background:var(--karte);border:1px solid var(--rand);border-radius:12px;padding:10px 12px;margin:8px 0 12px}.mk-panel header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.mk-panel header b{flex:1}
+.mk-woche{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}.mk-wtag{display:flex;flex-direction:column;gap:4px;font-size:13px}.mk-wtag b{font-size:13px}
+.mk-zeit{display:inline-flex;justify-content:center;align-items:center;padding:4px 6px;border-radius:8px;background:color-mix(in srgb,#1f7a3f 14%,var(--karte));color:#1f7a3f;text-decoration:none;font-weight:600;min-height:32px}
+.mk-wochentage{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:8px}.mk-wt{font-size:12px;color:var(--grau);text-align:center}
+.mk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:4px}
+.mk-tag{position:relative;display:flex;flex-direction:column;gap:2px;min-height:118px;padding:6px;border:2px solid var(--rand);border-radius:10px;background:var(--karte);color:var(--fg);text-decoration:none;font-size:12px;min-width:0}
+.mk-tag.fremd{background:transparent;border-color:transparent}.mk-tag.stand-frei{border-color:#2e9d57}.mk-tag.stand-teilweise{border-color:#e0b000}.mk-tag.stand-voll{border-color:#d93025}.mk-tag.stand-zu{background:color-mix(in srgb,var(--grau) 8%,var(--karte))}.mk-tag.stand-vergangen{opacity:.65}.mk-tag.heute{box-shadow:0 0 0 2px var(--akzent) inset}
+.mk-kopf{display:flex;gap:4px;align-items:baseline;min-width:0}.mk-kopf b{font-size:14px}.mk-zahl{margin-left:auto;color:var(--grau)}.mk-frei{color:#b3261e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mk-e{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:3px solid var(--rand);padding-left:4px;line-height:1.3}.mk-e small{color:var(--grau);font-size:11px}
+.mk-e.sek-rezept{border-left-color:var(--sek-rezept)}.mk-e.sek-selbstzahler{border-left-color:var(--sek-selbstzahler)}.mk-e.sek-wellness{border-left-color:var(--sek-wellness)}.mk-e.block{border-left-color:var(--grau);color:var(--grau)}.mk-e.luecke{border-left-color:#1f7a3f;color:#1f7a3f;font-weight:600}.mk-e.luecke small{color:#1f7a3f}.mk-e.erledigt{opacity:.6}.mk-e.mehr{color:var(--akzent);font-weight:600;border-left-color:transparent}
+.mk-mehr{display:none;position:absolute;left:-2px;top:-2px;z-index:30;min-width:calc(100% + 4px);width:max-content;max-width:320px;background:var(--karte);border:2px solid var(--akzent);border-radius:10px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.2)}.mk-mehr .mk-e{white-space:normal}
+.mk-tag:hover .mk-mehr,.mk-tag:focus-visible .mk-mehr{display:block}
+@media (max-width:900px){.mk{grid-template-columns:repeat(7,minmax(40px,1fr));gap:3px}.mk-tag{min-height:60px;padding:3px}.mk-e,.mk-mehr{display:none!important}.mk-woche{grid-template-columns:repeat(2,minmax(0,1fr))}.mk-namen{margin-left:0}}
 table.oeffnungszeiten input[type=time]{min-height:34px;width:112px}table.oeffnungszeiten input[type=checkbox]{width:20px;height:20px;accent-color:var(--akzent)}
 /* Sektionen (W95): Teilrahmen links und Symbol in der Farbe der Sektion */
 .kal-termin.sek-rezept{border-left-color:var(--sek-rezept)}.kal-termin.sek-selbstzahler{border-left-color:var(--sek-selbstzahler)}.kal-termin.sek-wellness{border-left-color:var(--sek-wellness)}

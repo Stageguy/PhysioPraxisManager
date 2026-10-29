@@ -111,13 +111,16 @@ const tageszeit = (iso: string): 'vormittag' | 'nachmittag' | 'abend' => {
   return h < 12 ? 'vormittag' : h < 17 ? 'nachmittag' : 'abend';
 };
 
-/** Alle freien Anfangszeiten eines Zeitraums, Tag für Tag, frühestens `ab` */
+/**
+ * Alle freien Anfangszeiten eines Zeitraums, Tag für Tag, frühestens `ab`. Pause (W116a): die Pause eines belegten
+ * Termins steckt schon in seinem Ende (belegteZeiten); vor jedem belegten Block bleibt die Pause des neuen Termins frei.
+ */
 export function freieSlots(o: { ab: string; tage: number; belegt: Belegt[]; regeln: SlotRegeln }): Slot[] {
   const raster = (o.regeln.rasterMin ?? 15) * 60_000;
   const dauer = o.regeln.dauerMin * 60_000;
   const puffer = o.regeln.pufferMin * 60_000;
   const abMs = new Date(o.ab).getTime();
-  const belegt = o.belegt.map((b) => ({ von: new Date(b.beginn).getTime() - puffer, bis: new Date(b.ende).getTime() + puffer })).sort((a, b) => a.von - b.von);
+  const belegt = o.belegt.map((b) => ({ von: new Date(b.beginn).getTime() - puffer, bis: new Date(b.ende).getTime() })).sort((a, b) => a.von - b.von);
   const slots: Slot[] = [];
   let datum = datumBerlin(o.ab);
   for (let i = 0; i < o.tage; i++, datum = tagPlus(datum, 1)) {

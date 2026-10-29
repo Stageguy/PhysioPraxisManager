@@ -29,6 +29,8 @@ import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
 import { rechnungSeite as ausgangsrechnungSeite } from './web/rechnung.ts';
 import { konfigurationSeite, textbausteinFormularSeite } from './web/konfiguration.ts';
 import { rezeptTermineSeite } from './web/rezept-termine.ts';
+import { monatSeite, terminAbsagenSeite, terminWahlSeite } from './web/terminplan.ts';
+import { montagVon } from './kartei/terminplan.ts';
 import { terminartenSeite, terminartFormularSeite } from './web/terminarten.ts';
 import { kalenderSeite } from './web/kalender.ts';
 import { steuerSeite } from './web/steuer.ts';
@@ -300,7 +302,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
       if (pfad === '/status') return senden(res, 200, 'text/html', statusseite(await opt.pruefen(), wer, opt.fassung));
       const freieMeldung = meldung ?? adresse.searchParams.get('meldung')?.slice(0, 300) ?? undefined;
       if (pfad.startsWith('/preislisten')) return await preislistenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
-      if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte') || pfad.startsWith('/pinnwand') || pfad.startsWith('/konfiguration') || pfad === '/kalender') return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
+      if (pfad.startsWith('/patienten') || pfad.startsWith('/rezepte') || pfad.startsWith('/pinnwand') || pfad.startsWith('/konfiguration') || pfad.startsWith('/kalender')) return await patientenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad.startsWith('/anfragen')) return await anfragenSeiten(req, res, pfad, adresse, wer, freieMeldung, fehler);
       if (pfad === '/rueckmeldung.js') return senden(res, 200, 'text/javascript', RUECKMELDUNG_SKRIPT);
       if (pfad === '/html2canvas.js') return senden(res, 200, 'text/javascript', await html2canvas());
@@ -415,7 +417,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (pfad === '/patienten/aktion') {
       if (fremdeHerkunft(req, res)) return;
       const f = await formular(req);
-      const zurueck = /^\/(patienten|rezepte|pinnwand|konfiguration)(\/[\w/-]*)?(\?[\w=&]+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
+      const zurueck = /^\/(patienten|rezepte|pinnwand|konfiguration|kalender)(\/[\w/-]*)?(\?[\w=&]+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
       // Drag & Drop auf der Pinnwand fragt per fetch und will eine Antwort als JSON statt einer Umleitung
       const alsJson = (req.headers.accept ?? '').includes('application/json');
       try {
@@ -449,12 +451,37 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const heuteTag = heuteBerlin();
       const tagParam = adresse.searchParams.get('tag') ?? '';
       const tag = /^\d{4}-\d{2}-\d{2}$/.test(tagParam) && !Number.isNaN(Date.parse(`${tagParam}T12:00:00Z`)) ? tagParam : heuteTag;
-      const ansicht = adresse.searchParams.get('ansicht') === 'woche' ? 'woche' : 'tag';
+      const ansichtParam = adresse.searchParams.get('ansicht');
+      const namenZeigen = adresse.searchParams.get('namen') === '1';
+      // Termin für einen Patienten anlegen (W116e): der Patient läuft als Kontext mit, freie Zeiten führen ins Formular
+      const patientParam = adresse.searchParams.get('patient') ?? '';
+      const kontextPatient = /^\d+$/.test(patientParam) ? await d.patient(patientParam) : undefined;
+      const patient = kontextPatient ? { id: kontextPatient.patient.id, name: `${kontextPatient.patient.vorname} ${kontextPatient.patient.nachname}` } : null;
+      if (ansichtParam === 'monat') {
+        const mm = /^(\d{4})-(\d{2})$/.exec(adresse.searchParams.get('monat') ?? '');
+        const jahr = mm ? Number(mm[1]) : Number(heuteTag.slice(0, 4));
+        const monat = mm ? Number(mm[2]) : Number(heuteTag.slice(5, 7));
+        if (monat < 1 || monat > 12 || jahr < 2000 || jahr > 2100) return senden(res, 404, 'text/plain', 'Diesen Monat gibt es nicht');
+        const plan = await d.monatsplan(jahr, monat);
+        const monatErster = `${jahr}-${String(monat).padStart(2, '0')}-01`;
+        const wocheParam = adresse.searchParams.get('woche') ?? '';
+        const woche = montagVon(/^\d{4}-\d{2}-\d{2}$/.test(wocheParam) ? wocheParam : heuteTag.slice(0, 7) === monatErster.slice(0, 7) ? heuteTag : monatErster);
+        const dauer = Number(adresse.searchParams.get('suche'));
+        const suche = [20, 30, 40, 60].includes(dauer) ? await d.freieWoche({ dauer, wochenstart: woche }) : undefined;
+        return senden(res, 200, 'text/html', monatSeite({ plan, suche, woche, patient, namenZeigen }, r));
+      }
+      const ansicht = ansichtParam === 'woche' ? 'woche' : 'tag';
       const tage = ansicht === 'woche' ? wocheUm(tag) : [tag];
       const termine = await d.kalender(berlinMitternachtUtc(tage[0]!), berlinMitternachtUtc(tagPlus(tage[tage.length - 1]!, 1)));
       const freieTage = await d.freieTage(tage[0]!, tage[tage.length - 1]!);
       const umfeld = await d.kalenderUmfeld(berlinMitternachtUtc(tage[0]!), berlinMitternachtUtc(tagPlus(tage[tage.length - 1]!, 1)));
-      return senden(res, 200, 'text/html', kalenderSeite({ tag, ansicht, termine, namenZeigen: adresse.searchParams.get('namen') === '1', heute: heuteTag, freieTage, ...umfeld }, r));
+      const luecken = ansicht === 'tag' ? (await d.tagesplan(tag))?.luecken : undefined;
+      return senden(res, 200, 'text/html', kalenderSeite({ tag, ansicht, termine, namenZeigen, heute: heuteTag, freieTage, ...umfeld, luecken, patient }, r));
+    }
+    if (pfad === '/kalender/termin') {
+      const q = (name: string) => adresse.searchParams.get(name) ?? undefined;
+      const dauerMin = /^\d{1,3}$/.test(q('dauer_min') ?? '') ? Number(q('dauer_min')) : undefined;
+      return senden(res, 200, 'text/html', terminWahlSeite({ patienten: await d.liste({}), terminarten: await d.terminarten(), vorbelegung: { datum: q('datum'), zeit: q('zeit'), dauerMin } }, r));
     }
     const rm = /^\/patienten\/(\d+)\/rechnungen\/(\d+)(\/pdf)?$/.exec(pfad);
     if (rm) {
@@ -524,10 +551,11 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const a = pa[2] === 'neu' ? undefined : p?.patient.adressen.find((x) => x.id === pa[2]);
       return p && (pa[2] === 'neu' || a) ? senden(res, 200, 'text/html', adresseFormularSeite(p.patient, a, r)) : senden(res, 404, 'text/plain', 'Diese Adresse gibt es nicht');
     }
-    const pt = /^\/patienten\/(\d+)\/termine\/(\d+)\/bearbeiten$/.exec(pfad);
+    const pt = /^\/patienten\/(\d+)\/termine\/(\d+)\/(bearbeiten|absagen)$/.exec(pfad);
     if (pt) {
       const t = await d.terminBearbeiten(pt[1]!, pt[2]!);
-      return t ? senden(res, 200, 'text/html', terminNeuSeite(t, { ...r, termin: t.termin })) : senden(res, 404, 'text/plain', 'Diesen Termin gibt es nicht oder er lässt sich nicht mehr ändern');
+      if (!t) return senden(res, 404, 'text/plain', 'Diesen Termin gibt es nicht oder er lässt sich nicht mehr ändern');
+      return senden(res, 200, 'text/html', pt[3] === 'absagen' ? terminAbsagenSeite({ patient: t.patient, termin: t.termin }, r) : terminNeuSeite(t, { ...r, termin: t.termin }));
     }
     // Terminvorschläge zu einem Rezept (W110)
     const rt = /^\/patienten\/(\d+)\/rezepte\/(\d+)\/termine$/.exec(pfad);
@@ -547,14 +575,17 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (neu) {
       const n = await d.neuAktion(id);
       if (!n) return senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
-      const html = neu === 'termin' ? terminNeuSeite(n, r) : neu === 'behandlung' ? behandlungNeuSeite(n, r)
+      const qv = (name: string) => adresse.searchParams.get(name) ?? undefined;
+      const html = neu === 'termin' ? terminNeuSeite(n, { ...r, vorbelegung: { datum: qv('datum'), zeit: qv('zeit'), dauerMin: /^\d{1,3}$/.test(qv('dauer_min') ?? '') ? Number(qv('dauer_min')) : undefined } }) : neu === 'behandlung' ? behandlungNeuSeite(n, r)
         : neu === 'direktzugang' ? serieNeuSeite(n, 'direktzugang', r) : neu === 'wellness' ? serieNeuSeite(n, 'praevention', r)
         : neu === 'rechnung' ? rechnungNeuSeite(n.patient, r)
         : rezeptNeuSeite(n, { ...r, vorgaenger: adresse.searchParams.get('vorgaenger') ?? undefined });
       return senden(res, 200, 'text/html', html);
     }
     const p = await d.patient(id);
-    return p ? senden(res, 200, 'text/html', patientSeite(p, r)) : senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
+    // Nach einer Absage (W116c): Vorlage und Termin der Nachricht vorwählen
+    const vorwahl = { vorlage: adresse.searchParams.get('vorlage') ?? undefined, termin: adresse.searchParams.get('termin') ?? undefined };
+    return p ? senden(res, 200, 'text/html', patientSeite(p, { ...r, vorwahl })) : senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
   }
 
   async function preislistenSeiten(req: IncomingMessage, res: ServerResponse, pfad: string, adresse: URL, wer: string, meldung?: string, fehler?: string): Promise<void> {

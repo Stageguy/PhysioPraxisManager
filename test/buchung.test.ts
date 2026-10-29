@@ -23,8 +23,9 @@ const ANGEBOT: Angebot = {
 
 test('Angebot: freie Fenster, Anfangszeiten, passt, sperren, prüfen', () => {
   const frei = freieFenster([{ beginn: '2026-11-02T07:00:00Z', ende: '2026-11-02T11:00:00Z' }], [{ beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z' }, { beginn: '2026-11-02T10:30:00Z', ende: '2026-11-02T12:00:00Z' }], { pufferMin: 10, ab: '2026-11-02T07:20:00Z' });
-  assert.deepEqual(frei, [{ beginn: '2026-11-02T07:20:00.000Z', ende: '2026-11-02T07:50:00.000Z' }, { beginn: '2026-11-02T08:40:00.000Z', ende: '2026-11-02T10:20:00.000Z' }]);
-  assert.deepEqual(anfangszeiten(frei, 30, 15).map((z) => z.slice(11, 16)), ['08:45', '09:00', '09:15', '09:30', '09:45']);
+  // Pause (W116a): vor jedem Block bleibt die Pause des neuen Termins frei; die Pause des Blocks steckt schon in dessen Ende
+  assert.deepEqual(frei, [{ beginn: '2026-11-02T07:20:00.000Z', ende: '2026-11-02T07:50:00.000Z' }, { beginn: '2026-11-02T08:30:00.000Z', ende: '2026-11-02T10:20:00.000Z' }]);
+  assert.deepEqual(anfangszeiten(frei, 30, 15).map((z) => z.slice(11, 16)), ['08:30', '08:45', '09:00', '09:15', '09:30', '09:45']);
   assert.ok(passt(ANGEBOT, '2026-11-02T08:30:00.000Z', 30));
   assert.ok(!passt(ANGEBOT, '2026-11-02T08:45:00.000Z', 30), 'ragt über das Fenster');
   assert.ok(!passt(ANGEBOT, '2026-11-02T08:05:00.000Z', 30), 'außerhalb des Rasters');

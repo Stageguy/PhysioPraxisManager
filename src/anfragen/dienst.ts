@@ -154,7 +154,7 @@ export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGrap
           const von = ab === heuteBerlin() ? new Date(Date.now() + 60 * 60_000).toISOString() : berlinMitternachtUtc(ab);
           const bis = berlinMitternachtUtc(tagPlus(ab, tage));
           await loeschen(a.vorschlaege);
-          const belegt = await belegteZeiten(q.graph, db, berlinMitternachtUtc(ab), bis, { ohneAnfrage: id });
+          const belegt = await belegteZeiten(q.graph, db, berlinMitternachtUtc(ab), bis, { ohneAnfrage: id, pufferMin: r.pufferMin });
           const slots = vorschlaegeBerechnen({ ab: von, tage, belegt, regeln: { ...r, dauerMin: dauer }, wunsch: f.has('ohne_wunsch') ? undefined : a.erkannt, anzahl: 3 });
           if (!slots.length) throw new KarteiFehler('Keine freie Zeit in diesem Zeitraum – Zeitraum verlängern oder Öffnungszeiten prüfen');
           const vorschlaege: Vorschlag[] = q.graph ? await reservieren(q.graph, id, slots) : slots.map((s) => ({ ...s, exchangeEventId: null }));

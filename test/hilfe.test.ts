@@ -21,6 +21,7 @@ import { konfigurationSeite, textbausteinFormularSeite } from '../src/web/konfig
 import { kalenderSeite } from '../src/web/kalender.ts';
 import { steuerSeite } from '../src/web/steuer.ts';
 import { anfrageNeuSeite, anfrageSeite, anfragenSeite } from '../src/web/anfragen.ts';
+import { monatSeite, terminAbsagenSeite, terminWahlSeite } from '../src/web/terminplan.ts';
 import { terminartenSeite, terminartFormularSeite } from '../src/web/terminarten.ts';
 import type { Anfrage } from '../src/anfragen/anfragen.ts';
 import type { Karte } from '../src/kartei/pinnwand.ts';
@@ -93,10 +94,10 @@ const KT = { id: '7', patientId: '1', vorname: 'Anna', nachname: 'Test', patient
 const AKTE = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', steuerklasse: 'heilbehandlung_steuerfrei', bezeichnung: 'Schulter', anlass: 'Schmerz', diagnoseArzt: 'M75.1', begonnenAm: '2026-10-01', abgeschlossenAm: null,
   behandlungen: [{ id: '5', datum: '2026-10-20', dauerMin: 30, behandeltVon: 'Lilli', status: 'erledigt', bestaetigung: { art: 'unterschrift' as const, zeitpunkt: '2026-10-20T10:30:00Z', werName: null, bild: true }, massnahmen: 'MT', verlaufWirkung: 'besser', reaktionen: null, uebungen: null, leistungen: [{ nummer: '21201', bezeichnung: 'MT', anzahl: 1, einzelpreis: 46.27, verordnungId: '1' }] }] }] };
 const TERMINARTEN = [
-  { id: '1', code: 'P1', sektion: 'rezept' as const, kurz: 'Neupatient – Erstanamnese und Befund', lang: 'Erster Termin', dauerMin: 60, leistungNummer: null, regelzeit: null, aktiv: true },
-  { id: '2', code: 'P4', sektion: 'rezept' as const, kurz: 'Krankengymnastik (KG)', lang: null, dauerMin: 30, leistungNummer: '20501', regelzeit: '15 bis 25 Minuten', aktiv: false },
-  { id: '3', code: 'S1', sektion: 'selbstzahler' as const, kurz: 'Erstbefund ohne Rezept', lang: 'ohne Rezept', dauerMin: 60, leistungNummer: null, regelzeit: null, aktiv: true },
-  { id: '4', code: 'W1', sektion: 'wellness' as const, kurz: 'Abhyanga – Ganzkörper-Ölmassage', lang: 'Öl', dauerMin: 90, leistungNummer: null, regelzeit: null, aktiv: true },
+  { id: '1', code: 'P1', sektion: 'rezept' as const, kurz: 'Neupatient – Erstanamnese und Befund', lang: 'Erster Termin', dauerMin: 60, leistungNummer: null, regelzeit: null, pufferMin: null, aktiv: true },
+  { id: '2', code: 'P4', sektion: 'rezept' as const, kurz: 'Krankengymnastik (KG)', lang: null, dauerMin: 30, leistungNummer: '20501', regelzeit: '15 bis 25 Minuten', pufferMin: null, aktiv: false },
+  { id: '3', code: 'S1', sektion: 'selbstzahler' as const, kurz: 'Erstbefund ohne Rezept', lang: 'ohne Rezept', dauerMin: 60, leistungNummer: null, regelzeit: null, pufferMin: null, aktiv: true },
+  { id: '4', code: 'W1', sektion: 'wellness' as const, kurz: 'Abhyanga – Ganzkörper-Ölmassage', lang: 'Öl', dauerMin: 90, leistungNummer: null, regelzeit: null, pufferMin: null, aktiv: true },
 ];
 const NEU_AKTION = { patient: PAT, faelle: [{ id: '1', nummer: 1, grundlage: 'verordnung', bezeichnung: 'Schulter' }], verordnungen: [VERORDNUNG], alleVerordnungen: [VERORDNUNG], termine: [TERMIN], wellness: [WELLNESS], terminarten: TERMINARTEN };
 const KARTE: Karte = { fallId: '1', patientId: '1', patientName: 'Anna Test', patientennummer: 'P-1001', nummer: 1, grundlage: 'verordnung', phase: 'behandlung', bezeichnung: 'Schulter', seitPhase: '2026-10-20T08:00:00Z',
@@ -135,7 +136,23 @@ const DATEN: CockpitDaten = {
 /** Die Namen, die src/pruefung.ts für seine Prüfpunkte verwendet */
 const PRUEFPUNKTE = ['Konto', 'Posteingang', 'Kalender', 'OneDrive', 'Rechte'];
 
+const BLOCK = { outlookId: 'ev-1', beginn: '2026-11-03T08:00:00Z', ende: '2026-11-03T09:00:00Z', webLink: 'https://outlook.example/ev-1', art: 'geblockt' as const, reserviert: false, patientennummer: null, patientId: null };
+const TERMIN_DETAIL = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', fallId: '1', terminartId: '1', leistungNummer: null };
+const PLAN = {
+  jahr: 2026, monat: 11, heute: '2026-11-02', pufferMin: 10, postfach: true, frei: [20, 30, 40, 60].map((dauer) => ({ dauer, anzahl: dauer })),
+  tage: Array.from({ length: 30 }, (_, i) => {
+    const datum = `2026-11-${String(i + 1).padStart(2, '0')}`;
+    const stand = (i === 0 ? 'vergangen' : i === 1 ? 'voll' : i === 2 ? 'teilweise' : i % 7 >= 5 ? 'zu' : 'frei') as 'zu' | 'frei' | 'teilweise' | 'voll' | 'vergangen';
+    return { datum, stand, freierTag: i === 0 ? 'Allerheiligen' : null, termine: i === 1 ? Array.from({ length: 7 }, () => KT) : i === 2 ? [KT] : [], bloecke: i === 2 ? [BLOCK] : [], luecken: i === 2 ? [{ beginn: '2026-11-03T09:00:00Z', ende: '2026-11-03T10:00:00Z', minuten: 60 }] : [], oeffnung: [] };
+  }),
+};
 const seiten = () => [
+  cockpitSeite({ ...DATEN, freie: [{ tag: '2026-11-02', text: 'Mo., 02.11., 09:00' }] }, { wer: 'lilli@example.org', fassung: '0.0.0', jetzt: '10:00' }),
+  monatSeite({ plan: PLAN, suche: { dauer: 30, wochenstart: '2026-11-02', tage: [{ datum: '2026-11-02', zeiten: ['2026-11-02T08:00:00Z'] }, { datum: '2026-11-03', zeiten: [] }] }, woche: '2026-11-02', patient: { id: '1', name: 'Anna Test' }, namenZeigen: false }, R),
+  monatSeite({ plan: { ...PLAN, fehler: 'x' }, woche: '2026-11-02', patient: null, namenZeigen: true }, R),
+  kalenderSeite({ tag: '2026-11-02', ansicht: 'tag', termine: [KT], namenZeigen: false, heute: '2026-11-02', luecken: [{ beginn: '2026-11-02T09:00:00Z', ende: '2026-11-02T10:00:00Z', minuten: 60 }], patient: { id: '1', name: 'Anna Test' } }, R),
+  terminWahlSeite({ patienten: [PAT], terminarten: TERMINARTEN, vorbelegung: { datum: '2026-11-02', zeit: '09:00', dauerMin: 30 } }, R),
+  terminAbsagenSeite({ patient: PAT, termin: TERMIN_DETAIL }, R),
   statusseite(PRUEFPUNKTE.map((name) => ({ name, ok: true, text: 'x' })), 'lilli@example.org', '0.0.0'),
   hilfeSeite({ wer: 'lilli@example.org', fassung: '0.0.0' }),
   cockpitSeite(DATEN, { wer: 'lilli@example.org', fassung: '0.0.0', jetzt: '10:00' }),

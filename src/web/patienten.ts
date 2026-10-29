@@ -46,7 +46,7 @@ const standChip = (p: PatientKurz) =>
 
 function patientMenue(p: Pick<PatientKurz, 'id'>): string {
   return `<details class="plus" data-hilfe="kachel.plus"><summary aria-label="Neue Aktivität">${PLUS_ZEICHEN}</summary><div class="plus-menue">
-    <a href="/patienten/${p.id}/neu/termin" data-hilfe="plus.termin">${symbol('kalender', { groesse: 18 })} Neuer Termin</a>
+    <a href="/kalender?ansicht=monat&patient=${p.id}" data-hilfe="plus.termin">${symbol('kalender', { groesse: 18 })} Neuer Termin</a>
     <a href="/patienten/${p.id}/neu/behandlung" data-hilfe="plus.behandlung">${symbol('protokoll', { groesse: 18 })} Neue Behandlung</a>
     <a href="/patienten/${p.id}/neu/rezept" data-hilfe="plus.rezept">${symbol('rezept', { groesse: 18 })} Neues Rezept</a>
     <a href="/patienten/${p.id}/neu/direktzugang" data-hilfe="plus.direktzugang">${symbol('freigabe', { groesse: 18 })} Behandlung ohne Rezept</a>
@@ -304,7 +304,7 @@ function adresseKachel(p: Patient, a: Adresse): string {
   </article>`;
 }
 
-export function patientSeite(d: PatientSeiteDaten, o: Rahmen): string {
+export function patientSeite(d: PatientSeiteDaten, o: Rahmen & { vorwahl?: { vorlage?: string; termin?: string } }): string {
   const p = d.patient;
   const zurueck = `/patienten/${p.id}`;
   const offene = d.verlauf.filter((v) => v.offen);
@@ -386,7 +386,7 @@ ${offenBox}
 </section>
 
 <section class="pat-abschnitt" id="termine"><h2>${symbol('kalender')} Termine</h2>
-  <div class="tk-raster">${plusKachel({ text: 'Neuer Termin', hilfe: 'plus.termin', href: `/patienten/${p.id}/neu/termin` })}${termine}</div>
+  <div class="tk-raster">${plusKachel({ text: 'Neuer Termin', hilfe: 'plus.termin', href: `/kalender?ansicht=monat&patient=${p.id}`, seite: true })}${termine}</div>
   ${termine ? '' : '<p class="leer">Keine kommenden Termine.</p>'}
 </section>
 
@@ -403,8 +403,8 @@ ${offenBox}
   <p class="hint">Terminbestätigung und -erinnerung stehen oben an jedem Termin. Der Knopf öffnet WhatsApp mit fertigem Text – Sie lesen, ändern und senden selbst. Keine Gesundheitsangaben (Leitplanke 9).</p>`
     : '<p class="hint">Keine WhatsApp-Nummer hinterlegt – unten unter Kontaktwege eintragen, dann erscheinen hier die WhatsApp-Knöpfe.</p>'}
   ${p.email ? `<form method="post" action="/patienten/aktion" class="formular nachricht"><input type="hidden" name="id" value="${p.id}"><input type="hidden" name="zurueck" value="${zurueck}">
-    <div class="zwei"><label>Vorlage<select name="vorlage" data-hilfe="nachricht.vorlage">${VORLAGEN.filter((v) => v.kanaele.includes('email')).map((v) => `<option value="${v.code}">${esc(v.name)}</option>`).join('')}</select></label>
-    <label>Termin <span class="hint">(Bestätigung, Erinnerung, Absage)</span><select name="termin_id" data-hilfe="nachricht.termin"><option value="">–</option>${d.termine.map((t) => `<option value="${t.id}">${esc(datumZeitText(t.beginn, { jahr: true }))}</option>`).join('')}</select></label></div>
+    <div class="zwei"><label>Vorlage<select name="vorlage" data-hilfe="nachricht.vorlage">${VORLAGEN.filter((v) => v.kanaele.includes('email')).map((v) => `<option value="${v.code}"${o.vorwahl?.vorlage === v.code ? ' selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>
+    <label>Termin <span class="hint">(Bestätigung, Erinnerung, Absage)</span><select name="termin_id" data-hilfe="nachricht.termin"><option value="">–</option>${d.termine.map((t) => `<option value="${t.id}"${o.vorwahl?.termin === t.id ? ' selected' : ''}>${esc(datumZeitText(t.beginn, { jahr: true }))}${t.status.startsWith('abgesagt') ? ' (abgesagt)' : ''}</option>`).join('')}</select></label></div>
     <div class="zwei"><label>Rechnung <span class="hint">(Zusenden, Erinnerung)</span><select name="rechnung_id" data-hilfe="nachricht.rechnung"><option value="">–</option>${d.rechnungen.filter((r) => r.nummer).map((r) => `<option value="${r.id}">${esc(r.nummer!)} · ${euroText(r.betrag)}</option>`).join('')}</select></label>
     <label>Text <span class="hint">(bei Freier Text, Terminvorschlag, Ersatztermin)</span><textarea name="freitext" rows="3" maxlength="2000" data-hilfe="nachricht.text"></textarea></label></div>
     <fieldset class="anhaenge" data-hilfe="nachricht.anhang"><legend>Anhänge</legend>
@@ -481,14 +481,15 @@ export const terminartOptionen = (arten: Terminart[], gewaehlt?: string | null) 
 }).join('');
 
 /** Ein Formular für „Neuer Termin“ und „Termin bearbeiten“ (W115) */
-export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminDetail }): string {
+export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminDetail; vorbelegung?: { datum?: string; zeit?: string; dauerMin?: number } }): string {
   const p = d.patient;
   const t = o.termin;
+  const v = o.vorbelegung ?? {};
   // Beim Bearbeiten auch das Rezept des Termins anbieten, falls es nicht mehr aktiv ist
   const liste = t?.verordnungId && !d.verordnungen.some((v) => v.id === t.verordnungId) ? [...d.verordnungen, ...d.alleVerordnungen.filter((v) => v.id === t.verordnungId)] : d.verordnungen;
   const rezepte = liste.map((v) => `<option value="${v.id}"${t?.verordnungId === v.id ? ' selected' : ''}>${esc(v.massnahme)} – ${v.abgehakt} von ${v.anzahlVerordnet} (vom ${datumText(v.ausgestelltAm)})</option>`).join('');
   const art = (wert: string, text: string) => `<option value="${wert}"${(t?.art ?? 'behandlung') === wert ? ' selected' : ''}>${text}</option>`;
-  const dauer = t ? Math.max(5, Math.round((Date.parse(t.ende) - Date.parse(t.beginn)) / 60_000)) : 30;
+  const dauer = t ? Math.max(5, Math.round((Date.parse(t.ende) - Date.parse(t.beginn)) / 60_000)) : (v.dauerMin && v.dauerMin > 0 ? v.dauerMin : 30);
   const titel = t ? 'Termin bearbeiten' : 'Neuer Termin';
   return seite({
     titel, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
@@ -497,7 +498,7 @@ export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminD
       zurueck: t ? `/patienten/${p.id}/termine/${t.id}/bearbeiten` : `/patienten/${p.id}/neu/termin`, abbrechen: `/patienten/${p.id}#termine`,
       hilfe: 'termin.formular', knopf: t ? 'Termin speichern' : 'Termin anlegen', knopfHilfe: t ? 'termin.aendern' : 'termin.anlegen', oben: meldungen(o),
       felder: `${t ? `<input type="hidden" name="termin_id" value="${t.id}">` : ''}
-  <div class="zwei"><label>Datum<input type="date" name="datum" required value="${t ? datumBerlin(t.beginn) : heuteBerlin()}"></label><label>Uhrzeit<input type="time" name="zeit" required value="${t ? zeitBerlin(t.beginn) : ''}"></label></div>
+  <div class="zwei"><label>Datum<input type="date" name="datum" required value="${t ? datumBerlin(t.beginn) : /^\d{4}-\d{2}-\d{2}$/.test(v.datum ?? '') ? esc(v.datum!) : heuteBerlin()}"></label><label>Uhrzeit<input type="time" name="zeit" required value="${t ? zeitBerlin(t.beginn) : /^\d{2}:\d{2}$/.test(v.zeit ?? '') ? esc(v.zeit!) : ''}"></label></div>
   <div class="zwei"><label>Dauer (Minuten)<input type="number" name="dauer_min" value="${dauer}" min="5" step="5"></label>
     <label>Art<select name="art">${art('behandlung', 'Behandlung')}${art('erstgespraech', 'Erstgespräch')}${art('sonstige', 'Sonstiges')}</select></label></div>
   <label>Rezept<select name="verordnung_id"><option value="">kein Rezept (Individualtermin)</option>${rezepte}</select></label>

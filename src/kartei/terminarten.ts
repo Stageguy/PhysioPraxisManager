@@ -26,17 +26,19 @@ export interface Terminart {
   dauerMin: number;
   leistungNummer: string | null;
   regelzeit: string | null;
+  /** Pause (Rüstzeit) nach dem Termin in Minuten (W116a); null = Standard aus der Konfiguration */
+  pufferMin: number | null;
   aktiv: boolean;
 }
 
 const zeile = (r: Record<string, unknown>): Terminart => ({
   id: String(r.id), code: String(r.code), sektion: r.sektion as Sektion, kurz: String(r.kurz), lang: text(r.lang), dauerMin: Number(r.dauer_min),
-  leistungNummer: text(r.leistung_nummer), regelzeit: text(r.regelzeit), aktiv: Boolean(r.aktiv),
+  leistungNummer: text(r.leistung_nummer), regelzeit: text(r.regelzeit), pufferMin: r.puffer_min == null ? null : Number(r.puffer_min), aktiv: Boolean(r.aktiv),
 });
 
 export async function terminarten(db: Db, o: { nurAktiv?: boolean } = {}): Promise<Terminart[]> {
   const { rows } = await db.query<Record<string, unknown>>(
-    `SELECT id::text, code, sektion::text, kurz, lang, dauer_min, leistung_nummer, regelzeit, aktiv FROM terminart ${o.nurAktiv ? 'WHERE aktiv' : ''}
+    `SELECT id::text, code, sektion::text, kurz, lang, dauer_min, leistung_nummer, regelzeit, puffer_min, aktiv FROM terminart ${o.nurAktiv ? 'WHERE aktiv' : ''}
      ORDER BY array_position(ARRAY['rezept','selbstzahler','wellness']::terminart_sektion[], sektion), reihenfolge, id`,
   );
   return rows.map(zeile);
@@ -44,7 +46,7 @@ export async function terminarten(db: Db, o: { nurAktiv?: boolean } = {}): Promi
 
 export async function terminartLesen(db: Db, id: string): Promise<Terminart | undefined> {
   if (!istId(id)) return undefined;
-  const r = (await db.query<Record<string, unknown>>('SELECT id::text, code, sektion::text, kurz, lang, dauer_min, leistung_nummer, regelzeit, aktiv FROM terminart WHERE id = $1', [id])).rows[0];
+  const r = (await db.query<Record<string, unknown>>('SELECT id::text, code, sektion::text, kurz, lang, dauer_min, leistung_nummer, regelzeit, puffer_min, aktiv FROM terminart WHERE id = $1', [id])).rows[0];
   return r ? zeile(r) : undefined;
 }
 
@@ -66,7 +68,7 @@ async function naechsterCode(db: Db, sektion: Sektion): Promise<string> {
 }
 
 export async function terminartSpeichern(
-  db: Db, d: { id?: string; sektion?: string; kurz: string; lang?: string; dauerMin: number; leistungNummer?: string }, wer: string,
+  db: Db, d: { id?: string; sektion?: string; kurz: string; lang?: string; dauerMin: number; leistungNummer?: string; pufferMin?: number | null }, wer: string,
 ): Promise<string> {
   const kurz = d.kurz.trim();
   if (!kurz) throw new KarteiFehler('Die Kurzbeschreibung fehlt – sie steht im Dropdown');
@@ -74,17 +76,19 @@ export async function terminartSpeichern(
   if (!(Number.isInteger(d.dauerMin) && d.dauerMin > 0 && d.dauerMin <= 480)) throw new KarteiFehler('Dauer in Minuten, 1 bis 480');
   const leistung = d.leistungNummer?.trim() || null;
   if (leistung && !/^\d{5}$/.test(leistung)) throw new KarteiFehler('GKV-Nummer mit fünf Ziffern, z. B. 20501 – oder leer lassen');
+  const puffer = d.pufferMin ?? null;
+  if (puffer !== null && !(Number.isInteger(puffer) && puffer >= 0 && puffer <= 120)) throw new KarteiFehler('Pause danach in Minuten, 0 bis 120 – oder leer für den Standard');
   let id = d.id;
   if (id) {
-    const r = await db.query('UPDATE terminart SET kurz = $2, lang = $3, dauer_min = $4, leistung_nummer = $5, geaendert_am = now(), geaendert_von = $6 WHERE id = $1 RETURNING id', [id, kurz, d.lang?.trim() || null, d.dauerMin, leistung, wer]);
+    const r = await db.query('UPDATE terminart SET kurz = $2, lang = $3, dauer_min = $4, leistung_nummer = $5, puffer_min = $7, geaendert_am = now(), geaendert_von = $6 WHERE id = $1 RETURNING id', [id, kurz, d.lang?.trim() || null, d.dauerMin, leistung, wer, puffer]);
     if (!r.rows.length) throw new KarteiFehler('Diese Terminart gibt es nicht');
   } else {
     const sektion = SEKTION_REIHE.find((s) => s === d.sektion);
     if (!sektion) throw new KarteiFehler('Unbekannte Sektion');
     const code = await naechsterCode(db, sektion);
     id = (await db.query<{ id: string }>(
-      'INSERT INTO terminart (code, sektion, kurz, lang, dauer_min, leistung_nummer, reihenfolge, geaendert_von) VALUES ($1, $2, $3, $4, $5, $6, (SELECT coalesce(max(reihenfolge), 0) + 10 FROM terminart WHERE sektion = $2), $7) RETURNING id::text',
-      [code, sektion, kurz, d.lang?.trim() || null, d.dauerMin, leistung, wer],
+      'INSERT INTO terminart (code, sektion, kurz, lang, dauer_min, leistung_nummer, puffer_min, reihenfolge, geaendert_von) VALUES ($1, $2, $3, $4, $5, $6, $8, (SELECT coalesce(max(reihenfolge), 0) + 10 FROM terminart WHERE sektion = $2), $7) RETURNING id::text',
+      [code, sektion, kurz, d.lang?.trim() || null, d.dauerMin, leistung, wer, puffer],
     )).rows[0]!.id;
   }
   await protokolliere(db, { actor: wer, action: 'terminart_gespeichert', objectType: 'terminart', objectId: id });

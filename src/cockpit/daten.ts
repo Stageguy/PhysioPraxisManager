@@ -12,6 +12,7 @@ import type { Sektion } from '../kartei/terminarten.ts';
 import { zeitText } from '../format.ts';
 import type { GraphClient } from '../graph.ts';
 import { termineZeitraum, type TerminKalender } from '../kartei/patienten.ts';
+import { naechsteFreie } from '../kartei/terminplan.ts';
 import { kalenderBasis } from '../umgebung.ts';
 import { berlinMitternachtUtc, datumBerlin, OUTLOOK_ZONE, tagPlus } from '../zeit.ts';
 
@@ -61,6 +62,8 @@ export interface CockpitDaten {
   heute: string;
   rechnungen: Quelle<Rechnungsstand>;
   termine: Quelle<Termin[]>;
+  /** Die nächsten freien Terminmöglichkeiten (W116d): Tag für den Link, Text zum Anzeigen */
+  freie?: { tag: string; text: string }[];
   /** Terminanfragen (A15): offene Zahlen und die neuesten */
   anfragen: Quelle<AnfragenStand>;
   protokoll: Quelle<LogEintrag[]>;
@@ -217,11 +220,24 @@ export async function cockpitDaten(q: {
   anfragen?: () => Promise<AnfragenStand>;
 }): Promise<CockpitDaten> {
   const heute = datumBerlin((q.jetzt ?? new Date()).toISOString());
-  const [rechnungen, termine, anfragen, log] = await Promise.all([
+  const [rechnungen, termine, anfragen, log, freie] = await Promise.all([
     rechnungsstand(q.db),
     termineHeute(q.graph, heute, q.namenZeigen, q.db),
     anfragenStand(q.anfragen),
     protokoll(q.db),
+    freieZeiten(q.db, q.graph, q.jetzt),
   ]);
-  return { heute, rechnungen, termine, anfragen, protokoll: log, namenZeigen: q.namenZeigen };
+  return { heute, rechnungen, termine, anfragen, protokoll: log, namenZeigen: q.namenZeigen, freie };
+}
+
+/** Die nächsten zwei freien Zeiten (W116d) – ohne Datenbank oder bei Störung leer */
+async function freieZeiten(db: Db | undefined, graph: Pick<GraphClient, 'paginate' | 'get' | 'post'> | undefined, jetzt?: Date): Promise<CockpitDaten['freie']> {
+  if (!db) return [];
+  try {
+    const format = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return (await naechsteFreie(db, graph, { anzahl: 2, jetzt })).map((f) => ({ tag: datumBerlin(f.beginn), text: format.format(new Date(f.beginn)) }));
+  } catch (err) {
+    console.warn(`Freie Zeiten: ${(err as Error).message.slice(0, 160)}`);
+    return [];
+  }
 }

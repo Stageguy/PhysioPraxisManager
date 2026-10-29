@@ -11,7 +11,9 @@ import {
 } from './patienten.ts';
 import { anamneseErfassen, befundErfassen, erklaerungErfassen, phaseSetzen } from './pinnwand.ts';
 import { bausteinHinzufuegen, lexwareStandUebernehmen, rechnungStatus } from './rechnungen.ts';
-import { textbausteinSpeichern, textbausteine } from './konfiguration.ts';
+import { einstellungSetzen, textbausteinSpeichern, textbausteine } from './konfiguration.ts';
+import { terminartSpeichern } from './terminarten.ts';
+import { schliesstageAnlegen } from './freie-tage.ts';
 import { aktivSetzen, anlegen as preislisteAnlegen, freigeben as preislisteFreigeben, quellen, standardSetzen } from '../preise/preislisten.ts';
 
 const PERSONEN: { vorname: string; nachname: string; anrede: string; geboren: string; ort: string; strasse: string; plz: string; besonderheiten?: string; ansprache?: string; sprache?: string }[] = [
@@ -242,6 +244,51 @@ async function termineVerteilen(db: Db, patientId: string, rezept: string, fallI
  * Zweitschrift, Abbruch, Storno, Lexware-Abweichung, Wellness, Direktzugang, Bezugspersonen, Kontaktverlauf.
  * Läuft nur einmal (T-1021).
  */
+/**
+ * Testdaten für den Terminkalender (W116f): eine Terminart mit eigener Pause, Standard-Pause 10 Minuten, drei
+ * Patienten, deren Termine in der übernächsten Woche einen vollen Tag, einen halb belegten Tag, einen Tag mit
+ * langer Rüstzeit und einen Schließtag ergeben – für Monatsansicht, Zähler und Suche. Läuft nur einmal (T-1041).
+ */
+export async function testkalenderAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; termine: number; montag: string }> {
+  if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1041'")).rows.length) return { uebersprungen: true, patienten: 0, termine: 0, montag: '' };
+  const [lokal, domain] = o.adresse.split('@');
+  const wer = o.wer;
+  // Standard-Pause nur setzen, wenn noch keine eingetragen ist
+  if (!(await db.query("SELECT 1 FROM praxis_einstellung WHERE schluessel = 'termin_puffer_min'")).rows.length) await einstellungSetzen(db, 'termin_puffer_min', '10', wer);
+  const vorhandene = (await db.query<{ id: string }>("SELECT id::text FROM terminart WHERE kurz = 'Lymphdrainage 45 + Rüstzeit'")).rows[0]?.id;
+  const terminart = vorhandene ?? await terminartSpeichern(db, { sektion: 'rezept', kurz: 'Lymphdrainage 45 + Rüstzeit', lang: 'Manuelle Lymphdrainage 45 Minuten, danach 15 Minuten Rüstzeit (erfunden)', dauerMin: 45, leistungNummer: '20201', pufferMin: 15 }, wer);
+  // Übernächste Woche: Montag voll, Dienstag halb, Mittwoch eine lange Behandlung, Donnerstag frei, Freitag Schließtag
+  let montag = werktag(8);
+  while (new Date(`${montag}T12:00:00Z`).getUTCDay() !== 1) montag = tagPlusKalender(montag, 1);
+  const PLAN: { vorname: string; nachname: string; geboren: string; termine: { versatz: number; zeit: string; dauer: number; lang?: boolean }[] }[] = [
+    { vorname: 'Ulla', nachname: 'Vollertag', geboren: '1972-02-09', termine: [{ versatz: 0, zeit: '08:00', dauer: 30 }, { versatz: 0, zeit: '09:20', dauer: 30 }, { versatz: 0, zeit: '10:40', dauer: 30 }, { versatz: 1, zeit: '08:00', dauer: 30 }, { versatz: 2, zeit: '09:00', dauer: 45, lang: true }] },
+    { vorname: 'Viktor', nachname: 'Halbtag', geboren: '1989-06-30', termine: [{ versatz: 0, zeit: '08:40', dauer: 30 }, { versatz: 0, zeit: '10:00', dauer: 30 }, { versatz: 0, zeit: '11:20', dauer: 30 }, { versatz: 1, zeit: '10:30', dauer: 60 }] },
+    // Nachmittag lückenlos bis 18:00 (jeder Termin blockt 10 Minuten Pause danach) – der Montag ist damit voll
+    { vorname: 'Wiebke', nachname: 'Lückenlos', geboren: '1964-11-11', termine: [{ versatz: 0, zeit: '12:00', dauer: 30 }, { versatz: 0, zeit: '12:40', dauer: 30 }, { versatz: 0, zeit: '13:20', dauer: 30 }, { versatz: 0, zeit: '14:00', dauer: 60 }, { versatz: 0, zeit: '15:10', dauer: 30 }, { versatz: 0, zeit: '15:50', dauer: 60 }, { versatz: 0, zeit: '17:00', dauer: 30 }, { versatz: 0, zeit: '17:40', dauer: 20 }] },
+  ];
+  let termine = 0;
+  for (const [i, p] of PLAN.entries()) {
+    const nr = String(41 + i).padStart(3, '0');
+    const id = await patientAnlegen(db, t, {
+      patientennummer: `T-${1041 + i}`, anrede: i === 1 ? 'Herr' : 'Frau', vorname: p.vorname, nachname: p.nachname, geburtsdatum: p.geboren, patientSeit: werktag(-14),
+      kontakte: [{ art: 'mobil', wert: `030 23125 ${nr}` }, { art: 'email', wert: `${lokal}+${p.vorname.toLowerCase()}@${domain}` }],
+      adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kneippstraße', hausnummer: String(20 + i), plz: '86825', ort: 'Bad Wörishofen' },
+    }, wer);
+    for (const x of p.termine) {
+      await terminAnlegen(db, id, { datum: tagPlusKalender(montag, x.versatz), zeit: x.zeit, dauerMin: x.dauer, terminartId: x.lang ? terminart : undefined }, wer);
+      termine++;
+    }
+  }
+  await schliesstageAnlegen(db, { von: tagPlusKalender(montag, 4), name: 'Fortbildung (erfunden)', art: 'fortbildung' }, wer);
+  return { uebersprungen: false, patienten: PLAN.length, termine, montag };
+}
+
+const tagPlusKalender = (datum: string, n: number): string => {
+  const d = new Date(`${datum}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
 export async function testdatenErweitert(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; preislisten: number; patienten: number; termine: number; rechnungen: number }> {
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1021'")).rows.length) return { uebersprungen: true, preislisten: 0, patienten: 0, termine: 0, rechnungen: 0 };
   const wer = o.wer;

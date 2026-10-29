@@ -37,6 +37,7 @@ import { brueckentageSetzen, feiertageImportieren, freierTagLoeschen, freierTagS
 import { regelzeiten, regelzeitenUebernehmen, regelzeitSetzen, type Regelzeit } from './regelzeiten.ts';
 import { rezeptTermineDaten, terminWerte, type RezeptTermineDaten } from './rezept-termine.ts';
 import { outlookBloecke, type KalenderBlock } from './outlook-termine.ts';
+import { freieWoche, monatsPlan, type MonatsPlan, type TagesPlan, type WochenSuche } from './terminplan.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
 import { oeffnungszeitenAusTagen, oeffnungszeitenText, type Oeffnungszeit } from '../anfragen/slots.ts';
 import { WOCHENTAG_KURZ } from './freie-tage.ts';
@@ -143,6 +144,12 @@ export interface KarteiDienst {
   kalender(vonIso: string, bisIso: string): Promise<TerminKalender[]>;
   /** Outlook-Blöcke und Öffnungszeiten für die Kalenderseite (W112) – ohne Postfach nur die Öffnungszeiten */
   kalenderUmfeld(vonIso: string, bisIso: string): Promise<KalenderUmfeld>;
+  /** Monatsansicht zum Buchen (W116): Tage mit Stand, Lücken, Zähler je Dauer */
+  monatsplan(jahr: number, monat: number): Promise<MonatsPlan>;
+  /** Freie Anfangszeiten einer Woche für eine Dauer – das Suchfenster */
+  freieWoche(o: { dauer: number; wochenstart: string }): Promise<WochenSuche>;
+  /** Ein Tag aus dem Monatsplan – für die Tagesansicht mit Lücken */
+  tagesplan(datum: string): Promise<TagesPlan | undefined>;
   steuer(jahr: number, maskiert: boolean): Promise<SteuerListe>;
   wellness(): Promise<WellnessLeistung[]>;
   gruende(): Promise<Gespraechsgrund[]>;
@@ -270,6 +277,12 @@ export function karteiDienst(q: {
     async konfiguration(o = {}) { return { textbausteine: await textbausteine(db, { alle: true }), einstellungen: await einstellungen(db), freieTage: await freieTageDaten(db, o.jahr), regelzeiten: await regelzeiten(db) }; },
     freieTage: (von, bis) => freieTageZeitraum(db, von, bis),
     kalender: (von, bis) => termineZeitraum(db, von, bis),
+    monatsplan: (jahr, monat) => monatsPlan(db, q.graph, jahr, monat),
+    freieWoche: (o) => freieWoche(db, q.graph, o),
+    async tagesplan(datum) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return undefined;
+      return (await monatsPlan(db, q.graph, Number(datum.slice(0, 4)), Number(datum.slice(5, 7)))).tage.find((t) => t.datum === datum);
+    },
     async kalenderUmfeld(von, bis) {
       const { oeffnungszeiten } = await slotRegeln(db);
       if (!q.graph) return { bloecke: [], oeffnungszeiten, postfach: false };
@@ -405,7 +418,10 @@ export function karteiDienst(q: {
       }
       // Terminarten der Online-Anfrage (W94) – ohne Patient
       if (aktion === 'terminart_speichern') {
-        const tid = await terminartSpeichern(db, { id: g('terminart_id'), sektion: g('sektion'), kurz: g('kurz') ?? '', lang: g('lang'), dauerMin: ganz(f.get('dauer_min')), leistungNummer: g('leistung_nummer') }, wer);
+        const tid = await terminartSpeichern(db, {
+          id: g('terminart_id'), sektion: g('sektion'), kurz: g('kurz') ?? '', lang: g('lang'), dauerMin: ganz(f.get('dauer_min')), leistungNummer: g('leistung_nummer'),
+          pufferMin: g('puffer_min')?.trim() ? (/^\d{1,3}$/.test(g('puffer_min')!.trim()) ? Number(g('puffer_min')) : -1) : null,
+        }, wer);
         return nach(`/konfiguration/terminarten#ta-${tid}`, g('terminart_id') ? 'Terminart gespeichert.' : 'Terminart angelegt – noch inaktiv.');
       }
       if (aktion === 'terminart_aktiv') {
@@ -495,6 +511,14 @@ export function karteiDienst(q: {
         case 'termin_status':
           await terminStatus(db, id, g('termin_id') ?? '', g('status') ?? '', wer);
           return nach(`${seite}#termine`, `Termin geändert.${await spiegeln(g('termin_id') ?? '', wer)}`);
+        case 'termin_absagen': {
+          // Absage aus dem Kalender (W116c): Status setzen, Kalender bereinigen, dann die Nachricht vorwählen – nichts geht automatisch raus
+          const terminId = g('termin_id') ?? '';
+          const status = ['abgesagt_patient', 'abgesagt_praxis', 'nicht_erschienen'].includes(g('status') ?? '') ? g('status')! : 'abgesagt_praxis';
+          await terminStatus(db, id, terminId, status, wer);
+          const hinweis = await spiegeln(terminId, wer);
+          return nach(`${seite}?vorlage=absage_ersatztermin&termin=${terminId}#nachricht`, `Termin ${status === 'nicht_erschienen' ? 'als „nicht erschienen“ vermerkt' : 'abgesagt'}.${hinweis} Nachricht an den Patienten? Vorlage und Termin sind unten vorgewählt – nichts geht automatisch raus.`);
+        }
         case 'termin_aendern': {
           const terminId = g('termin_id') ?? '';
           await terminAendern(db, id, terminId, { datum: g('datum') ?? '', zeit: g('zeit') ?? '', dauerMin: ganz(f.get('dauer_min'), 30), art: g('art'), verordnungId: g('verordnung_id'), terminartId: g('terminart_id') }, wer);

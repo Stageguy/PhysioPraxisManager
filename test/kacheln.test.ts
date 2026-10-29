@@ -69,7 +69,7 @@ test('Patientenseite: „+“-Kacheln vorn; „+“-Menü an Termin und Rezept; 
   const html = await seite(`/patienten/${pid}`);
   assert.match(html, /<div class="rz-raster"><details class="plus-kachel"><summary data-hilfe="plus.rezept-serie">/);
   assert.match(html, new RegExp(`<a href="/patienten/${pid}/neu/rezept" data-fenster="Neues Rezept" data-hilfe="plus.rezept">[\\s\\S]*?<a href="/patienten/${pid}/neu/direktzugang" data-fenster="Behandlung ohne Rezept" data-hilfe="plus.direktzugang">[\\s\\S]*?<a href="/patienten/${pid}/neu/wellness" data-fenster="Wellness-Serie" data-hilfe="plus.wellness">`));
-  assert.match(html, new RegExp(`<div class="tk-raster"><a class="plus-kachel" href="/patienten/${pid}/neu/termin" data-fenster="Neuer Termin" data-hilfe="plus.termin">`));
+  assert.match(html, new RegExp(`<div class="tk-raster"><a class="plus-kachel" href="/kalender\\?ansicht=monat&amp;patient=${pid}" data-hilfe="plus.termin">`), 'Neuer Termin führt in den Kalender (W116), als Seite statt Seitenfenster');
   assert.match(html, /<article class="tk mit-plus" data-hilfe="termine.kachel">[\s\S]*?<details class="plus klein" data-hilfe="termin.plus"><summary aria-label="Aktionen zum Termin">[\s\S]*?<\/summary><div class="plus-menue"><a class="marke wa"[\s\S]*?data-hilfe="termin.whatsapp"[\s\S]*?<select name="status" data-hilfe="termin.status"/);
   assert.match(html, new RegExp(`<a class="kachel-stift" href="/patienten/${pid}/termine/\\d+/bearbeiten" data-fenster="Termin bearbeiten" data-hilfe="termin.bearbeiten"`));
   assert.match(html, new RegExp(`<div class="adr-raster"><a class="plus-kachel" href="/patienten/${pid}/adressen/neu" data-fenster="Neue Adresse" data-hilfe="adresse.neu">`));

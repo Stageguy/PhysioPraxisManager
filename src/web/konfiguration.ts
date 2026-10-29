@@ -171,7 +171,7 @@ ${regelzeitenAbschnitt(d.regelzeiten, d.freieTage.jahr)}
     <label>Dauer eines Termins in Minuten (Vorgabe für Vorschläge)<input name="wert" value="${esc(d.einstellungen.termin_dauer_min ?? '30')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.termin-dauer"></label>
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}
   ${form('einstellung', `<input type="hidden" name="schluessel" value="termin_puffer_min">
-    <label>Puffer zwischen Terminen in Minuten<input name="wert" value="${esc(d.einstellungen.termin_puffer_min ?? '0')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.puffer"></label>
+    <label>Pause nach jedem Termin in Minuten <span class="hint">(Standard – je Terminart änderbar; wird im Termin mitgeblockt)</span><input name="wert" value="${esc(d.einstellungen.termin_puffer_min ?? '0')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.puffer"></label>
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}
   ${form('einstellung', `<input type="hidden" name="schluessel" value="anfragen_mailordner">
     <label>Outlook-Ordner mit Terminanfragen<input name="wert" value="${esc(d.einstellungen.anfragen_mailordner ?? 'Posteingang/Terminanfragen')}" data-hilfe="konfiguration.anfragen-ordner"></label>

@@ -33,7 +33,7 @@ export async function angebotErstellen(db: Db, graph: Graph | undefined, o: { je
   const erster = datumBerlin(jetzt.toISOString());
   const von = berlinMitternachtUtc(erster);
   const bis = berlinMitternachtUtc(tagPlus(erster, tage));
-  const belegt = await belegteZeiten(graph, db, von, bis);
+  const belegt = await belegteZeiten(graph, db, von, bis, { pufferMin: regeln.pufferMin });
   const liste: Angebot['tage'] = [];
   for (let i = 0, datum = erster; i < tage; i++, datum = tagPlus(datum, 1)) {
     if (tagGesperrt(datum, regeln)) continue;

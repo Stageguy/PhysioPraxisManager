@@ -170,6 +170,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
 
   const termine = `<section class="tafel" data-hilfe="uebersicht.termine" aria-labelledby="t-te">
     <h2 id="t-te">${symbol('kalender')} Termine heute</h2>
+    ${d.freie?.length ? `<p class="freie-zeile" data-hilfe="termine.frei">Nächste freie Zeiten:${d.freie.map((f) => `<a href="/kalender?ansicht=tag&tag=${f.tag}">${esc(f.text)}</a>`).join(' · ')}</p>` : ''}
     ${leer(d.termine, (t) => `${tagesleiste(t, o.jetzt)}
       ${t.length ? `<ul class="zeilen">${t.map((x) => `<li><span class="zeit">${x.ganztags ? 'ganztags' : `${x.beginn}–${x.ende}`}</span><b>${sektionMarke(x.sektion)}${x.link ? `<a href="${esc(x.link)}" data-hilfe="termine.patient">${esc(x.titel)}</a>` : esc(x.titel)}</b>${x.leistung ? `<span class="marke${x.rezept ? ' jetzt' : ''}" data-hilfe="termine.leistung">${esc(x.leistung)}</span>` : ''}${x.frei ? '<span class="rechts hint">frei</span>' : ''}</li>`).join('')}</ul>`
         : '<p class="leer">Heute stehen keine Termine im Kalender.</p>'}`)}

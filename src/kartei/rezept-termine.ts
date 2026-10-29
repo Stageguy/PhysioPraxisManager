@@ -161,7 +161,7 @@ export async function rezeptTermineDaten(
   if (offen > 0) {
     const regeln = await slotRegeln(db);
     const wochen = Math.ceil(offen / proWoche) + 6;
-    const belegt = await belegteZeiten(graph, db, berlinMitternachtUtc(abTag), berlinMitternachtUtc(tagPlus(abTag, wochen * 7 + 7)));
+    const belegt = await belegteZeiten(graph, db, berlinMitternachtUtc(abTag), berlinMitternachtUtc(tagPlus(abTag, wochen * 7 + 7)), { pufferMin: regeln.pufferMin });
     vorschlaege = serieVorschlagen({ anzahl: offen, proWoche, dauerMin, ab: berlinMitternachtUtc(abTag), belegt, regeln, tageszeit: tageszeit ?? undefined, wochen });
   }
   return { patient, verordnung, geplant, offen, dauerMin: dauerMin === standard.dauerMin ? standard.dauerMin : dauerMin, dauerHerkunft: o.dauerMin && o.dauerMin !== standard.dauerMin ? 'von Hand geändert' : standard.herkunft, proWoche, frequenzErkannt, ab: abTag, tageszeit, vorschlaege };

@@ -68,10 +68,10 @@ export const chip = (text: string, farbe: string) => `<span class="chip ${farbe}
 export const PLUS_ZEICHEN = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
 /** „+“-Kachel – immer die erste im Raster */
-export function plusKachel(o: { text: string; hilfe: string; href?: string; inhalt?: string; titel?: string; klasse?: string }): string {
+export function plusKachel(o: { text: string; hilfe: string; href?: string; inhalt?: string; titel?: string; klasse?: string; /** ganze Seite statt Seitenfenster (z. B. der Kalender) */ seite?: boolean }): string {
   const innen = `<span class="plus-zeichen" aria-hidden="true">${PLUS_ZEICHEN}</span><span class="plus-text">${esc(o.text)}</span>`;
   const klasse = `plus-kachel${o.klasse ? ` ${o.klasse}` : ''}`;
-  if (o.href) return `<a class="${klasse}" href="${esc(o.href)}" data-fenster="${esc(o.titel ?? o.text)}" data-hilfe="${o.hilfe}">${innen}</a>`;
+  if (o.href) return `<a class="${klasse}" href="${esc(o.href)}"${o.seite ? '' : ` data-fenster="${esc(o.titel ?? o.text)}"`} data-hilfe="${o.hilfe}">${innen}</a>`;
   return `<details class="${klasse}"><summary data-hilfe="${o.hilfe}">${innen}</summary>
     <div class="plus-popup" role="dialog" aria-label="${esc(o.titel ?? o.text)}"><header><b>${esc(o.titel ?? o.text)}</b><button type="button" class="knopf klein plus-schliessen" data-hilfe="kachel.popup-schliessen">${symbol('kreuz', { groesse: 16 })} Schließen</button></header>${o.inhalt ?? ''}</div></details>`;
 }

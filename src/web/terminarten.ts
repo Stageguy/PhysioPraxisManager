@@ -16,7 +16,7 @@ function kachel(a: Terminart): string {
     <header><span class="ta-code" data-hilfe="terminart.code" tabindex="0">${esc(a.code)}</span><b>${esc(a.kurz)}</b></header>
     ${a.lang ? `<p class="ta-lang">${esc(a.lang)}</p>` : '<p class="ta-lang hint">ohne Langbeschreibung</p>'}
     <div class="ta-fuss">
-      <span class="marke" data-hilfe="terminart.dauer" tabindex="0">${symbol('kalender', { groesse: 12 })} ${a.dauerMin} Min.</span>
+      <span class="marke" data-hilfe="terminart.dauer" tabindex="0">${symbol('kalender', { groesse: 12 })} ${a.dauerMin} Min.${a.pufferMin !== null ? ` + ${a.pufferMin} Pause` : ''}</span>
       ${a.leistungNummer ? `<span class="marke" data-hilfe="terminart.gkv" tabindex="0">GKV ${esc(a.leistungNummer)}${a.regelzeit ? ` · ${esc(a.regelzeit)}` : ''}</span>` : ''}
       ${form('terminart_aktiv', `<input type="hidden" name="terminart_id" value="${a.id}"><input type="hidden" name="aktiv" value="${a.aktiv ? '0' : '1'}"><label class="haken" data-hilfe="terminart.aktiv"><input type="checkbox"${a.aktiv ? ' checked' : ''} data-auto-senden> aktiv</label><button class="knopf klein nur-ohne-js">${a.aktiv ? 'ausschalten' : 'aktivieren'}</button>`, 'ta-aktiv')}
     </div>
@@ -39,7 +39,8 @@ export function terminartFormularSeite(d: { terminart?: Terminart; sektion: Sekt
   <label>Kurzbeschreibung (im Dropdown)<input name="kurz" value="${esc(a?.kurz ?? '')}" required maxlength="80"></label>
   <label>Langbeschreibung (unter dem Dropdown)<textarea name="lang" rows="3" maxlength="600">${esc(a?.lang ?? '')}</textarea></label>
   <div class="zwei"><label>Dauer in Minuten<input name="dauer_min" value="${a?.dauerMin ?? 30}" inputmode="numeric" class="kurz" required></label>
-  <label>GKV-Nummer (optional)<input name="leistung_nummer" value="${esc(a?.leistungNummer ?? '')}" inputmode="numeric" class="kurz" maxlength="5"></label></div>`,
+  <label>GKV-Nummer (optional)<input name="leistung_nummer" value="${esc(a?.leistungNummer ?? '')}" inputmode="numeric" class="kurz" maxlength="5"></label></div>
+  <label>Pause danach in Minuten <span class="hint">(Rüstzeit, leer = Standard aus der Konfiguration)</span><input name="puffer_min" value="${a?.pufferMin ?? ''}" inputmode="numeric" class="kurz" maxlength="3" data-hilfe="terminart.puffer"></label>`,
       hinweis: a ? 'Sektion und Kennung bleiben. Keine Diagnosen in den Texten – sie stehen öffentlich auf der Website.' : 'Die Kennung vergibt das System; neue Terminarten sind zunächst inaktiv.',
     }),
   });

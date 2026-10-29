@@ -28,10 +28,12 @@ interface Ereignis {
  * wenn der Kalender gerade nicht antwortet), Hauptkalender und (falls getrennt) Praxiskalender.
  * `ohneAnfrage`: die eigenen alten Reservierungen zählen nicht, wenn eine Anfrage neu vorschlägt.
  */
-export async function belegteZeiten(graph: LeseGraph | undefined, db: Db, von: string, bis: string, o: { ohneAnfrage?: string } = {}): Promise<Belegt[]> {
+export async function belegteZeiten(graph: LeseGraph | undefined, db: Db, von: string, bis: string, o: { ohneAnfrage?: string; pufferMin?: number } = {}): Promise<Belegt[]> {
   const liste: Belegt[] = [];
+  // Kartei-Termine samt Pause danach (W116a): Pause der Terminart, sonst der Standard aus der Konfiguration
   const { rows } = await db.query<{ beginn: Date | string; ende: Date | string }>(
-    "SELECT beginn, ende FROM termin WHERE beginn < $2 AND ende > $1 AND status IN ('vorgeschlagen', 'bestaetigt')", [von, bis],
+    `SELECT t.beginn, t.ende + make_interval(mins => coalesce(ta.puffer_min, $3)) AS ende FROM termin t LEFT JOIN terminart ta ON ta.id = t.terminart_id
+     WHERE t.beginn < $2 AND t.ende > $1 AND t.status IN ('vorgeschlagen', 'bestaetigt')`, [von, bis, Math.max(0, Math.round(o.pufferMin ?? 0))],
   );
   for (const r of rows) liste.push({ beginn: new Date(r.beginn).toISOString(), ende: new Date(r.ende).toISOString() });
   const reserviert = await db.query<{ id: string; vorschlaege: unknown }>("SELECT id::text, vorschlaege FROM terminanfrage WHERE status IN ('neu', 'vorgeschlagen') AND vorschlaege::text <> '[]'");

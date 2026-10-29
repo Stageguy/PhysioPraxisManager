@@ -38,7 +38,8 @@ export const SEKTION_NAME: Record<Sektion, string> = { rezept: 'Physiotherapie a
 export function freieFenster(offen: Fenster[], belegt: Fenster[], o: { pufferMin: number; ab: string }): Fenster[] {
   const puffer = o.pufferMin * 60_000;
   const abMs = new Date(o.ab).getTime();
-  const sperren = belegt.map((b) => ({ von: new Date(b.beginn).getTime() - puffer, bis: new Date(b.ende).getTime() + puffer })).sort((a, b) => a.von - b.von);
+  // Die Pause eines belegten Termins steckt schon in seinem Ende; vor jedem Block bleibt die Pause des neuen Termins frei (W116a)
+  const sperren = belegt.map((b) => ({ von: new Date(b.beginn).getTime() - puffer, bis: new Date(b.ende).getTime() })).sort((a, b) => a.von - b.von);
   const frei: Fenster[] = [];
   for (const f of offen) {
     let von = Math.max(new Date(f.beginn).getTime(), abMs);
