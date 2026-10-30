@@ -10,7 +10,7 @@ import type { CockpitDaten } from '../src/cockpit/daten.ts';
 import type { Position, Preisliste, QuelleKurz } from '../src/preise/preislisten.ts';
 import { menueStand } from '../src/web/layout.ts';
 import { auswahlSeite, detailsSeite, editorSeite, neuSeite, positionSeite, uebersichtSeite } from '../src/web/preislisten.ts';
-import { adresseFormularSeite, akteSeite, bearbeitenSeite as patientBearbeitenSeite, behandlungNeuSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rechnungNeuSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
+import { adresseFormularSeite, akteSeite, bearbeitenSeite as patientBearbeitenSeite, behandlungNeuSeite, dublettenSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rechnungNeuSeite, rezeptNeuSeite, terminNeuSeite } from '../src/web/patienten.ts';
 import type { LexwareKundeStand } from '../src/kartei/lexware-kunden.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from '../src/web/rezepte.ts';
 import { rezeptTermineSeite } from '../src/web/rezept-termine.ts';
@@ -25,7 +25,7 @@ import { monatSeite, terminAbsagenSeite, terminWahlSeite } from '../src/web/term
 import { terminartenSeite, terminartFormularSeite } from '../src/web/terminarten.ts';
 import type { Anfrage } from '../src/anfragen/anfragen.ts';
 import type { Karte } from '../src/kartei/pinnwand.ts';
-import type { Patient } from '../src/kartei/patienten.ts';
+import { KEINE_VERKNUEPFUNG, type Patient } from '../src/kartei/patienten.ts';
 
 const Q: QuelleKurz = { id: '1', art: 'gkv', titel: 'GKV', version: 'Lesefassung gültig ab 01.01.2026', gueltigAb: '2026-01-01', abgerufenAm: '2026-10-23T03:00:00Z', url: 'https://x' };
 const PL = (o: Partial<Preisliste> = {}): Preisliste => ({
@@ -180,6 +180,14 @@ const seiten = () => [
   listeSeite({ patienten: [], suche: 'x', archiv: true }, R),
   lexwareKundenSeite({ kunden: [LK({}), LK({ id: 'lx-2', nummer: '1002', stand: 'vermutet', patient: LK_PATIENT }), LK({ id: 'lx-3', nummer: '1003', stand: 'verknuepft', art: 'firma', firma: 'Kurhotel GmbH', vorname: '', nachname: 'Kurhotel GmbH', notiz: true, archiviert: true, adresse: null, patient: LK_PATIENT })], stand: '2026-10-27T10:00:00Z', attrappe: true, suche: '' }, R),
   lexwareKundenSeite({ kunden: [], stand: '', attrappe: false, suche: 'x', fehler: 'Lexware ist gerade nicht erreichbar' }, R),
+  // Dubletten (W119): Symbol in der Liste, Filter, Hinweis auf der Patientenseite, Klärungsseite
+  listeSeite({ patienten: [{ ...PAT, dubletten: 2 }, { ...PAT, id: '3', status: 'archiviert', dubletteVon: { id: '1', patientennummer: 'P-1001' } }], suche: '', dublettenAnzahl: 1 }, R),
+  listeSeite({ patienten: [{ ...PAT, dubletten: 1 }], suche: '', nurDubletten: true }, R),
+  patientSeite({ ...PATIENT_DATEN, patient: { ...PAT, dubletten: 1 } }, R),
+  dublettenSeite({ patient: PAT, verknuepft: { ...KEINE_VERKNUEPFUNG, termine: 2, verlauf: 3 }, kandidaten: [
+    { patient: { ...PAT, id: '2', patientennummer: 'P-1002', geburtsdatum: null, lexwareKundennummer: '10001' }, verknuepft: KEINE_VERKNUEPFUNG, gruende: [{ art: 'email', wert: 'a@example.org' }, { art: 'name', wert: '' }] },
+  ] }, R),
+  dublettenSeite({ patient: PAT, verknuepft: KEINE_VERKNUEPFUNG, kandidaten: [] }, R),
   patientNeuSeite(R),
   patientNeuSeite({ ...R, vorbelegung: { lexwareKundennummer: '1001', lexwareKontaktId: 'lx-1', lexwareName: 'Anna Test', firma: true, anrede: 'Frau', vorname: 'Anna', nachname: 'Test', telefon: '08247 1', strasse: 'Kurpromenade', hausnummer: '3', plz: '86825', ort: 'Bad Wörishofen' } }),
   patientSeite(PATIENT_DATEN, R),

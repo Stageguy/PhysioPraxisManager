@@ -74,6 +74,10 @@ export interface PatientKurz {
   naechsterTermin: { id: string; beginn: string; rezept: boolean } | null;
   rechnungsstand: Rechnungsstand;
   offeneAnrufe: number;
+  /** Ungeklärte mögliche Dubletten (W119) – das Symbol oben links an der Kachel */
+  dubletten?: number;
+  /** Zusammengeführt in diesen Patienten (W119) – die Kachel ist dann nur noch ein Verweis */
+  dubletteVon?: { id: string; patientennummer: string } | null;
 }
 
 export interface Patient extends PatientKurz {

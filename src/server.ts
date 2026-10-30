@@ -22,7 +22,7 @@ import { KarteiFehler, type KarteiDienst } from './kartei/dienst.ts';
 import type { AnfragenDienst, AnfragenFilter } from './anfragen/dienst.ts';
 import { anfrageNeuSeite, anfrageSeite, anfragenSeite } from './web/anfragen.ts';
 import { cockpitSeite } from './web/cockpit.ts';
-import { adresseFormularSeite, akteSeite, bearbeitenSeite as patientBearbeitenSeite, behandlungNeuSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rechnungNeuSeite, rezeptNeuSeite, terminNeuSeite, vorbelegungAusLexware } from './web/patienten.ts';
+import { adresseFormularSeite, akteSeite, bearbeitenSeite as patientBearbeitenSeite, behandlungNeuSeite, dublettenSeite, lexwareKundenSeite, listeSeite, neuSeite as patientNeuSeite, patientSeite, rechnungNeuSeite, rezeptNeuSeite, terminNeuSeite, vorbelegungAusLexware } from './web/patienten.ts';
 import { SEKTION_REIHE } from './kartei/terminarten.ts';
 import { rezepteSeite, serieNeuSeite, wellnessSeite } from './web/rezepte.ts';
 import { fallNeuSeite, fallSeite, pinnwandSeite } from './web/pinnwand.ts';
@@ -509,7 +509,11 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (pfad === '/rezepte') return senden(res, 200, 'text/html', rezepteSeite(await d.rezepte(adresse.searchParams.get('filter') === 'alle' ? 'alle' : 'aktiv'), r));
     if (pfad === '/rezepte/wellness') return senden(res, 200, 'text/html', wellnessSeite(await d.wellness(), r));
     const suche = adresse.searchParams.get('suche')?.slice(0, 80) ?? '';
-    if (pfad === '/patienten') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche }), suche, lexware: d.lexwareAngebunden() }, r));
+    if (pfad === '/patienten') {
+      // Nur mögliche Dubletten (W119): ?dubletten=1
+      const nurDubletten = adresse.searchParams.get('dubletten') === '1';
+      return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche, dubletten: nurDubletten }), suche, lexware: d.lexwareAngebunden(), nurDubletten, dublettenAnzahl: nurDubletten ? 0 : await d.dublettenAnzahl() }, r));
+    }
     if (pfad === '/patienten/archiv') return senden(res, 200, 'text/html', listeSeite({ patienten: await d.liste({ suche, archiv: true }), suche, archiv: true }, r));
     if (pfad === '/patienten/lexware') {
       // Kunden aus Lexware neben der Kartei (W99) – nur lesend; ohne Anbindung gibt es die Seite nicht
@@ -547,6 +551,12 @@ export function praxisDienst(opt: DienstOptionen): Server {
       return void res.end(Buffer.from(pdf.daten));
     }
     // Formularseiten zum Bearbeiten (W115) – dieselben Formulare wie beim Anlegen: Stammdaten, Adresse, Termin
+    // Klärungsseite für mögliche Dubletten (W119)
+    const pd = /^\/patienten\/(\d+)\/dubletten$/.exec(pfad);
+    if (pd) {
+      const x = await d.dubletten(pd[1]!);
+      return x ? senden(res, 200, 'text/html', dublettenSeite(x, r)) : senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
+    }
     const pb = /^\/patienten\/(\d+)\/bearbeiten$/.exec(pfad);
     if (pb) {
       const p = await d.patient(pb[1]!);
@@ -590,6 +600,8 @@ export function praxisDienst(opt: DienstOptionen): Server {
       return senden(res, 200, 'text/html', html);
     }
     const p = await d.patient(id);
+    // Zusammengeführte Dublette (W119): die Seite des bleibenden Patienten zeigen
+    if (p?.patient.dubletteVon) return umleiten(res, mitParameter(`/patienten/${p.patient.dubletteVon.id}`, 'meldung', `${p.patient.patientennummer} wurde in ${p.patient.dubletteVon.patientennummer} zusammengeführt.`));
     // Nach einer Absage (W116c): Vorlage und Termin der Nachricht vorwählen
     const vorwahl = { vorlage: adresse.searchParams.get('vorlage') ?? undefined, termin: adresse.searchParams.get('termin') ?? undefined };
     return p ? senden(res, 200, 'text/html', patientSeite(p, { ...r, vorwahl })) : senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');

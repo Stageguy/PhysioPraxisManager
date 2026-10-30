@@ -26,6 +26,7 @@ import { PATIENTEN_LISTE } from './hilfe/patienten.ts';
 import { LEXWARE } from './hilfe/lexware.ts';
 import { PATIENTENSEITE } from './hilfe/patientenseite.ts';
 import { REZEPTE } from './hilfe/rezepte.ts';
+import { DUBLETTEN } from './hilfe/dubletten.ts';
 import { RUECKMELDUNGEN } from './hilfe/rueckmeldungen.ts';
 import { PINNWAND } from './hilfe/pinnwand.ts';
 import { RECHNUNGEN } from './hilfe/rechnungen.ts';
@@ -49,6 +50,7 @@ export const HILFE: Record<string, HilfeEintrag> = {
   ...LEXWARE,
   ...PATIENTENSEITE,
   ...REZEPTE,
+  ...DUBLETTEN,
   ...RUECKMELDUNGEN,
   ...PINNWAND,
   ...RECHNUNGEN,
@@ -142,6 +144,7 @@ const FUNKTIONEN: { name: string; was: string; stand: 'jetzt' | 'später'; woher
   { name: 'Konfiguration', was: 'Textbausteine für Rechnungen (R1 § 4 Nr. 14, R2 § 19, R3 Dank), Kleinunternehmerregelung, Steuersatz, Verweise auf Preislisten und Wellness-Katalog.', stand: 'jetzt', woher: 'W80' },
   { name: 'Kalenderseite', was: 'Alle Termine der Kartei als Tag oder Woche, Initialen oder Namen; über das Kalender-Symbol bei „Heute im Blick“.', stand: 'jetzt', woher: 'W82' },
   { name: 'Rezepte und Serien', was: 'Rezepte als Kacheln mit sieben Rezeptarten (Erst, Folge unverändert/angepasst, Wiederaufnahme, Korrektur, Zweitschrift, Langzeit), Behandlung ohne Rezept (Direktzugang) und Wellness-Serien aus dem eigenen Katalog.', stand: 'jetzt', woher: 'W73, W74' },
+  { name: 'Dubletten', was: 'Die Kartei erkennt, wenn es einen Patienten womöglich schon gibt (Name, Mail, Mobilnummer, Festnetz oder Geburtsdatum mit Nachname), und zeigt ein Symbol oben links an der Kachel. Lilli klärt je Paar: keine Dublette, zusammenführen (alles Verknüpfte wandert, die Dublette verweist) oder löschen (nur ohne jede Verknüpfung). Bis dahin keine neuen Termine, Behandlungen, Rezepte oder Rechnungen an dem Patienten.', stand: 'jetzt', woher: 'W119' },
   { name: 'Rückmeldungen', was: 'Am Rechner ein kleines Fähnchen an jedem erklärten Element und an jeder Seite, am Handy der Link „melden“ in jeder Erklärung: Hinweis oder Fehler mit Screenshot und Text melden – landet in einer eigenen Entwicklungs-Datenbank, Sammelseite /rueckmeldungen.', stand: 'jetzt', woher: 'W72, W118' },
   { name: 'Patientenkartei', was: 'Kacheln mit Anrufen, WhatsApp, Mail, letzter Behandlung und nächstem Termin; Kontaktverlauf mit Gesprächsgrund; Adressen mit Rechnungsadresse; Akte nach § 630f (unveränderlich, verschlüsselt); Termine, Rezepte als Stempelkarte.', stand: 'jetzt', woher: 'W63–W68' },
   { name: 'Terminarten für die Online-Anfrage', was: 'Kacheln mit Kennung, Kurz- und Langbeschreibung und Dauer in drei Sektionen (Rezept, Selbstzahler, Wellness); Haken „aktiv“ = im Dropdown der Website; Vorschau und HTML-Baustein für das Formular. Farbe und Symbol der Sektion kehren in Kalenderseite, Cockpit und Outlook wieder.', stand: 'jetzt', woher: 'W94, W95' },

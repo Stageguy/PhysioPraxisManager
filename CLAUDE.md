@@ -53,7 +53,8 @@ kennt, werden nie gelöscht oder überschrieben. Jobs (z. B. Rechnung zusammenst
   (Testadressen, Kalender „Praxis-Test“, Kontaktordner „Patienten-Test“, Kategorie TEST, TEST_TELEFONE).
   Nie Echtdaten in die Testumgebung, nie Testadressen in der Produktion.
 - **Akte ist unveränderlich** (§ 630f BGB): Behandlungen werden ersetzt, nie geändert oder gelöscht
-  (Trigger in Migration 007). Patienten werden archiviert, nicht gelöscht.
+  (Trigger in Migration 007). Patienten werden archiviert, nicht gelöscht – einzige Ausnahme (W119): eine
+  Dublette ohne jede Verknüpfung darf gelöscht werden; alles andere wird zusammengeführt (`dublette_von`).
 - **Rechnungen:** eine Leistungsgruppe je Rechnung (Heilbehandlung § 4 Nr. 14 UStG getrennt von
   Wellness); Nummer, PDF und Zahlungsstand kommen aus Lexware (E28). Das PDF liegt verschlüsselt im Tresor
   (`rechnung.lexware_pdf`, W103); Rechnungen aus Lexware tragen `quelle = 'lexware'` und haben keine Positionen.

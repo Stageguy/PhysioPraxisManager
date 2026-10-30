@@ -18,7 +18,7 @@ import { aktivSetzen, anlegen as preislisteAnlegen, freigeben as preislisteFreig
 import { slotRegeln } from '../anfragen/dienst.ts';
 import { belegteZeiten } from '../anfragen/kalender.ts';
 import { freieSlots } from '../anfragen/slots.ts';
-import { berlinMitternachtUtc, berlinZeitUtc, datumBerlin, zeitBerlin } from '../zeit.ts';
+import { berlinMitternachtUtc, berlinZeitUtc, datumBerlin, heuteBerlin, tagPlus, zeitBerlin } from '../zeit.ts';
 
 /**
  * Nächste freie Anfangszeit an einem Tag ab der Wunschzeit – mit Pause, Fahrtzeiten, Öffnungszeiten und Schließtagen
@@ -625,4 +625,19 @@ export async function testdatenErweitert(db: Db, t: Tresor, o: { adresse: string
   }
   const rechnungen = Number((await db.query<{ n: string }>("SELECT count(*)::text AS n FROM rechnung WHERE patient_id IN (SELECT id FROM patient WHERE patientennummer >= 'T-1021')")).rows[0]!.n);
   return { uebersprungen: false, preislisten, patienten: 14, termine, rechnungen };
+}
+
+/** Zwei mögliche Dubletten (W119): Nora Sechser noch einmal ohne alles (löschbar), Oskar „Zwoelfer“ mit Verlaufseintrag (zusammenführen) – braucht die erweiterten Testdaten */
+export async function testdublettenAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number }> {
+  if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1061'")).rows.length) return { uebersprungen: true, patienten: 0 };
+  if (!(await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1021'")).rows.length) return { uebersprungen: true, patienten: 0 };
+  const wer = o.wer;
+  const heute = heuteBerlin();
+  await patientAnlegen(db, t, { patientennummer: 'T-1061', anrede: 'Frau', vorname: 'Nora', nachname: 'Sechser', patientSeit: tagPlus(heute, -1), kontakte: [{ art: 'mobil', wert: '030 23125 021' }] }, wer);
+  const oskarZwei = await patientAnlegen(db, t, {
+    patientennummer: 'T-1062', anrede: 'Herr', vorname: 'Oskar', nachname: 'Zwoelfer', geburtsdatum: '1965-07-30', patientSeit: tagPlus(heute, -1),
+    kontakte: [{ art: 'telefon', wert: '08247 9999 022' }, { art: 'email', wert: o.adresse }],
+  }, wer);
+  await verlaufEintragen(db, t, oskarZwei, { art: 'anruf_eingehend', grund: 'terminvereinbarung', notiz: 'Rückruf wegen Termin – vermutlich doppelt angelegt (erfunden)' }, wer);
+  return { uebersprungen: false, patienten: 2 };
 }

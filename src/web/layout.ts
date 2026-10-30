@@ -259,6 +259,16 @@ label.haken input{width:20px;height:20px;min-height:0;accent-color:var(--akzent)
 .pat.lexware span.pat-kontakt{color:var(--fg)}.pat.lexware .pat-fuss{gap:8px;align-items:center}.pat.lexware .pat-fuss form.inline{display:inline}
 .pat-kopf{display:flex;gap:10px;align-items:center}.pat-name{color:var(--fg);text-decoration:none;font-size:17px;min-width:0;overflow-wrap:anywhere}.pat-name:hover b{text-decoration:underline}
 .pat-nr{color:var(--grau);font-size:13px;margin-left:auto;white-space:nowrap}
+/* Mögliche Dubletten (W119): Symbol oben links an der Kachel, Hinweis auf der Patientenseite, Gegenüberstellung */
+.pat.dublette{border-color:#e0a106}.pat.dublette>.pat-kopf{padding-left:32px}
+.dublette-marke{position:absolute;left:8px;top:10px;z-index:2;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:color-mix(in srgb,#e0a106 20%,var(--karte));border:1px solid #e0a106;color:var(--fg)}
+.dublette-marke:hover,.dublette-marke:focus-visible{background:#e0a106;color:#fff}
+.meldung.dublette{background:color-mix(in srgb,#e0a106 18%,var(--karte));border:1px solid #e0a106;align-items:flex-start}.meldung.dublette .knopf{margin-left:6px}
+.dublette-paar{margin:12px 0}.dublette-paar h2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.dublette-gruende{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+.dublette-vergleich{width:100%;border-collapse:collapse;font-size:14px}.dublette-vergleich th,.dublette-vergleich td{text-align:left;vertical-align:top;padding:5px 8px;border-top:1px solid var(--rand);overflow-wrap:anywhere}
+.dublette-vergleich thead th{border-top:0;font-size:15px}.dublette-vergleich tbody th{font-weight:600;color:var(--grau);width:28%}.dublette-vergleich td.gleich{background:color-mix(in srgb,#e0a106 14%,transparent)}
+.dublette-wahl{display:grid;gap:10px;margin-top:12px}.dublette-wahl form.formular{padding:0;border:0;background:none;box-shadow:none}.dublette-behalten{display:flex;gap:8px;flex-wrap:wrap;border:0;padding:0;margin:0 0 6px}.dublette-behalten legend{font-weight:600;margin-bottom:6px;padding:0}
+.chip.dublette{border-color:#e0a106}
 .pat-hinweise{margin:0;display:flex;gap:6px;flex-wrap:wrap}.marke.warn-marke{border-color:#ff9a2e;color:var(--fg)}
 .pat-kontakte{display:flex;gap:6px;flex-wrap:wrap}
 .pat-kontakt{display:inline-flex;gap:6px;align-items:center;min-height:44px;padding:6px 12px;border-radius:999px;border:1px solid var(--rand);color:var(--akzent);text-decoration:none;font-size:15px;max-width:100%}

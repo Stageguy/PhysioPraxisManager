@@ -36,6 +36,8 @@ const PFADE = {
   /** Hausbesuch und Fahrt (W113) */
   haus: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
   auto: '<path d="M5 16l1.5-5h11L19 16"/><rect x="3" y="16" width="18" height="4" rx="1"/><circle cx="7" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/>',
+  /** Mögliche Dublette (W119): zwei Personen, die zweite gestrichelt */
+  dublette: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="16.5" cy="8" r="3.5" stroke-dasharray="2 2"/><path d="M14 14.3c3.5-.6 7 1.7 7.5 5.7" stroke-dasharray="2 2"/>',
 } as const;
 
 export type Symbol = keyof typeof PFADE;

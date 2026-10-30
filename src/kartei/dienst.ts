@@ -7,7 +7,8 @@ import type { Db } from '../db/index.ts';
 import { istId } from '../db/werte.ts';
 import { terminSpiegeln } from './kalender.ts';
 import {
-  akte, bestaetigungBild, gespraechsgruende, KarteiFehler, kontaktverlauf, offeneFaelle, patientenListe, patientLesen, rechnungen, serien, terminLesen, termine, termineZeitraum, verordnungen,
+  akte, bestaetigungBild, dublettenPaare, gespraechsgruende, KarteiFehler, kontaktverlauf, offeneFaelle, patientenListe, patientLesen, rechnungen, serien, terminLesen, termine, termineZeitraum, verknuepfteElemente,
+  type DubletteGrund, type Verknuepft, verordnungen,
   wellnessLeistungen, type Fall, type Gespraechsgrund, type Patient, type PatientKurz, type RechnungKurz, type Serie, type TerminDetail, type TerminKalender, type TerminKurz,
   type VerlaufEintrag, type VerordnungKurz, type WellnessLeistung,
 } from './patienten.ts';
@@ -114,8 +115,19 @@ export interface LexwareKundenDaten {
   fehler?: string;
 }
 
+/** Klärungsseite (W119): dieser Patient, seine Verknüpfungen und je Kandidat dasselbe plus die Gründe */
+export interface DublettenDaten {
+  patient: Patient;
+  verknuepft: Verknuepft;
+  kandidaten: { patient: Patient; verknuepft: Verknuepft; gruende: DubletteGrund[] }[];
+}
+
 export interface KarteiDienst {
-  liste(o: { suche?: string; archiv?: boolean }): Promise<PatientKurz[]>;
+  liste(o: { suche?: string; archiv?: boolean; dubletten?: boolean }): Promise<PatientKurz[]>;
+  /** Mögliche Dubletten eines Patienten (W119) – undefined, wenn es ihn nicht gibt */
+  dubletten(id: string): Promise<DublettenDaten | undefined>;
+  /** Wie viele nicht archivierte Patienten eine ungeklärte mögliche Dublette haben */
+  dublettenAnzahl(): Promise<number>;
   pinnwand(o: { archiv?: boolean }): Promise<Spalte[]>;
   fall(patientId: string, fallId: string, wer: string): Promise<{ patient: Patient; details: FallDetails; verordnungen: VerordnungKurz[]; termine: TerminKurz[]; rechnungen: RechnungKurz[] } | undefined>;
   patient(id: string): Promise<PatientSeiteDaten | undefined>;
@@ -193,6 +205,18 @@ export function karteiDienst(q: DienstQuellen): KarteiDienst {
   };
   return {
     liste: (o) => patientenListe(db, t, o),
+    async dubletten(id) {
+      const patient = await patientLesen(db, t, id);
+      if (!patient) return undefined;
+      const kandidaten: DublettenDaten['kandidaten'] = [];
+      for (const paar of await dublettenPaare(db, { patientId: id })) {
+        const andererId = paar.a === id ? paar.b : paar.a;
+        const anderer = await patientLesen(db, t, andererId);
+        if (anderer) kandidaten.push({ patient: anderer, verknuepft: await verknuepfteElemente(db, andererId), gruende: paar.gruende });
+      }
+      return { patient, verknuepft: await verknuepfteElemente(db, id), kandidaten };
+    },
+    dublettenAnzahl: async () => new Set((await dublettenPaare(db)).flatMap((p) => [p.a, p.b])).size,
     pinnwand: (o) => pinnwand(db, t, o),
     async fall(patientId, fallId, wer) {
       const patient = await patientLesen(db, t, patientId);

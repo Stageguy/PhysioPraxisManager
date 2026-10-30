@@ -4,10 +4,10 @@
  * „+“-Aktionen Termin, Behandlung, Rezept. Für das Handy gebaut: Anrufen, WhatsApp und Mail sind
  * echte Links (tel:, wa.me, mailto:), /praxis.js vermerkt den Anruf im Verlauf.
  */
-import type { AkteDaten, LexwareKundenDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
+import type { AkteDaten, DublettenDaten, LexwareKundenDaten, NeuAktionDaten, PatientSeiteDaten } from '../kartei/dienst.ts';
 import type { KundeStand, LexwareKundeStand } from '../kartei/lexware-kunden.ts';
 import { kundenName, type LexwareKunde } from '../lexware/kunden.ts';
-import { BESTAETIGUNG_TEXT, VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz, type RechnungKurz, type TerminDetail } from '../kartei/patienten.ts';
+import { akteGewicht, BESTAETIGUNG_TEXT, DUBLETTE_GRUND_TEXT, istLeer, VERKNUEPFT_NAME, VERORDNUNG_ARTEN, type Adresse, type Kontakt, type Patient, type PatientKurz, type RechnungKurz, type TerminDetail, type Verknuepft } from '../kartei/patienten.ts';
 import { ADRESSE_TYP_TEXT, ADRESSE_TYPEN } from '../kartei/hausbesuche.ts';
 import { VORLAGEN } from '../nachrichten/vorlagen.ts';
 import { SEKTION_REIHE, SEKTIONEN, type Terminart } from '../kartei/terminarten.ts';
@@ -65,7 +65,9 @@ export function kachel(p: PatientKurz, o: { kopf?: boolean } = {}): string {
   const behandlung = p.letzteBehandlung
     ? `<a href="/patienten/${p.id}/akte#b-${p.letzteBehandlung.id}" data-hilfe="kachel.behandlung">${datumText(p.letzteBehandlung.datum)} · Verlauf</a>`
     : '<span class="hint">noch keine</span>';
-  return `<article class="pat ${p.rechnungsstand}${o.kopf ? ' kopf' : ''}" data-hilfe="patienten.kachel" id="p-${p.id}">
+  // Mögliche Dublette (W119): Symbol oben links, am Rechner und am Handy ein Link zur Klärung
+  const dublette = p.dubletten ? `<a class="dublette-marke" href="/patienten/${p.id}/dubletten" data-hilfe="kachel.dublette" title="Mögliche Dublette – klären" aria-label="Mögliche Dublette – klären">${symbol('dublette', { groesse: 16 })}</a>` : '';
+  return `<article class="pat ${p.rechnungsstand}${o.kopf ? ' kopf' : ''}${p.dubletten ? ' dublette' : ''}" data-hilfe="patienten.kachel" id="p-${p.id}">${dublette}
     <header class="pat-kopf">
       ${o.kopf ? `<h1>${esc(name(p))}</h1>` : `<a class="pat-name" href="/patienten/${p.id}"><b>${esc(name(p))}</b></a>`}
       <span class="pat-nr">${esc(p.patientennummer)}</span>
@@ -79,23 +81,26 @@ export function kachel(p: PatientKurz, o: { kopf?: boolean } = {}): string {
       <dt>Letzte Behandlung</dt><dd>${behandlung}</dd>
       <dt>Nächster Termin</dt><dd>${termin}</dd>
     </dl>
-    <p class="pat-fuss">${standChip(p)}${p.offeneAnrufe ? `<a class="chip preset7" href="/patienten/${p.id}#verlauf" data-hilfe="kachel.offen">${p.offeneAnrufe} Gespräch${p.offeneAnrufe > 1 ? 'e' : ''} ohne Grund</a>` : ''}${p.status !== 'aktiv' ? `<span class="chip preset12">${esc(p.status)}</span>` : ''}</p>
+    <p class="pat-fuss">${standChip(p)}${p.offeneAnrufe ? `<a class="chip preset7" href="/patienten/${p.id}#verlauf" data-hilfe="kachel.offen">${p.offeneAnrufe} Gespräch${p.offeneAnrufe > 1 ? 'e' : ''} ohne Grund</a>` : ''}${p.status !== 'aktiv' ? `<span class="chip preset12">${esc(p.status)}</span>` : ''}${p.dubletteVon ? `<a class="chip dublette" href="/patienten/${p.dubletteVon.id}">zusammengeführt in ${esc(p.dubletteVon.patientennummer)}</a>` : ''}</p>
   </article>`;
 }
 
 // ── Liste ───────────────────────────────────────────────────────────────────
-export function listeSeite(d: { patienten: PatientKurz[]; suche: string; archiv?: boolean; lexware?: boolean }, o: Rahmen): string {
-  const leer = d.suche ? `<p class="leer">Niemand passt zu „${esc(d.suche)}“.</p>` : d.archiv ? '<p class="leer">Das Archiv ist leer.</p>' : '<p class="leer">Noch keine Patienten – über „+“ den ersten anlegen.</p>';
+export function listeSeite(d: { patienten: PatientKurz[]; suche: string; archiv?: boolean; lexware?: boolean; /** nur Patienten mit Dubletten-Symbol (W119) */ nurDubletten?: boolean; /** wie viele Patienten ein Symbol tragen – der Knopf in der Filterzeile */ dublettenAnzahl?: number }, o: Rahmen): string {
+  const titel = d.archiv ? 'Patienten – Archiv' : d.nurDubletten ? 'Patienten – mögliche Dubletten' : 'Patienten';
+  const leer = d.suche ? `<p class="leer">Niemand passt zu „${esc(d.suche)}“.</p>` : d.archiv ? '<p class="leer">Das Archiv ist leer.</p>' : d.nurDubletten ? '<p class="leer">Keine ungeklärte Dublette.</p>' : '<p class="leer">Noch keine Patienten – über „+“ den ersten anlegen.</p>';
+  const dublettenKnopf = d.nurDubletten ? '<a class="knopf" href="/patienten">Alle Patienten</a>'
+    : d.dublettenAnzahl ? `<a class="knopf" href="/patienten?dubletten=1" data-hilfe="patienten.dubletten">${symbol('dublette', { groesse: 18 })} ${d.dublettenAnzahl} mögliche Dublette${d.dublettenAnzahl > 1 ? 'n' : ''}</a>` : '';
   return seite({
-    titel: d.archiv ? 'Patienten – Archiv' : 'Patienten', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
-    inhalt: `<h1>${symbol('patient', { groesse: 26 })} ${d.archiv ? 'Patienten – Archiv' : 'Patienten'}</h1>${meldungen(o)}
-<form method="get" action="${d.archiv ? '/patienten/archiv' : '/patienten'}" class="filter patienten-filter">
+    titel, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
+    inhalt: `<h1>${symbol(d.nurDubletten ? 'dublette' : 'patient', { groesse: 26 })} ${titel}</h1>${meldungen(o)}
+<form method="get" action="${d.archiv ? '/patienten/archiv' : '/patienten'}" class="filter patienten-filter">${d.nurDubletten ? '<input type="hidden" name="dubletten" value="1">' : ''}
   <label class="suche">Suchen<input type="search" name="suche" value="${esc(d.suche)}" placeholder="Name, Nummer, Telefon oder Mail" data-hilfe="patienten.suche" autocomplete="off"></label>
   <button class="knopf">Suchen</button>
-  ${d.archiv ? '<a class="knopf" href="/patienten">Aktive Patienten</a>' : `<a class="knopf" href="/patienten/archiv" data-hilfe="patienten.archiv">${symbol('archiv', { groesse: 18 })} Archiv</a>${d.lexware ? `
+  ${d.archiv ? '<a class="knopf" href="/patienten">Aktive Patienten</a>' : `${dublettenKnopf}<a class="knopf" href="/patienten/archiv" data-hilfe="patienten.archiv">${symbol('archiv', { groesse: 18 })} Archiv</a>${d.lexware ? `
   <a class="knopf" href="/patienten/lexware" data-hilfe="patienten.lexware">${symbol('euro', { groesse: 18 })} Aus Lexware</a>` : ''}`}
 </form>
-<div class="pat-raster">${d.archiv ? '' : plusKachel({ text: 'Neuer Patient', hilfe: 'patienten.neu', href: '/patienten/neu' })}${d.patienten.map((p) => kachel(p)).join('')}</div>${d.patienten.length ? '' : leer}`,
+<div class="pat-raster">${d.archiv || d.nurDubletten ? '' : plusKachel({ text: 'Neuer Patient', hilfe: 'patienten.neu', href: '/patienten/neu' })}${d.patienten.map((p) => kachel(p)).join('')}</div>${d.patienten.length ? '' : leer}`,
   });
 }
 
@@ -445,6 +450,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen & { vorwahl?: { vor
   return seite({
     titel: name(p), aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › ${esc(name(p))}</p>${meldungen(o)}
+${p.dubletten ? `<p class="meldung dublette" data-hilfe="patient.dubletten-hinweis">${symbol('dublette', { groesse: 20 })}<span><b>Möglicherweise gibt es diesen Patienten schon.</b> Termine, Behandlungen, Rezepte und Rechnungen gehen erst, wenn das geklärt ist. <a class="knopf klein" href="/patienten/${p.id}/dubletten">Jetzt klären</a></span></p>` : ''}
 ${kachel(p, { kopf: true })}
 <div class="knopfreihe pat-aktionen">
   <a class="knopf primaer" href="/patienten/${p.id}/akte" data-hilfe="patient.akte">${symbol('protokoll', { groesse: 18 })} Akte / Behandlungsverlauf</a>
@@ -647,5 +653,67 @@ export function rezeptNeuSeite(d: NeuAktionDaten, o: Rahmen & { vorgaenger?: str
   <p class="hint">Das Foto des Rezepts kommt mit dem Dokumenten-Tresor (W69).</p>
   <button class="knopf primaer" data-hilfe="rezept.anlegen">Rezept anlegen</button>
 </form>`,
+  });
+}
+
+// ── Dubletten klären (W119) ─────────────────────────────────────────────────
+const kontaktZeile = (p: Patient) => p.kontakte.map((k) => `${esc(KONTAKT_NAME[k.art] ?? k.art)}: ${esc(k.wert)}`).join('<br>') || '<span class="hint">keine</span>';
+const adressZeile = (p: Patient) => p.adressen.map((a) => `${esc([a.bezeichnung, [a.strasse, a.hausnummer].filter(Boolean).join(' '), [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '))}${a.rechnungsadresse ? ' <span class="hint">(Rechnung)</span>' : ''}`).join('<br>') || '<span class="hint">keine</span>';
+
+/** Gegenüberstellung je Kandidat mit den drei Entscheidungen: keine Dublette, zusammenführen (wer bleibt?), löschen (nur ohne Verknüpfung) */
+export function dublettenSeite(d: DublettenDaten, o: Rahmen): string {
+  const p = d.patient;
+  const zurueck = `/patienten/${p.id}/dubletten`;
+  const zeile = (titel: string, a: string, b: string, gleich = false) => `<tr><th scope="row">${titel}</th><td${gleich ? ' class="gleich"' : ''}>${a}</td><td${gleich ? ' class="gleich"' : ''}>${b}</td></tr>`;
+  const text = (x: string | null | undefined) => (x ? esc(x) : '<span class="hint">–</span>');
+  const gleich = (a: unknown, b: unknown) => a !== null && a !== undefined && a !== '' && a === b;
+  const kopf = (x: Patient) => `<b>${esc(name(x))}</b><br><span class="hint">${esc(x.patientennummer)}${x.id === p.id ? ' · diese Seite' : ''}</span>`;
+  const paar = (k: DublettenDaten['kandidaten'][number]) => {
+    const q = k.patient;
+    const gruende = k.gruende.map((g) => `<span class="chip dublette">${DUBLETTE_GRUND_TEXT[g.art]}${g.wert ? `: ${esc(g.wert)}` : ''}</span>`).join('');
+    // Vorschlag: wer mehr Akte hat, bleibt; bei Gleichstand der ältere (kleinere Kennung)
+    const ga = akteGewicht(d.verknuepft);
+    const gq = akteGewicht(k.verknuepft);
+    const vorschlag = gq > ga || (gq === ga && Number(q.id) < Number(p.id)) ? q.id : p.id;
+    // Gleiche Werte gelb: ein gemeinsamer Kontaktweg, eine gemeinsame Anschrift
+    const kontaktGleich = p.kontakte.some((k) => k.normiert && q.kontakte.some((x) => x.normiert === k.normiert));
+    const anschrift = (x: Adresse) => [x.strasse, x.hausnummer, x.plz, x.ort].map((y) => (y ?? '').trim().toLowerCase()).join('|');
+    const adresseGleich = p.adressen.some((k) => (k.strasse || k.ort) && q.adressen.some((x) => anschrift(x) === anschrift(k)));
+    const loeschKnopf = (x: Patient, v: Verknuepft) => (istLeer(v)
+      ? form('dublette_loeschen', `<input type="hidden" name="anderer_id" value="${q.id}"><input type="hidden" name="loeschen_id" value="${x.id}"><button class="knopf warnend" data-hilfe="dubletten.loeschen">${esc(x.patientennummer)} löschen – nichts verknüpft</button>`, { id: p.id, zurueck })
+      : '');
+    return `<section class="tafel dublette-paar" data-hilfe="dubletten.vergleich" tabindex="0">
+  <h2>${symbol('dublette')} ${esc(name(q))} <span class="hint">${esc(q.patientennummer)}</span></h2>
+  <div class="dublette-gruende">${gruende}</div>
+  <table class="dublette-vergleich"><thead><tr><th></th><th>${kopf(p)}</th><th>${kopf(q)}</th></tr></thead><tbody>
+    ${zeile('Geburtsdatum', p.geburtsdatum ? datumText(p.geburtsdatum) : '–', q.geburtsdatum ? datumText(q.geburtsdatum) : '–', gleich(p.geburtsdatum, q.geburtsdatum))}
+    ${zeile('Status', esc(p.status), esc(q.status))}
+    ${zeile('Patient seit', datumText(p.patientSeit), datumText(q.patientSeit))}
+    ${zeile('Kontaktwege', kontaktZeile(p), kontaktZeile(q), kontaktGleich)}
+    ${zeile('Adressen', adressZeile(p), adressZeile(q), adresseGleich)}
+    ${zeile('Lexware-Kunde', text(p.lexwareKundennummer), text(q.lexwareKundennummer), gleich(p.lexwareKundennummer, q.lexwareKundennummer))}
+    ${zeile('Preisliste', text(p.preisliste?.name), text(q.preisliste?.name))}
+    ${VERKNUEPFT_NAME.map(([key, titel]) => zeile(titel, String(d.verknuepft[key] ?? 0), String(k.verknuepft[key] ?? 0))).join('')}
+  </tbody></table>
+  <div class="dublette-wahl">
+    ${form('dublette_keine', `<input type="hidden" name="anderer_id" value="${q.id}"><button class="knopf" data-hilfe="dubletten.keine">Keine Dublette – beide bleiben</button>`, { id: p.id, zurueck })}
+    ${form('dublette_zusammenfuehren', `<input type="hidden" name="anderer_id" value="${q.id}">
+      <fieldset class="dublette-behalten" data-hilfe="dubletten.behalten"><legend>Zusammenführen – welcher bleibt?</legend>
+        <label class="wahl-chip"><input type="radio" name="behalten" value="${p.id}"${vorschlag === p.id ? ' checked' : ''}> ${esc(p.patientennummer)} ${esc(name(p))}</label>
+        <label class="wahl-chip"><input type="radio" name="behalten" value="${q.id}"${vorschlag === q.id ? ' checked' : ''}> ${esc(q.patientennummer)} ${esc(name(q))}</label>
+      </fieldset>
+      <p class="hint">Alles Verknüpfte des anderen wandert zum bleibenden Patienten, leere Felder werden aus ihm ergänzt; der andere wird archiviert und verweist auf den bleibenden. Nicht rückgängig zu machen.</p>
+      <div class="knopfreihe"><button class="knopf primaer" data-hilfe="dubletten.zusammenfuehren">Zusammenführen</button></div>`, { id: p.id, zurueck, klasse: 'formular' })}
+    ${loeschKnopf(p, d.verknuepft)}${loeschKnopf(q, k.verknuepft)}
+  </div>
+</section>`;
+  };
+  return seite({
+    titel: `Mögliche Dubletten – ${name(p)}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
+    inhalt: `<p class="hint pfadzeile"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}">${esc(name(p))}</a> › Dubletten</p>
+<h1>${symbol('dublette', { groesse: 26 })} Gibt es ${esc(name(p))} schon?</h1>${meldungen(o)}
+${d.kandidaten.length ? `<p class="hint">${d.kandidaten.length === 1 ? 'Ein Patient passt' : `${d.kandidaten.length} Patienten passen`} zu ${esc(p.patientennummer)}. Je Kandidat die Gegenüberstellung, darunter die Entscheidung: keine Dublette, zusammenführen oder löschen.</p>
+${d.kandidaten.map(paar).join('')}` : `<p class="leer">Keine ungeklärte Dublette für ${esc(p.patientennummer)}.</p>`}
+<p><a class="knopf" href="/patienten/${p.id}">Zur Patientenseite</a></p>`,
   });
 }

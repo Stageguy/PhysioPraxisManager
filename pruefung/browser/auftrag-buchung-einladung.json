@@ -1,0 +1,9 @@
+{
+  "basis": "http://127.0.0.1:3311",
+  "breiten": [393],
+  "hoehe": 1400,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "buchung-einladung", "pfad": "/?dauer=30&zeit=2026-11-02T10:30Z&e=pMJmI24le3VY", "warte": "#s-daten" }
+  ]
+}

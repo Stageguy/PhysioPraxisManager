@@ -3,8 +3,8 @@ import { istId } from '../../db/werte.ts';
 import { kontaktart } from '../formular.ts';
 import { lexwareNummerFrei, lexwareVerknuepfen } from '../lexware-kunden.ts';
 import {
-  adresseLoeschen, adresseSpeichern, anrufBeginnen, kontaktLoeschen, kontaktSpeichern, patientAnlegen, patientLesen, rechnungsadresseSetzen, stammdatenSpeichern, statusSetzen,
-  verlaufAbschliessen, verlaufEintragen, verlaufVerwerfen, type Kontaktart,
+  adresseLoeschen, adresseSpeichern, anrufBeginnen, dubletteLoeschen, dublettenPaare, keineDublette, KarteiFehler, kontaktLoeschen, kontaktSpeichern, patientAnlegen, patientLesen,
+  rechnungsadresseSetzen, stammdatenSpeichern, statusSetzen, verlaufAbschliessen, verlaufEintragen, verlaufVerwerfen, zusammenfuehren, type Kontaktart,
 } from '../patienten.ts';
 import type { Aktionen } from './kontext.ts';
 
@@ -57,17 +57,47 @@ export const PATIENT_ANLEGEN: Aktionen = {
       geburtsname: g('geburtsname'), kommunikationshilfe: g('kommunikationshilfe'), berufBelastung: g('beruf_belastung'), notiz: g('notiz'),
       preislisteId: g('preisliste_id') || undefined, rechnungsversand: g('rechnungsversand'), adressen,
     }, wer);
+    // Gibt es den Patienten womöglich schon (W119)? Dann führt der Weg zuerst zur Klärung – Lilli entscheidet
+    const dubletten = (await dublettenPaare(db, { patientId: neu })).length;
+    const ziel = (sonst: string) => (dubletten ? `/patienten/${neu}/dubletten` : sonst);
+    const klaeren = dubletten ? ' Möglicherweise gibt es diesen Patienten schon – bitte klären.' : '';
     if (lexwareNummer) {
       await lexwareVerknuepfen(db, neu, { nummer: lexwareNummer, kontaktId: g('lexware_kontakt_id') }, wer);
-      return nach(`/patienten/${neu}`, `Patient angelegt und mit Lexware-Kunde ${lexwareNummer} verknüpft.`);
+      return nach(ziel(`/patienten/${neu}`), `Patient angelegt und mit Lexware-Kunde ${lexwareNummer} verknüpft.${klaeren}`);
     }
     // Aus einer Terminanfrage angelegt (A15): zuordnen und zurück zur Anfrage
     const anfrageId = g('anfrage_id');
     if (anfrageId && istId(anfrageId)) {
       await db.query('UPDATE terminanfrage SET patient_id = $2, geaendert_am = now() WHERE id = $1 AND patient_id IS NULL', [anfrageId, neu]);
-      return nach(`/anfragen/${anfrageId}`, 'Patient angelegt und der Anfrage zugeordnet.');
+      return nach(ziel(`/anfragen/${anfrageId}`), `Patient angelegt und der Anfrage zugeordnet.${klaeren}`);
     }
-    return nach(`/patienten/${neu}`, 'Patient angelegt.');
+    return nach(ziel(`/patienten/${neu}`), `Patient angelegt.${klaeren}`);
+  },
+};
+
+/** Dubletten klären (W119): keine Dublette, zusammenführen, löschen – jede Entscheidung trifft Lilli auf der Klärungsseite */
+export const DUBLETTEN: Aktionen = {
+  async dublette_keine({ db, id, g, wer, nach, seite }) {
+    await keineDublette(db, id, g('anderer_id') ?? '', wer);
+    return nach(seite, 'Keine Dublette – beide Patienten bleiben, das Symbol verschwindet.');
+  },
+  async dublette_zusammenfuehren({ db, id, g, wer, nach, spiegeln }) {
+    const anderer = g('anderer_id') ?? '';
+    const behalten = g('behalten') === anderer ? anderer : id;
+    const weg = behalten === id ? anderer : id;
+    const e = await zusammenfuehren(db, behalten, weg, wer);
+    // Kommende Termine der Dublette tragen im Kalender noch ihre Initialen und Nummer – nachziehen (höchstens zwanzig, der Abgleich holt den Rest)
+    let kalender = '';
+    for (const terminId of e.termine.slice(0, 20)) kalender = await spiegeln(terminId);
+    return nach(`/patienten/${behalten}`, `Zusammengeführt: ${e.text} von ${e.dublette.patientennummer} nach ${e.behalten.patientennummer}; ${e.dublette.patientennummer} ist archiviert und verweist hierher.${kalender}`);
+  },
+  async dublette_loeschen({ db, id, g, wer, nach }) {
+    const anderer = g('anderer_id') ?? '';
+    const weg = g('loeschen_id') ?? '';
+    if (weg !== id && weg !== anderer) throw new KarteiFehler('Welcher Patient gelöscht werden soll, ist unklar');
+    const bleibt = weg === id ? anderer : id;
+    const { patientennummer } = await dubletteLoeschen(db, weg, wer);
+    return nach(`/patienten/${bleibt}`, `${patientennummer} gelöscht – es war nichts verknüpft.`);
   },
 };
 

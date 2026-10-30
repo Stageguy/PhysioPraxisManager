@@ -4,6 +4,7 @@ import { iso, istId, tag, text, zahl } from '../../db/werte.ts';
 import type { Tresor } from '../../tresor.ts';
 import { ADRESSE_TYPEN, type AdresseTyp } from '../hausbesuche.ts';
 import { KarteiFehler, datumPruefen, geheim, VERZUG_ROT_TAGE, kontaktNormieren, kontaktPruefen, type Kontaktart, type Rechnungsstand, type Kontakt, type Adresse, type Bezugsperson, type PatientKurz, type Patient } from './basis.ts';
+import { dublettenZaehlen } from './dubletten.ts';
 
 // ── Lesen ───────────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ function zuKurz(t: Tresor, r: KachelZeile): PatientKurz {
   };
 }
 
-export async function patientenListe(db: Db, t: Tresor, o: { suche?: string; archiv?: boolean } = {}): Promise<PatientKurz[]> {
+export async function patientenListe(db: Db, t: Tresor, o: { suche?: string; archiv?: boolean; /** nur Patienten mit ungeklärter möglicher Dublette (W119) */ dubletten?: boolean } = {}): Promise<PatientKurz[]> {
   const suche = (o.suche ?? '').trim().toLowerCase();
   const werte: unknown[] = [];
   let wo = o.archiv ? "p.status = 'archiviert'" : "p.status <> 'archiviert'";
@@ -50,15 +51,17 @@ export async function patientenListe(db: Db, t: Tresor, o: { suche?: string; arc
     wo += ` AND (lower(p.vorname || ' ' || p.nachname) LIKE $1 OR lower(p.nachname || ' ' || p.vorname) LIKE $1 OR lower(p.patientennummer) LIKE $1
       OR EXISTS (SELECT 1 FROM patient_kontakt k WHERE k.patient_id = p.id AND (lower(k.wert) LIKE $1 OR k.normiert LIKE $1)))`;
   }
-  const { rows } = await db.query<KachelZeile>(`SELECT ${KACHEL_SQL} FROM patient p WHERE ${wo} ORDER BY lower(p.nachname), lower(p.vorname) LIMIT 300`, werte);
-  return rows.map((r) => zuKurz(t, r));
+  const { rows } = await db.query<KachelZeile>(`SELECT ${KACHEL_SQL}, p.dublette_von::text, (SELECT v.patientennummer FROM patient v WHERE v.id = p.dublette_von) AS dublette_von_nummer FROM patient p WHERE ${wo} ORDER BY lower(p.nachname), lower(p.vorname) LIMIT 300`, werte);
+  const zaehler = o.archiv ? new Map<string, number>() : await dublettenZaehlen(db);
+  const liste = rows.map((r) => ({ ...zuKurz(t, r), dubletten: zaehler.get(String(r.id)) ?? 0, dubletteVon: r.dublette_von ? { id: String(r.dublette_von), patientennummer: String(r.dublette_von_nummer) } : null }));
+  return o.dubletten ? liste.filter((p) => p.dubletten) : liste;
 }
 
 export async function patientLesen(db: Db, t: Tresor, id: string): Promise<Patient | undefined> {
   if (!istId(id)) return undefined;
   const r = (await db.query<KachelZeile>(
     `SELECT ${KACHEL_SQL}, p.geburtsdatum, p.geburtsname, p.sprache, p.kommunikationshilfe, p.beruf_belastung, p.notiz, p.abrechnungsmodus::text,
-       p.zwischenrechnung_quartale, p.exchange_kontakt_id, p.lexware_kundennummer, p.preisliste_id::text, p.rechnungsversand,
+       p.zwischenrechnung_quartale, p.exchange_kontakt_id, p.lexware_kundennummer, p.preisliste_id::text, p.rechnungsversand, p.dublette_von::text, (SELECT v.patientennummer FROM patient v WHERE v.id = p.dublette_von) AS dublette_von_nummer,
        (SELECT name FROM preisliste l WHERE l.id = p.preisliste_id) AS preisliste_name,
        (SELECT json_build_object('id', g.id::text, 'name', g.name, 'standard', g.standard) FROM preisliste g WHERE g.id = coalesce((SELECT l.id FROM preisliste l WHERE l.id = p.preisliste_id AND l.status = 'freigegeben' AND l.aktiv), (SELECT id FROM preisliste WHERE standard LIMIT 1))) AS preisliste_gilt
      FROM patient p WHERE p.id = $1`, [id],
@@ -78,6 +81,8 @@ export async function patientLesen(db: Db, t: Tresor, id: string): Promise<Patie
     preisliste: r.preisliste_id ? { id: String(r.preisliste_id), name: String(r.preisliste_name) } : null,
     preislisteGilt: r.preisliste_gilt ? ((typeof r.preisliste_gilt === 'string' ? JSON.parse(r.preisliste_gilt) : r.preisliste_gilt) as Patient['preislisteGilt']) : null, rechnungsversand: (r.rechnungsversand as Patient['rechnungsversand']) ?? 'email',
     kontakte, adressen, bezugspersonen, versicherungen,
+    dubletten: (await dublettenZaehlen(db, id)).get(id) ?? 0,
+    dubletteVon: r.dublette_von ? { id: String(r.dublette_von), patientennummer: String(r.dublette_von_nummer) } : null,
   };
 }
 
