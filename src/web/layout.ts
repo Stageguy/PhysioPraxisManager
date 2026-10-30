@@ -273,7 +273,7 @@ label.haken input{width:20px;height:20px;min-height:0;accent-color:var(--akzent)
 .dublette-vergleich{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}.dublette-vergleich th,.dublette-vergleich td{text-align:left;vertical-align:top;padding:4px 8px;border-top:1px solid var(--rand)}
 .dublette-vergleich thead th{border-top:0;color:var(--grau);font-weight:600}.dublette-vergleich thead th:first-child{width:46%}.dublette-vergleich tbody th{font-weight:400;color:var(--fg)}
 .dublette-paar .chips label.wahl-chip{min-height:40px}
-.chip.dublette{border-color:#e0a106}
+.chip.dublette{border:1px solid #e0a106;background:color-mix(in srgb,#e0a106 30%,var(--karte));color:var(--fg);white-space:normal}
 .pat-hinweise{margin:0;display:flex;gap:6px;flex-wrap:wrap}.marke.warn-marke{border-color:#ff9a2e;color:var(--fg)}
 .pat-kontakte{display:flex;gap:6px;flex-wrap:wrap}
 .pat-kontakt{display:inline-flex;gap:6px;align-items:center;min-height:44px;padding:6px 12px;border-radius:999px;border:1px solid var(--rand);color:var(--akzent);text-decoration:none;font-size:15px;max-width:100%}
