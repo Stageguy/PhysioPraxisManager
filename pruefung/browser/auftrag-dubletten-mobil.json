@@ -1,0 +1,11 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "klaerung-nora2", "pfad": "/patienten/119/dubletten" },
+    { "name": "schnell-hanna", "pfad": "/?schnell=30&patient=T-1051" }
+  ]
+}

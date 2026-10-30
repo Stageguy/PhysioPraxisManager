@@ -255,7 +255,10 @@ label.haken input{width:20px;height:20px;min-height:0;accent-color:var(--akzent)
 .dublette-paar{margin:12px 0}.dublette-paar h2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.dublette-gruende{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
 .dublette-vergleich{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}.dublette-vergleich th,.dublette-vergleich td{text-align:left;vertical-align:top;padding:5px 8px;border-top:1px solid var(--rand);overflow-wrap:break-word;hyphens:auto}.dublette-vergleich td{width:35%}
 .dublette-vergleich thead th{border-top:0;font-size:15px}.dublette-vergleich tbody th{font-weight:600;color:var(--grau)}.dublette-vergleich thead th:first-child{width:30%}
-@media (max-width:640px){.dublette-vergleich{font-size:13px}.dublette-vergleich th,.dublette-vergleich td{padding:4px 5px}.dublette-vergleich thead th{font-size:14px}.dublette-vergleich thead th:first-child{width:26%}.dublette-vergleich td{width:37%}}.dublette-vergleich td.gleich{background:color-mix(in srgb,#e0a106 14%,transparent)}
+/* Am Handy: Zeilentitel über den zwei Werten statt drei schmaler Spalten (keine Wortbrüche) */
+@media (max-width:640px){.dublette-vergleich,.dublette-vergleich thead,.dublette-vergleich tbody{display:block}.dublette-vergleich{font-size:13px}
+.dublette-vergleich tr{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;border-top:1px solid var(--rand);padding:5px 0}.dublette-vergleich thead tr{border-top:0}.dublette-vergleich thead th:first-child{display:none}
+.dublette-vergleich th,.dublette-vergleich td{border-top:0;padding:2px 4px;width:auto}.dublette-vergleich tbody th{grid-column:1/-1;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding-bottom:0}}.dublette-vergleich td.gleich{background:color-mix(in srgb,#e0a106 14%,transparent)}
 .dublette-wahl{display:grid;gap:10px;margin-top:12px}.dublette-wahl form.formular{padding:0;border:0;background:none;box-shadow:none}.dublette-behalten{display:flex;gap:8px;flex-wrap:wrap;border:0;padding:0;margin:0 0 6px}.dublette-behalten legend{font-weight:600;margin-bottom:6px;padding:0}
 .chip.dublette{border-color:#e0a106}
 .pat-hinweise{margin:0;display:flex;gap:6px;flex-wrap:wrap}.marke.warn-marke{border-color:#ff9a2e;color:var(--fg)}
