@@ -9,7 +9,7 @@ import { ART_TEXT, STATUS_TEXT, type Rechnung } from '../kartei/rechnungen.ts';
 import type { NummernKonflikt } from '../kartei/lexware-rechnungen.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, euroText, preisText } from '../format.ts';
-import { heuteBerlin } from '../zeit.ts';
+import { datumBerlin, heuteBerlin } from '../zeit.ts';
 import { meldungen, type Rahmen } from './bausteine.ts';
 import { symbol } from './symbole.ts';
 
@@ -91,7 +91,7 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen & { /** nach dem 
   // Entwurf in Outlook (W122): Hinweisblock mit Sprung in den Entwurf; nach dem Anlegen zusätzlich das Fenster
   const ew = r.versandEntwurf;
   const entwurfLink = ew?.link ? `<a class="knopf klein primaer" href="${esc(ew.link)}" target="_blank" rel="noopener" data-hilfe="rechnung.entwurf-outlook">${symbol('email', { groesse: 16 })} In Outlook öffnen</a>` : '';
-  const entwurfBlock = ew ? `<div class="meldung ok entwurf" data-hilfe="rechnung.entwurf" tabindex="0">${symbol('email', { groesse: 20 })}<span><b>Die Rechnungs-Mail liegt als Entwurf in Outlook</b>${ew.am ? ` (seit ${datumText(ew.am.slice(0, 10))})` : ''} – mit PDF und der Adresse ${esc(p.email?.wert ?? '')}. Dort ggf. anpassen und senden. „Versendet“ steht hier, sobald Outlook den Versand bestätigt – diese Seite sieht bei jedem Öffnen nach.<br>${entwurfLink} <a class="knopf klein" href="${zurueck}" data-hilfe="rechnung.entwurf-pruefen">Versand prüfen</a></span></div>` : '';
+  const entwurfBlock = ew ? `<div class="meldung ok entwurf" data-hilfe="rechnung.entwurf" tabindex="0">${symbol('email', { groesse: 20 })}<span><b>Die Rechnungs-Mail liegt als Entwurf in Outlook</b>${ew.am ? ` (seit ${datumText(datumBerlin(ew.am))})` : ''} – mit PDF und der Adresse ${esc(p.email?.wert ?? '')}. Dort ggf. anpassen und senden. „Versendet“ steht hier, sobald Outlook den Versand bestätigt – diese Seite sieht bei jedem Öffnen nach.<br>${entwurfLink} <a class="knopf klein" href="${zurueck}" data-hilfe="rechnung.entwurf-pruefen">Versand prüfen</a></span></div>` : '';
   const dialog = ew && o.entwurfDialog ? `<dialog open class="rm-dialog entwurf-dialog" data-hilfe="rechnung.entwurf-dialog"><div class="rm-form"><div class="rm-kopf"><strong>${symbol('email', { groesse: 18 })} Entwurf in Outlook</strong></div>
     <p>Die Rechnungs-Mail an <b>${esc(p.email?.wert ?? '')}</b> liegt als Entwurf in Outlook – mit PDF${d.girocode ? ' und GiroCode' : ''}. Dort kannst du den Text noch anpassen und sendest sie.</p>
     <p class="hint">„Versendet“ steht an der Rechnung, sobald Outlook den Versand bestätigt hat.</p>
