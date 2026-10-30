@@ -6,6 +6,7 @@
 import type { Textbaustein } from '../kartei/konfiguration.ts';
 import type { Patient, WellnessLeistung } from '../kartei/patienten.ts';
 import { ART_TEXT, STATUS_TEXT, type Rechnung } from '../kartei/rechnungen.ts';
+import type { NummernKonflikt } from '../kartei/lexware-rechnungen.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, euroText, preisText } from '../format.ts';
 import { heuteBerlin } from '../zeit.ts';
@@ -28,6 +29,8 @@ export interface RechnungSeiteDaten {
   postfach: boolean;
   /** GiroCode als data:-Bild (W102) – bei offenen Rechnungen mit hinterlegter Bankverbindung */
   girocode: string | null;
+  /** „Lexware hat die Nummer … vergeben, die hier schon steht“ (W120): Nummer und die andere Rechnung – für den Ein-Klick-Weg */
+  nummernKonflikt: NummernKonflikt | null;
 }
 
 
@@ -45,6 +48,12 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen): string {
   const entwurf = r.status === 'entwurf';
   const wellness = r.steuerklasse === 'wellness_19';
   const e = r.empfaenger;
+  // Abweichung zu Lexware als Block unter dem Kopf – umbrechend, am Handy ganz lesbar (W120); beim Nummernkonflikt der Weg mit einem Klick
+  const k = d.nummernKonflikt;
+  const abweichung = r.lexware.abweichung ? `<div class="meldung fehler abweichung" data-hilfe="rechnung.abweichung" tabindex="0">${symbol('warnung', { groesse: 20 })}<span><b>Abweichung zu Lexware:</b> ${esc(r.lexware.abweichung)}${k ? `<br>${k.andere
+    ? `Die Nummer <b>${esc(k.nummer)}</b> steht hier an <a href="/patienten/${k.andere.patientId}/rechnungen/${k.andere.id}" data-hilfe="rechnung.andere-rechnung">Rechnung Nr. ${esc(k.andere.id)} von ${esc(k.andere.patientName)}</a>. Lexware ist für Nummern maßgeblich: ein Klick trägt sie hier ein – die andere Rechnung gibt sie ab und bekommt einen Prüfhinweis.`
+    : `Die Nummer <b>${esc(k.nummer)}</b> ist inzwischen frei – ein Klick trägt sie hier ein.`}
+    ${form('rechnung_nummer', `<button class="knopf klein primaer" data-hilfe="rechnung.nummer-uebernehmen">${symbol('haken', { groesse: 16 })} Nummer ${esc(k.nummer)} hier eintragen</button>`)}` : ''}</span></div>` : '';
   const positionen = r.positionen.map((pos) => `<article class="rp${pos.behandlungLeistungId ? ' erledigt' : ''}" data-hilfe="rechnung.position">
     <span class="rp-datum">${pos.datum ? datumText(pos.datum) : '<span class="hint">ohne Datum</span>'}</span>
     <span class="rp-nr">${esc(pos.nummer ?? '')}</span>
@@ -98,7 +107,8 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen): string {
     titel: `Rechnung ${r.nummer ?? '(Entwurf)'} – ${name}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}#rechnungen">${esc(name)}</a> › Rechnung ${esc(r.nummer ?? `Entwurf Nr. ${r.id}`)}
   <a class="nur-desktop konfig-link" href="/konfiguration" data-hilfe="konfiguration.link">${symbol('protokoll', { groesse: 14 })} Konfiguration</a></p>
-<header class="kopf"><h1>${symbol('euro', { groesse: 26 })} ${esc(ART_TEXT[r.art] ?? 'Rechnung')} ${r.nummer ? esc(r.nummer) : ''} ${statusChip(r.status)}${r.lexware.abweichung ? ` <span class="chip preset0" data-hilfe="rechnung.abweichung" tabindex="0">${symbol('warnung', { groesse: 14 })} ${esc(r.lexware.abweichung)}</span>` : ''}</h1></header>
+<header class="kopf"><h1>${symbol('euro', { groesse: 26 })} ${esc(ART_TEXT[r.art] ?? 'Rechnung')} ${r.nummer ? esc(r.nummer) : ''} ${statusChip(r.status)}</h1></header>
+${abweichung}
 ${r.quelle === 'lexware' ? `<p class="meldung ok">${symbol('rechnung', { groesse: 18 })} Aus Lexware übernommen – Positionen, Rezept und Behandlung liegen hier nicht vor; die Datei ist die Rechnung${r.lexware.pdfName ? `: <a href="${zurueck}/pdf" data-pdf="${esc(r.nummer ?? r.lexware.pdfName)}">${esc(r.lexware.pdfName)}</a>` : ''}.</p>` : ''}
 ${meldungen(o)}
 <div class="re-kopf">
@@ -109,7 +119,7 @@ ${meldungen(o)}
     <dt>Preisliste</dt><dd>${r.preisliste ? `<a href="/preislisten/${r.preisliste.id}">${esc(r.preisliste.name)}</a> <span class="hint">(Stand dieser Rechnung)</span>` : '<span class="warn">keine – Preise bitte von Hand</span>'}</dd>
     <dt>Datum</dt><dd>${r.datum ? datumText(r.datum) : 'bei Fertigstellung'}${r.faelligAm ? ` · fällig ${datumText(r.faelligAm)}` : ''}</dd>
     ${r.zeitraumVon ? `<dt>Zeitraum</dt><dd>${datumText(r.zeitraumVon)} – ${datumText(r.zeitraumBis)}</dd>` : ''}
-    ${r.lexware.status ? `<dt>Lexware</dt><dd>${esc(r.lexware.status)}${r.lexware.geprueftAm ? ` · geprüft ${datumText(r.lexware.geprueftAm)}` : ''}${r.lexware.invoiceId ? ` · <a href="https://app.lexware.de/permalink/invoices/view/${esc(r.lexware.invoiceId)}" target="_blank" rel="noopener" data-hilfe="rechnung.lexware-link">in Lexware öffnen</a>` : ''}</dd>` : ''}
+    ${r.lexware.status ? `<dt>Lexware</dt><dd>${esc(r.lexware.status)}${k ? ` · Nummer dort ${esc(k.nummer)}` : ''}${r.lexware.geprueftAm ? ` · geprüft ${datumText(r.lexware.geprueftAm)}` : ''}${r.lexware.invoiceId ? ` · <a href="https://app.lexware.de/permalink/invoices/view/${esc(r.lexware.invoiceId)}" target="_blank" rel="noopener" data-hilfe="rechnung.lexware-link">in Lexware öffnen</a>` : ''}</dd>` : ''}
     ${r.zahlungen.map((z) => `<dt>Zahlung</dt><dd>${z.datum ? datumText(z.datum) : '–'} · ${euroText(z.betrag)} · ${esc(z.art)}</dd>`).join('')}
     ${r.stornoGrund ? `<dt>Storno</dt><dd>${datumText(r.storniertAm)} · ${esc(r.stornoGrund)}</dd>` : ''}
   </dl>${r.lexware.pdfAm ? `<a class="knopf klein" href="/patienten/${p.id}/rechnungen/${r.id}/pdf" data-pdf="${esc(r.nummer ?? 'Rechnung')}" data-hilfe="ausgang.pdf">${symbol('rechnung', { groesse: 16 })} PDF aus Lexware</a>` : ''}

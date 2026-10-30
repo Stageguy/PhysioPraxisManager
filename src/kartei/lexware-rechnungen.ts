@@ -5,6 +5,7 @@
  * Zahldatum, Datei nachholen. Es wird nichts gelöscht; was nur der PPM kennt (Positionen, Rezept, Fall), bleibt (§4d).
  */
 import { protokolliere, type Db } from '../db/index.ts';
+import { tag } from '../db/werte.ts';
 import { datumText } from '../format.ts';
 import type { Tresor } from '../tresor.ts';
 import type { LexwareRechnungen } from '../lexware/rechnungen.ts';
@@ -219,6 +220,48 @@ export async function rechnungNachLexware(
   await db.query('UPDATE rechnung SET lexware_kontakt_id = $2, faellig_am = COALESCE($3::date, faellig_am), geaendert_am = now() WHERE id = $1', [rechnungId, kontaktId, neu.faellig]);
   await protokolliere(db, { actor: wer, action: 'rechnung_nach_lexware', objectType: 'patient', objectId: patientId, details: { rechnung: Number(rechnungId), kontaktNeu, pdf: Boolean(datei) } });
   return { nummer: neu.nummer, kontaktNeu };
+}
+
+const KONFLIKT = /Lexware hat die Nummer (\S+) vergeben/;
+
+export interface NummernKonflikt {
+  nummer: string;
+  /** Die Rechnung, die die Nummer zurzeit trägt – null, wenn sie inzwischen frei ist */
+  andere: { id: string; patientId: string; patientName: string; datum: string | null } | null;
+}
+
+/** Die Abweichung „Lexware hat die Nummer … vergeben, die hier schon steht“ aufgeschlüsselt: welche Nummer, welche andere Rechnung trägt sie (W120) */
+export async function nummernKonflikt(db: Db, rechnungId: string): Promise<NummernKonflikt | null> {
+  if (!/^\d+$/.test(rechnungId)) return null;
+  const r = (await db.query<{ abweichung: string | null }>('SELECT lexware_abweichung AS abweichung FROM rechnung WHERE id = $1', [rechnungId])).rows[0];
+  const nummer = r?.abweichung ? KONFLIKT.exec(r.abweichung)?.[1] : undefined;
+  if (!nummer) return null;
+  const andere = (await db.query<{ id: string; patient_id: string; vorname: string; nachname: string; datum: string | null }>(
+    'SELECT r.id::text, r.patient_id::text, p.vorname, p.nachname, r.datum FROM rechnung r JOIN patient p ON p.id = r.patient_id WHERE r.nummer = $1 AND r.id <> $2 LIMIT 1', [nummer, rechnungId],
+  )).rows[0];
+  return { nummer, andere: andere ? { id: andere.id, patientId: andere.patient_id, patientName: `${andere.vorname} ${andere.nachname}`, datum: tag(andere.datum) } : null };
+}
+
+/**
+ * Ein Klick (W120): die Nummer aus Lexware hierher. Lexware ist für Nummern maßgeblich (E28) – die andere Rechnung gibt sie ab und
+ * bekommt einen Prüfhinweis; danach den Stand übernehmen wie beim Abgleich (Status „in Lexware“, PDF, Fälligkeit).
+ */
+export async function nummernKonfliktLoesen(db: Db, t: Tresor, lex: LexwareRechnungen | undefined, patientId: string, rechnungId: string, wer: string): Promise<string> {
+  const r = await rechnungLesen(db, patientId, rechnungId);
+  if (!r) throw new KarteiFehler('Diese Rechnung gibt es nicht');
+  const k = await nummernKonflikt(db, rechnungId);
+  if (!k) throw new KarteiFehler('Diese Rechnung hat keinen Nummernkonflikt');
+  if (k.andere) {
+    await db.query('UPDATE rechnung SET nummer = NULL, lexware_abweichung = $2, geaendert_am = now() WHERE id = $1',
+      [k.andere.id, `Nummer ${k.nummer} abgegeben an Rechnung Nr. ${rechnungId} – Lexware hat sie dort vergeben; bitte in Lexware nachsehen, welche Nummer diese Rechnung trägt`]);
+  }
+  let datei: { daten: Uint8Array; name: string } | undefined;
+  if (lex && r.lexware.invoiceId) {
+    try { datei = await lex.datei(r.lexware.invoiceId); } catch (err) { console.warn(`Lexware-PDF ${r.lexware.invoiceId}: ${(err as Error).message.slice(0, 120)}`); }
+  }
+  await lexwareStandUebernehmen(db, t, rechnungId, { invoiceId: r.lexware.invoiceId ?? undefined, nummer: k.nummer, status: r.lexware.status ?? 'open', betrag: r.betrag, pdf: datei?.daten, pdfName: datei?.name }, wer);
+  await protokolliere(db, { actor: wer, action: 'rechnung_nummer_uebernommen', objectType: 'patient', objectId: patientId, details: { rechnung: Number(rechnungId), von: k.andere ? Number(k.andere.id) : null } });
+  return `Nummer ${k.nummer} eingetragen${k.andere ? ` – Rechnung Nr. ${k.andere.id} (${k.andere.patientName}) hat sie abgegeben und trägt einen Prüfhinweis` : ''}.${datei ? ' PDF liegt im Tresor.' : ' Kein PDF bekommen – der nächste Abgleich holt es.'}`;
 }
 
 export { SchrankeVerletzt };

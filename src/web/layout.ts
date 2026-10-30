@@ -144,6 +144,7 @@ h3{font-size:15px;margin:0 0 8px}
 .meldung{display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:10px;margin:12px 0}
 .meldung[hidden]{display:none}
 .meldung.ok{background:color-mix(in srgb,var(--ok) 14%,transparent)}.meldung.fehler{background:color-mix(in srgb,var(--fehler) 14%,transparent)}
+.meldung.abweichung{align-items:flex-start}.meldung.abweichung>span{display:block;min-width:0;overflow-wrap:anywhere}.meldung.abweichung form.inline{display:block;margin-top:8px}
 .schnell-kreise{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.schnell-kreise .kreis{width:56px;height:56px;border-radius:50%;border:2px solid var(--akzent);display:grid;place-items:center;font-weight:700;font-size:18px;color:var(--akzent);text-decoration:none;background:var(--karte)}.schnell-kreise .kreis.aktiv,.schnell-kreise .kreis:hover{background:var(--akzent);color:var(--bg)}
 .schnell-patient{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:0 0 10px}.schnell-patient label{display:grid;gap:4px;font-size:13px;color:var(--grau);flex:1 1 220px;min-width:0}.schnell-patient label>span{display:inline}.schnell-patient input{font:inherit;padding:8px 10px;border:1px solid var(--rand);border-radius:8px;background:var(--bg);color:var(--fg);min-width:0}.schnell-fuer{display:inline-flex;gap:6px;align-items:center;font-size:14px}.schnell-fuer a{font-size:13px}
 .schnell-direkt>summary{list-style:none;display:inline-flex;cursor:pointer}.schnell-direkt>summary::-webkit-details-marker{display:none}.schnell-direkt .knopfreihe{margin:8px 0}.schnell-vorlage{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--grau);margin-top:10px}.schnell-vorlage textarea{font:14px/1.45 system-ui,sans-serif;color:var(--fg)}
@@ -259,19 +260,19 @@ label.haken input{width:20px;height:20px;min-height:0;accent-color:var(--akzent)
 .pat.lexware span.pat-kontakt{color:var(--fg)}.pat.lexware .pat-fuss{gap:8px;align-items:center}.pat.lexware .pat-fuss form.inline{display:inline}
 .pat-kopf{display:flex;gap:10px;align-items:center}.pat-name{color:var(--fg);text-decoration:none;font-size:17px;min-width:0;overflow-wrap:anywhere}.pat-name:hover b{text-decoration:underline}
 .pat-nr{color:var(--grau);font-size:13px;margin-left:auto;white-space:nowrap}
-/* Mögliche Dubletten (W119): Symbol oben links an der Kachel, Hinweis auf der Patientenseite, Gegenüberstellung */
+/* Mögliche Dubletten (W119): Symbol oben links an der Kachel, Hinweis auf der Patientenseite, Klärung im Formular-Aufbau */
 .pat.dublette{border-color:#e0a106}.pat.dublette>.pat-kopf{padding-left:32px}
 .dublette-marke{position:absolute;left:8px;top:10px;z-index:2;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:color-mix(in srgb,#e0a106 20%,var(--karte));border:1px solid #e0a106;color:var(--fg)}
 .dublette-marke:hover,.dublette-marke:focus-visible{background:#e0a106;color:#fff}
 .meldung.dublette{background:color-mix(in srgb,#e0a106 18%,var(--karte));border:1px solid #e0a106;align-items:flex-start}.meldung.dublette .knopf{margin-left:6px}
-.dublette-paar{margin:12px 0}.dublette-paar h2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.dublette-gruende{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
-.dublette-vergleich{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}.dublette-vergleich th,.dublette-vergleich td{text-align:left;vertical-align:top;padding:5px 8px;border-top:1px solid var(--rand);overflow-wrap:break-word;hyphens:auto}.dublette-vergleich td{width:35%}
-.dublette-vergleich thead th{border-top:0;font-size:15px}.dublette-vergleich tbody th{font-weight:600;color:var(--grau)}.dublette-vergleich thead th:first-child{width:30%}
-/* Am Handy: Zeilentitel über den zwei Werten statt drei schmaler Spalten (keine Wortbrüche) */
-@media (max-width:640px){.dublette-vergleich,.dublette-vergleich thead,.dublette-vergleich tbody{display:block}.dublette-vergleich{font-size:13px}
-.dublette-vergleich tr{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;border-top:1px solid var(--rand);padding:5px 0}.dublette-vergleich thead tr{border-top:0}.dublette-vergleich thead th:first-child{display:none}
-.dublette-vergleich th,.dublette-vergleich td{border-top:0;padding:2px 4px;width:auto}.dublette-vergleich tbody th{grid-column:1/-1;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding-bottom:0}}.dublette-vergleich td.gleich{background:color-mix(in srgb,#e0a106 14%,transparent)}
-.dublette-wahl{display:grid;gap:10px;margin-top:12px}.dublette-wahl form.formular{padding:0;border:0;background:none;box-shadow:none}.dublette-behalten{display:flex;gap:8px;flex-wrap:wrap;border:0;padding:0;margin:0 0 6px}.dublette-behalten legend{font-weight:600;margin-bottom:6px;padding:0}
+.dublette-paar{margin:12px 0}.dublette-gruende{margin:0}
+.dublette-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.dublette-kachel{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border:1px solid var(--rand);border-radius:12px;background:var(--bg);font-size:14px;line-height:1.4;min-width:0}
+.dublette-kachel.diese{border-color:var(--akzent)}.dublette-kachel .dk-kopf{display:flex;gap:8px;align-items:baseline}.dublette-kachel .dk-kopf b{font-size:16px;color:var(--akzent)}
+.dublette-kachel .dk-zeile{display:grid;grid-template-columns:96px minmax(0,1fr);gap:6px;overflow-wrap:anywhere}.dublette-kachel .gleich{background:color-mix(in srgb,#e0a106 22%,transparent);border-radius:4px;padding:0 3px}
+.dublette-vergleich{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}.dublette-vergleich th,.dublette-vergleich td{text-align:left;vertical-align:top;padding:4px 8px;border-top:1px solid var(--rand)}
+.dublette-vergleich thead th{border-top:0;color:var(--grau);font-weight:600}.dublette-vergleich thead th:first-child{width:46%}.dublette-vergleich tbody th{font-weight:400;color:var(--fg)}
+.dublette-paar .chips label.wahl-chip{min-height:40px}
 .chip.dublette{border-color:#e0a106}
 .pat-hinweise{margin:0;display:flex;gap:6px;flex-wrap:wrap}.marke.warn-marke{border-color:#ff9a2e;color:var(--fg)}
 .pat-kontakte{display:flex;gap:6px;flex-wrap:wrap}

@@ -105,7 +105,7 @@ const anfragen = db && schluessel ? anfragenDienst({ db, tresor: schluessel, gra
 const lexwareClient = process.env.LEXWARE_API_KEY && umgebung() === 'prod' ? new LexwareClient(process.env.LEXWARE_API_KEY) : undefined;
 const lexware = lexwareClient ? lexwareKunden(lexwareClient) : umgebung() === 'test' && process.env.LEXWARE_ATTRAPPE === '1' ? attrappeKunden() : undefined;
 // Rechnungen aus Lexware (W103): dieselbe Verbindung (eine Drossel für alles); die Attrappe liefert erfundene Rechnungen zu den erfundenen Kunden
-const lexwareRechnungenQuelle = lexwareClient ? lexwareRechnungen(lexwareClient) : lexware?.attrappe ? attrappeRechnungen() : undefined;
+const lexwareRechnungenQuelle = lexwareClient ? lexwareRechnungen(lexwareClient) : lexware?.attrappe ? attrappeRechnungen({ neustartfest: true }) : undefined;
 if (process.env.LEXWARE_API_KEY && umgebung() === 'test') console.warn('⚠ LEXWARE_API_KEY in der Testumgebung – wird nicht benutzt (N28: keine echten Patientendaten im Test)');
 if (lexware) console.log(lexware.attrappe ? 'Lexware: Attrappe mit erfundenen Kunden (Testumgebung)' : 'Lexware: Kunden werden aus der Public API gelesen (nur lesend)');
 

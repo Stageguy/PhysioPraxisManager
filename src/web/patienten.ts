@@ -66,7 +66,7 @@ export function kachel(p: PatientKurz, o: { kopf?: boolean } = {}): string {
     ? `<a href="/patienten/${p.id}/akte#b-${p.letzteBehandlung.id}" data-hilfe="kachel.behandlung">${datumText(p.letzteBehandlung.datum)} · Verlauf</a>`
     : '<span class="hint">noch keine</span>';
   // Mögliche Dublette (W119): Symbol oben links, am Rechner und am Handy ein Link zur Klärung
-  const dublette = p.dubletten ? `<a class="dublette-marke" href="/patienten/${p.id}/dubletten" data-hilfe="kachel.dublette" title="Mögliche Dublette – klären" aria-label="Mögliche Dublette – klären">${symbol('dublette', { groesse: 16 })}</a>` : '';
+  const dublette = p.dubletten ? `<a class="dublette-marke" href="/patienten/${p.id}/dubletten" data-hilfe="kachel.dublette" data-fenster="Dublette klären" title="Mögliche Dublette – klären" aria-label="Mögliche Dublette – klären">${symbol('dublette', { groesse: 16 })}</a>` : '';
   return `<article class="pat ${p.rechnungsstand}${o.kopf ? ' kopf' : ''}${p.dubletten ? ' dublette' : ''}" data-hilfe="patienten.kachel" id="p-${p.id}">${dublette}
     <header class="pat-kopf">
       ${o.kopf ? `<h1>${esc(name(p))}</h1>` : `<a class="pat-name" href="/patienten/${p.id}"><b>${esc(name(p))}</b></a>`}
@@ -450,7 +450,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen & { vorwahl?: { vor
   return seite({
     titel: name(p), aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › ${esc(name(p))}</p>${meldungen(o)}
-${p.dubletten ? `<p class="meldung dublette" data-hilfe="patient.dubletten-hinweis">${symbol('dublette', { groesse: 20 })}<span><b>Möglicherweise gibt es diesen Patienten schon.</b> Termine, Behandlungen, Rezepte und Rechnungen gehen erst, wenn das geklärt ist. <a class="knopf klein" href="/patienten/${p.id}/dubletten">Jetzt klären</a></span></p>` : ''}
+${p.dubletten ? `<p class="meldung dublette" data-hilfe="patient.dubletten-hinweis">${symbol('dublette', { groesse: 20 })}<span><b>Möglicherweise gibt es diesen Patienten schon.</b> Termine, Behandlungen, Rezepte und Rechnungen gehen erst, wenn das geklärt ist. <a class="knopf klein" href="/patienten/${p.id}/dubletten" data-fenster="Dublette klären">Jetzt klären</a></span></p>` : ''}
 ${kachel(p, { kopf: true })}
 <div class="knopfreihe pat-aktionen">
   <a class="knopf primaer" href="/patienten/${p.id}/akte" data-hilfe="patient.akte">${symbol('protokoll', { groesse: 18 })} Akte / Behandlungsverlauf</a>
@@ -656,64 +656,78 @@ export function rezeptNeuSeite(d: NeuAktionDaten, o: Rahmen & { vorgaenger?: str
   });
 }
 
-// ── Dubletten klären (W119) ─────────────────────────────────────────────────
-const kontaktZeile = (p: Patient) => p.kontakte.map((k) => `${esc(KONTAKT_NAME[k.art] ?? k.art)}: ${esc(k.wert)}`).join('<br>') || '<span class="hint">keine</span>';
-const adressZeile = (p: Patient) => p.adressen.map((a) => `${esc([a.bezeichnung, [a.strasse, a.hausnummer].filter(Boolean).join(' '), [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '))}${a.rechnungsadresse ? ' <span class="hint">(Rechnung)</span>' : ''}`).join('<br>') || '<span class="hint">keine</span>';
+// ── Dubletten klären (W119) – im Aufbau der Formulare: Pfadzeile, Tafel mit Blöcken, Knopfreihe ───────────────
+const KONTAKT_KURZ: Record<string, string> = { mobil: 'Mobil', telefon: 'Festnetz', whatsapp: 'WhatsApp', email: 'E-Mail', sonstige: 'Sonstige' };
+const anschrift = (x: Adresse) => [x.strasse, x.hausnummer, x.plz, x.ort].map((y) => (y ?? '').trim().toLowerCase()).join('|');
 
-/** Gegenüberstellung je Kandidat mit den drei Entscheidungen: keine Dublette, zusammenführen (wer bleibt?), löschen (nur ohne Verknüpfung) */
+/** Die Kachel eines Patienten in der Klärung: Stammdaten in Zeilen, Gleiches mit dem anderen gelb */
+function dubletteKachel(x: Patient, anderer: Patient, o: { diese: boolean }): string {
+  const gleich = (a: unknown, b: unknown) => a !== null && a !== undefined && a !== '' && a === b;
+  const zeile = (titel: string, wert: string, markiert = false) => `<span class="dk-zeile"><span class="hint">${titel}</span> <span${markiert ? ' class="gleich"' : ''}>${wert}</span></span>`;
+  const kontakte = x.kontakte.length
+    ? x.kontakte.map((k) => `<span${k.normiert && anderer.kontakte.some((y) => y.normiert === k.normiert) ? ' class="gleich"' : ''}>${esc(KONTAKT_KURZ[k.art] ?? k.art)}: ${esc(k.wert)}</span>`).join('<br>')
+    : '<span class="hint">keine</span>';
+  const adressen = x.adressen.length
+    ? x.adressen.map((a) => `<span${(a.strasse || a.ort) && anderer.adressen.some((y) => anschrift(y) === anschrift(a)) ? ' class="gleich"' : ''}>${esc([a.bezeichnung, [a.strasse, a.hausnummer].filter(Boolean).join(' '), [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '))}${a.rechnungsadresse ? ' <span class="hint">(Rechnung)</span>' : ''}</span>`).join('<br>')
+    : '<span class="hint">keine</span>';
+  return `<article class="dublette-kachel${o.diese ? ' diese' : ''}">
+    <span class="dk-kopf"><b>${esc(name(x))}</b><span class="pat-nr">${esc(x.patientennummer)}</span></span>
+    <span class="adr-marken"><span class="marke${o.diese ? ' jetzt' : ''}">${o.diese ? 'diese Seite' : 'Kandidat'}</span>${x.status !== 'aktiv' ? `<span class="marke">${esc(x.status)}</span>` : ''}</span>
+    ${zeile('Geburtsdatum', x.geburtsdatum ? datumText(x.geburtsdatum) : '–', gleich(x.geburtsdatum, anderer.geburtsdatum))}
+    ${zeile('Patient seit', datumText(x.patientSeit))}
+    <span class="dk-zeile"><span class="hint">Kontaktwege</span> <span>${kontakte}</span></span>
+    <span class="dk-zeile"><span class="hint">Adressen</span> <span>${adressen}</span></span>
+    ${zeile('Lexware-Kunde', x.lexwareKundennummer ? esc(x.lexwareKundennummer) : '–', gleich(x.lexwareKundennummer, anderer.lexwareKundennummer))}
+    ${zeile('Preisliste', x.preisliste ? esc(x.preisliste.name) : 'Standard')}
+  </article>`;
+}
+
+/** Klärungsseite: je Kandidat eine Tafel wie ein Formular – Gründe, beide Patienten als Kacheln, was an beiden hängt, Entscheidung; Knopfreihe wie überall */
 export function dublettenSeite(d: DublettenDaten, o: Rahmen): string {
   const p = d.patient;
   const zurueck = `/patienten/${p.id}/dubletten`;
-  const zeile = (titel: string, a: string, b: string, gleich = false) => `<tr><th scope="row">${titel}</th><td${gleich ? ' class="gleich"' : ''}>${a}</td><td${gleich ? ' class="gleich"' : ''}>${b}</td></tr>`;
-  const text = (x: string | null | undefined) => (x ? esc(x) : '<span class="hint">–</span>');
-  const gleich = (a: unknown, b: unknown) => a !== null && a !== undefined && a !== '' && a === b;
-  const kopf = (x: Patient) => `<b>${esc(name(x))}</b><br><span class="hint">${esc(x.patientennummer)}${x.id === p.id ? ' · diese Seite' : ''}</span>`;
-  const paar = (k: DublettenDaten['kandidaten'][number]) => {
+  const paar = (k: DublettenDaten['kandidaten'][number], n: number) => {
     const q = k.patient;
     const gruende = k.gruende.map((g) => `<span class="chip dublette">${DUBLETTE_GRUND_TEXT[g.art]}${g.wert ? `: ${esc(g.wert)}` : ''}</span>`).join('');
     // Vorschlag: wer mehr Akte hat, bleibt; bei Gleichstand der ältere (kleinere Kennung)
     const ga = akteGewicht(d.verknuepft);
     const gq = akteGewicht(k.verknuepft);
     const vorschlag = gq > ga || (gq === ga && Number(q.id) < Number(p.id)) ? q.id : p.id;
-    // Gleiche Werte gelb: ein gemeinsamer Kontaktweg, eine gemeinsame Anschrift
-    const kontaktGleich = p.kontakte.some((k) => k.normiert && q.kontakte.some((x) => x.normiert === k.normiert));
-    const anschrift = (x: Adresse) => [x.strasse, x.hausnummer, x.plz, x.ort].map((y) => (y ?? '').trim().toLowerCase()).join('|');
-    const adresseGleich = p.adressen.some((k) => (k.strasse || k.ort) && q.adressen.some((x) => anschrift(x) === anschrift(k)));
-    const loeschKnopf = (x: Patient, v: Verknuepft) => (istLeer(v)
-      ? form('dublette_loeschen', `<input type="hidden" name="anderer_id" value="${q.id}"><input type="hidden" name="loeschen_id" value="${x.id}"><button class="knopf warnend" data-hilfe="dubletten.loeschen">${esc(x.patientennummer)} löschen – nichts verknüpft</button>`, { id: p.id, zurueck })
-      : '');
-    return `<section class="tafel dublette-paar" data-hilfe="dubletten.vergleich" tabindex="0">
-  <h2>${symbol('dublette')} ${esc(name(q))} <span class="hint">${esc(q.patientennummer)}</span></h2>
-  <div class="dublette-gruende">${gruende}</div>
-  <table class="dublette-vergleich"><thead><tr><th></th><th>${kopf(p)}</th><th>${kopf(q)}</th></tr></thead><tbody>
-    ${zeile('Geburtsdatum', p.geburtsdatum ? datumText(p.geburtsdatum) : '–', q.geburtsdatum ? datumText(q.geburtsdatum) : '–', gleich(p.geburtsdatum, q.geburtsdatum))}
-    ${zeile('Status', esc(p.status), esc(q.status))}
-    ${zeile('Patient seit', datumText(p.patientSeit), datumText(q.patientSeit))}
-    ${zeile('Kontaktwege', kontaktZeile(p), kontaktZeile(q), kontaktGleich)}
-    ${zeile('Adressen', adressZeile(p), adressZeile(q), adresseGleich)}
-    ${zeile('Lexware-Kunde', text(p.lexwareKundennummer), text(q.lexwareKundennummer), gleich(p.lexwareKundennummer, q.lexwareKundennummer))}
-    ${zeile('Preisliste', text(p.preisliste?.name), text(q.preisliste?.name))}
-    ${VERKNUEPFT_NAME.map(([key, titel]) => zeile(titel, String(d.verknuepft[key] ?? 0), String(k.verknuepft[key] ?? 0))).join('')}
-  </tbody></table>
-  <div class="dublette-wahl">
-    ${form('dublette_keine', `<input type="hidden" name="anderer_id" value="${q.id}"><button class="knopf" data-hilfe="dubletten.keine">Keine Dublette – beide bleiben</button>`, { id: p.id, zurueck })}
-    ${form('dublette_zusammenfuehren', `<input type="hidden" name="anderer_id" value="${q.id}">
-      <fieldset class="dublette-behalten" data-hilfe="dubletten.behalten"><legend>Zusammenführen – welcher bleibt?</legend>
-        <label class="wahl-chip"><input type="radio" name="behalten" value="${p.id}"${vorschlag === p.id ? ' checked' : ''}> ${esc(p.patientennummer)} ${esc(name(p))}</label>
-        <label class="wahl-chip"><input type="radio" name="behalten" value="${q.id}"${vorschlag === q.id ? ' checked' : ''}> ${esc(q.patientennummer)} ${esc(name(q))}</label>
-      </fieldset>
-      <p class="hint">Alles Verknüpfte des anderen wandert zum bleibenden Patienten, leere Felder werden aus ihm ergänzt; der andere wird archiviert und verweist auf den bleibenden. Nicht rückgängig zu machen.</p>
-      <div class="knopfreihe"><button class="knopf primaer" data-hilfe="dubletten.zusammenfuehren">Zusammenführen</button></div>`, { id: p.id, zurueck, klasse: 'formular' })}
+    const versteckt = `<input type="hidden" name="id" value="${p.id}"><input type="hidden" name="anderer_id" value="${q.id}"><input type="hidden" name="zurueck" value="${zurueck}">`;
+    const loeschForm = (x: Patient, v: Verknuepft) => (istLeer(v) ? `<form id="dl-${n}-${x.id}" method="post" action="/patienten/aktion" class="inline">${versteckt}<input type="hidden" name="aktion" value="dublette_loeschen"><input type="hidden" name="loeschen_id" value="${x.id}"></form>` : '');
+    const loeschKnopf = (x: Patient, v: Verknuepft) => (istLeer(v) ? `<button class="knopf warnend" form="dl-${n}-${x.id}" data-hilfe="dubletten.loeschen">${esc(x.patientennummer)} löschen – nichts verknüpft</button>` : '');
+    return `<form method="post" action="/patienten/aktion" class="tafel formular dublette-paar" data-hilfe="dubletten.vergleich">
+  ${versteckt}
+  <fieldset><legend>Warum</legend><div class="chips dublette-gruende">${gruende}</div></fieldset>
+  <fieldset><legend>Beide Patienten</legend>
+    <div class="dublette-raster">${dubletteKachel(p, q, { diese: true })}${dubletteKachel(q, p, { diese: false })}</div>
+    <p class="hint">Gelb: gleiche Angabe bei beiden.</p>
+  </fieldset>
+  <fieldset><legend>Was an beiden hängt</legend>
+    <table class="dublette-vergleich"><thead><tr><th></th><th>${esc(p.patientennummer)}</th><th>${esc(q.patientennummer)}</th></tr></thead><tbody>
+      ${VERKNUEPFT_NAME.map(([key, titel]) => `<tr><th scope="row">${titel}</th><td>${String(d.verknuepft[key] ?? 0)}</td><td>${String(k.verknuepft[key] ?? 0)}</td></tr>`).join('')}
+    </tbody></table>
+  </fieldset>
+  <fieldset data-hilfe="dubletten.behalten"><legend>Zusammenführen – welcher bleibt?</legend>
+    <div class="chips">
+      <label class="wahl-chip"><input type="radio" name="behalten" value="${p.id}"${vorschlag === p.id ? ' checked' : ''}> ${esc(p.patientennummer)} ${esc(name(p))}</label>
+      <label class="wahl-chip"><input type="radio" name="behalten" value="${q.id}"${vorschlag === q.id ? ' checked' : ''}> ${esc(q.patientennummer)} ${esc(name(q))}</label>
+    </div>
+    <p class="hint">Alles Verknüpfte des anderen wandert zum bleibenden Patienten, leere Felder werden aus ihm ergänzt; der andere wird archiviert und verweist auf den bleibenden. Nicht rückgängig zu machen.</p>
+  </fieldset>
+  <div class="knopfreihe">
+    <button class="knopf primaer" name="aktion" value="dublette_zusammenfuehren" data-hilfe="dubletten.zusammenfuehren">Zusammenführen</button>
+    <button class="knopf" name="aktion" value="dublette_keine" data-hilfe="dubletten.keine">Keine Dublette – beide bleiben</button>
     ${loeschKnopf(p, d.verknuepft)}${loeschKnopf(q, k.verknuepft)}
+    <a class="knopf" href="/patienten/${p.id}" data-abbrechen data-hilfe="formular.abbrechen">Abbrechen</a>
   </div>
-</section>`;
+</form>${loeschForm(p, d.verknuepft)}${loeschForm(q, k.verknuepft)}`;
   };
   return seite({
-    titel: `Mögliche Dubletten – ${name(p)}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
-    inhalt: `<p class="hint pfadzeile"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}">${esc(name(p))}</a> › Dubletten</p>
-<h1>${symbol('dublette', { groesse: 26 })} Gibt es ${esc(name(p))} schon?</h1>${meldungen(o)}
-${d.kandidaten.length ? `<p class="hint">${d.kandidaten.length === 1 ? 'Ein Patient passt' : `${d.kandidaten.length} Patienten passen`} zu ${esc(p.patientennummer)}. Je Kandidat die Gegenüberstellung, darunter die Entscheidung: keine Dublette, zusammenführen oder löschen.</p>
-${d.kandidaten.map(paar).join('')}` : `<p class="leer">Keine ungeklärte Dublette für ${esc(p.patientennummer)}.</p>`}
-<p><a class="knopf" href="/patienten/${p.id}">Zur Patientenseite</a></p>`,
+    titel: `Dublette klären – ${name(p)}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
+    inhalt: `<p class="hint pfadzeile"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}">${esc(name(p))}</a> › Dublette klären</p>
+<h1>${symbol('dublette', { groesse: 26 })} Dublette klären</h1>${meldungen(o)}
+${d.kandidaten.length ? `<p class="hint">${d.kandidaten.length === 1 ? 'Ein Patient passt' : `${d.kandidaten.length} Patienten passen`} zu ${esc(name(p))} (${esc(p.patientennummer)}). Je Kandidat: warum, beide nebeneinander, was an beiden hängt – dann die Entscheidung.</p>
+${d.kandidaten.map(paar).join('')}` : `<p class="leer">Keine ungeklärte Dublette für ${esc(p.patientennummer)}.</p><p><a class="knopf" href="/patienten/${p.id}" data-abbrechen>Zur Patientenseite</a></p>`}`,
   });
 }

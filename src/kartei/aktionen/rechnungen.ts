@@ -1,6 +1,6 @@
 /** Aktionen: Rechnungsentwürfe, Positionen, Textbausteine, Status, Rechnung in zwei Klicks nach Lexware und versenden (W79, W81, W100, E30) */
 import { ganz } from '../formular.ts';
-import { rechnungNachLexware } from '../lexware-rechnungen.ts';
+import { rechnungNachLexware, nummernKonfliktLoesen } from '../lexware-rechnungen.ts';
 import { rechnungSenden } from '../nachrichten.ts';
 import { KarteiFehler } from '../patienten.ts';
 import { bausteinAendern, bausteinEntfernen, bausteinHinzufuegen, positionAendern, positionHinzufuegen, positionLoeschen, preiseAktualisieren, rechnungAnlegen, rechnungStatus } from '../rechnungen.ts';
@@ -61,6 +61,11 @@ export const RECHNUNGEN: Aktionen = {
     if (!q.lexwareRechnungen) throw new KarteiFehler('Lexware ist nicht angebunden');
     const e = await rechnungNachLexware(db, t, q.lexwareRechnungen, id, g('rechnung_id') ?? '', wer);
     return nach(rechnungSeite(k), `In Lexware mit Nummer ${e.nummer} – PDF liegt im Tresor.${e.kontaktNeu ? ' Der Empfänger wurde in Lexware als Kunde angelegt.' : ''} Jetzt „Versenden“.`);
+  },
+  // Nummernkonflikt (W120): die Nummer aus Lexware hierher, die andere Rechnung gibt sie ab
+  async rechnung_nummer(k) {
+    const { db, t, q, id, g, wer, nach } = k;
+    return nach(rechnungSeite(k), await nummernKonfliktLoesen(db, t, q.lexwareRechnungen, id, g('rechnung_id') ?? '', wer));
   },
   async rechnung_versenden(k) {
     const { db, t, q, id, g, wer, nach } = k;

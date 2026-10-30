@@ -149,13 +149,19 @@ export function erfundenesRechnungsPdf(e: { nummer: string; name: string; datum:
   });
 }
 
-/** Attrappe mit eigenem Speicher je Instanz: angelegte Kontakte und Rechnungen erscheinen danach in der Belegliste */
-export function attrappeRechnungen(): LexwareRechnungen {
+/**
+ * Attrappe mit eigenem Speicher je Instanz: angelegte Kontakte und Rechnungen erscheinen danach in der Belegliste.
+ * `neustartfest` (Testumgebung): Nummern und Kennungen kommen aus der Uhr, damit sie nach einem Neustart des Dienstes
+ * nicht von vorn beginnen – sonst vergibt die Attrappe RE-…-9001 ein zweites Mal, und die Kartei meldet einen Nummernkonflikt (N40).
+ */
+export function attrappeRechnungen(o: { neustartfest?: boolean } = {}): LexwareRechnungen {
   const rechnungen: (Erfunden & { zeilen?: string[] })[] = ERFUNDEN.map((e) => ({ ...e }));
   const namen = new Map<string, string>(ERFUNDEN.filter((e) => e.kontakt).map((e) => [e.kontakt!, e.name]));
   let kontakte = 0;
-  // Nummernkreis 9001 ff., damit nichts mit den Testdaten (RE-2026-0012 … 0101) oder PPM-Nummern zusammenstößt
-  let nummern = 9000;
+  // Nummernkreis 9001 ff., damit nichts mit den Testdaten (RE-2026-0012 … 0101) oder PPM-Nummern zusammenstößt;
+  // neustartfest: 9000 + Minuten seit dem 1.1.2026 (sechsstellig) – nach jedem Neustart ein neuer Bereich
+  const basis = o.neustartfest ? Math.floor((Date.now() - Date.UTC(2026, 0, 1)) / 60_000) % 900_000 : 0;
+  let nummern = 9000 + basis;
   return {
     attrappe: true,
     async *belege(o = {}) {
@@ -176,12 +182,13 @@ export function attrappeRechnungen(): LexwareRechnungen {
     },
     async kontaktAnlegen(k) {
       kontakte++;
-      const id = `attrappe-k-${kontakte}`;
+      const id = `attrappe-k-${basis ? `${basis}-` : ''}${kontakte}`;
       namen.set(id, [k.vorname, k.nachname].filter(Boolean).join(' '));
       return { id, nummer: String(10100 + kontakte) };
     },
     async rechnungAnlegen(r) {
-      if (!namen.has(r.kontaktId)) throw new Error(`Attrappe kennt Kontakt ${r.kontaktId} nicht`);
+      // Ein Kontakt aus der Zeit vor dem Neustart: die Attrappe kennt ihn nicht mehr, rechnet aber weiter
+      if (!namen.has(r.kontaktId)) { if (!o.neustartfest) throw new Error(`Attrappe kennt Kontakt ${r.kontaktId} nicht`); namen.set(r.kontaktId, 'Kunde (Attrappe, vor dem Neustart angelegt)'); }
       nummern++;
       const nummer = `RE-${r.datum.slice(0, 4)}-${String(nummern).padStart(4, '0')}`;
       const jetzt = new Date().toISOString();

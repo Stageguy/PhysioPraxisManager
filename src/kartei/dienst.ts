@@ -29,6 +29,7 @@ import { rezeptTermineDaten, type RezeptTermineDaten } from './rezept-termine.ts
 import { outlookBloecke, type KalenderBlock } from './outlook-termine.ts';
 import { freieWoche, monatsPlan, type MonatsPlan, type TagesPlan, type WochenSuche } from './terminplan.ts';
 import { schnelltermin, schnellPatientFinden, type Schnelltermin } from './schnelltermin.ts';
+import { nummernKonflikt, type NummernKonflikt } from './lexware-rechnungen.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
 import type { Oeffnungszeit } from '../anfragen/slots.ts';
 import type { EingehendeNachricht } from '../whatsapp/schnittstelle.ts';
@@ -142,7 +143,7 @@ export interface KarteiDienst {
   /** Terminvorschläge zu einem Rezept (W110): Anzahl offen, Frequenz, Dauer aus der Regelbehandlungszeit */
   rezeptTermine(patientId: string, verordnungId: string, o?: { ab?: string; proWoche?: number; dauerMin?: number; tageszeit?: string }): Promise<RezeptTermineDaten | undefined>;
   rezepte(filter: 'aktiv' | 'alle'): Promise<RezepteDaten>;
-  rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[]; preislisteAktuell: { id: string; name: string } | null; lexware: boolean; postfach: boolean; girocode: string | null } | undefined>;
+  rechnung(patientId: string, rechnungId: string): Promise<{ patient: Patient; rechnung: Rechnung; textbausteine: Textbaustein[]; preislistePositionen: { id: string; nummer: string; bezeichnung: string; preis: number | null }[]; wellness: WellnessLeistung[]; preislisteAktuell: { id: string; name: string } | null; lexware: boolean; postfach: boolean; girocode: string | null; nummernKonflikt: NummernKonflikt | null } | undefined>;
   rechnungPdf(patientId: string, rechnungId: string): Promise<{ daten: Uint8Array; name: string } | undefined>;
   konfiguration(o?: { jahr?: number }): Promise<{ textbausteine: Textbaustein[]; einstellungen: Record<string, string>; freieTage: FreieTageDaten; regelzeiten: Regelzeit[] }>;
   /** Freie Tage eines Zeitraums für die Kalenderseite (Datum → Name) */
@@ -284,6 +285,7 @@ export function karteiDienst(q: DienstQuellen): KarteiDienst {
         preislisteAktuell: patient.preislisteGilt ? { id: patient.preislisteGilt.id, name: patient.preislisteGilt.name } : null,
         lexware: Boolean(q.lexwareRechnungen), postfach: Boolean(q.graph),
         girocode: await girocodeFuer(db, rechnung),
+        nummernKonflikt: await nummernKonflikt(db, rechnungId),
       };
     },
     rechnungPdf: (patientId, rechnungId) => rechnungPdf(db, t, patientId, rechnungId),
