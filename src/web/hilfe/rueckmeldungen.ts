@@ -3,7 +3,7 @@ import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, type HilfeEintrag } from './basis.ts';
 
 export const RUECKMELDUNGEN: Record<string, HilfeEintrag> = {
   'rueckmeldungen.eintrag': { seite: 'Rückmeldungen', titel: 'Rückmeldung',
-    loest_aus: AUSKUNFT, bezug: 'Was über das kleine Fähnchen gemeldet wurde: Hinweis oder Fehler, Seite und Element, Screenshot, Text, Fassung, Browser.',
+    loest_aus: AUSKUNFT, bezug: 'Was über das kleine Fähnchen (am Rechner) oder den Link „melden“ in einer Erklärung (am Handy) gemeldet wurde: Hinweis oder Fehler, Seite und Element, Screenshot, Text, Fassung, Browser.',
     aendert: NICHTS, ergebnis: 'Offene zuerst; erledigte blass.', rueckweg: KEIN_RUECKWEG },
   'rueckmeldungen.bild': { seite: 'Rückmeldungen', titel: 'Screenshot',
     loest_aus: 'Öffnet den Screenshot in voller Größe.', bezug: 'Der Kasten, in dem das gemeldete Element lag, so wie der Browser ihn beim Melden sah.', aendert: NICHTS, ergebnis: 'Das Bild in einem neuen Tab.', rueckweg: 'Tab schließen.' },

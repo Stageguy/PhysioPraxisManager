@@ -4,6 +4,7 @@ import { after, before, test } from 'node:test';
 import type { Db } from '../src/db/index.ts';
 import { entwicklungMigrieren, entwicklungsAdresse, htmlBereinigen, rueckmeldungen, rueckmeldungSpeichern, RueckmeldungFehler } from '../src/entwicklung/rueckmeldung.ts';
 import { praxisDienst } from '../src/server.ts';
+import { RUECKMELDUNG_SKRIPT } from '../src/web/rueckmeldung.ts';
 import { testDb } from './testdb.ts';
 
 let basis = '';
@@ -71,4 +72,22 @@ test('Dienst: POST /rueckmeldung als JSON, Liste, Bild, erledigt – nur mit Anm
   const h2c = await fetch(`${basis}/html2canvas.js`, { headers: wer });
   assert.equal(h2c.status, 200);
   assert.match(h2c.headers.get('content-type') ?? '', /javascript/);
+});
+
+/** Das Skript mit einem Dokument-Platzhalter laden und die angemeldeten Horcher zurückgeben */
+function horcher(mitMaus: boolean): string[] {
+  const namen: string[] = [];
+  const dokument = { addEventListener: (n: string) => { namen.push(n); } };
+  const fenster = { matchMedia: (abfrage: string) => ({ matches: abfrage === '(hover: hover)' && mitMaus }) };
+  new Function('window', 'document', RUECKMELDUNG_SKRIPT)(fenster, dokument);
+  return namen;
+}
+
+test('Fähnchen nur mit Maus (W118, N38): ohne hover kein mouseover-Horcher und kein Seiten-Fähnchen, der Link „melden“ bleibt', () => {
+  assert.doesNotThrow(() => new Function(RUECKMELDUNG_SKRIPT));
+  const maus = horcher(true);
+  assert.ok(maus.includes('mouseover') && maus.includes('focusin') && maus.includes('DOMContentLoaded'), 'am Rechner: Fähnchen beim Überfahren, Fokus und für die Seite');
+  const handy = horcher(false);
+  assert.ok(!handy.includes('mouseover') && !handy.includes('focusin') && !handy.includes('DOMContentLoaded'), 'am Handy ändert kein Horcher die Seite beim Tippen');
+  assert.ok(handy.includes('click'), 'der Link „melden“ in der Erklärung funktioniert weiter');
 });

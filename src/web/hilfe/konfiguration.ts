@@ -97,7 +97,7 @@ export const KONFIGURATION: Record<string, HilfeEintrag> = {
     loest_aus: 'Öffnet die Konfigurationsseite (Textbausteine, Steuer, Preislisten, Wellness).', bezug: 'Für den Rechner; am Handy ausgeblendet.', aendert: NICHTS, ergebnis: 'Die Konfigurationsseite.', rueckweg: KEIN_RUECKWEG },
   'konfiguration.preislisten': { seite: 'Konfiguration', titel: 'Preislisten', loest_aus: 'Öffnet die Preislisten.', bezug: 'Eigene Preise je Leistung.', aendert: NICHTS, ergebnis: 'Die Preislisten-Seite.', rueckweg: KEIN_RUECKWEG },
   'konfiguration.wellness': { seite: 'Konfiguration', titel: 'Wellness-Katalog', loest_aus: 'Öffnet den Wellness-Katalog.', bezug: 'Leistungen ohne Krankheitsbezug.', aendert: NICHTS, ergebnis: 'Der Katalog.', rueckweg: KEIN_RUECKWEG },
-  'konfiguration.rueckmeldungen': { seite: 'Konfiguration', titel: 'Rückmeldungen', loest_aus: 'Öffnet die gesammelten Rückmeldungen.', bezug: 'Was über das Fähnchen gemeldet wurde.', aendert: NICHTS, ergebnis: 'Die Liste.', rueckweg: KEIN_RUECKWEG },
+  'konfiguration.rueckmeldungen': { seite: 'Konfiguration', titel: 'Rückmeldungen', loest_aus: 'Öffnet die gesammelten Rückmeldungen.', bezug: 'Was über das Fähnchen (Rechner) oder den Link „melden“ in einer Erklärung (Handy) gemeldet wurde.', aendert: NICHTS, ergebnis: 'Die Liste.', rueckweg: KEIN_RUECKWEG },
   'konfiguration.textbaustein': { seite: 'Konfiguration', titel: 'Textbaustein',
     loest_aus: AUSKUNFT, bezug: 'Kennung (R + Nummer), Kurzname oben, Text darunter; Wirkung (nur Text / § 4 Nr. 14 / § 19) und wann er automatisch auf eine Rechnung kommt.', aendert: NICHTS,
     ergebnis: 'Blass = ausgeblendet.', rueckweg: KEIN_RUECKWEG },

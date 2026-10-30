@@ -52,7 +52,11 @@ export const RUECKMELDUNG_SKRIPT = String.raw`
   function umgebung() { return document.querySelector('.testband') ? 'test' : 'prod'; }
   function titelVon(el) { var k = el && el.getAttribute('data-hilfe'); return k && window.HILFE && HILFE[k] ? HILFE[k].titel : ''; }
 
-  // ── Fähnchen am Element (erscheint beim Überfahren / Fokus) und für die ganze Seite ──
+  // ── Fähnchen am Element (erscheint beim Überfahren / Fokus) und für die ganze Seite – nur mit Maus ──
+  // Am Handy (hover: none) gibt es keine Fähnchen (W118): iOS Safari wertet einen Tipp, bei dem ein mouseover-
+  // Horcher die Seite ändert, als „Überfahren“ und schluckt den Klick – jede Aktion bräuchte zwei Tipps (N38).
+  // Dort führt der Link „Hinweis oder Fehler melden“ in jeder Erklärung (lange drücken) zur Rückmeldung.
+  var MAUS = !window.matchMedia || window.matchMedia('(hover: hover)').matches;
   function markeFuer(el) {
     if (!marke) { marke = document.createElement('button'); marke.type = 'button'; marke.id = 'rmMarke'; marke.className = 'rm-marke'; marke.title = 'Hinweis oder Fehler zu diesem Element melden'; marke.setAttribute('aria-label', marke.title); marke.innerHTML = FAHNE; document.body.appendChild(marke);
       marke.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); if (aktuell) oeffne(aktuell); }); }
@@ -63,17 +67,19 @@ export const RUECKMELDUNG_SKRIPT = String.raw`
     marke.style.display = 'grid';
   }
   function markeWeg() { if (marke) marke.style.display = 'none'; }
-  document.addEventListener('mouseover', function (e) {
-    if (e.target.closest && e.target.closest('#rmMarke, #rmDialog, #hilfeKarte')) return;
-    var el = e.target.closest && e.target.closest('[data-hilfe]');
-    if (el) markeFuer(el); else markeWeg();
-  });
-  document.addEventListener('focusin', function (e) { var el = e.target.closest && e.target.closest('[data-hilfe]'); if (el) markeFuer(el); });
-  document.addEventListener('DOMContentLoaded', function () {
-    var s = document.createElement('button'); s.type = 'button'; s.id = 'rmSeite'; s.className = 'rm-seite'; s.title = 'Hinweis oder Fehler zu dieser Seite melden'; s.setAttribute('aria-label', s.title); s.innerHTML = FAHNE;
-    s.addEventListener('click', function () { oeffne(null); });
-    document.body.appendChild(s);
-  });
+  if (MAUS) {
+    document.addEventListener('mouseover', function (e) {
+      if (e.target.closest && e.target.closest('#rmMarke, #rmDialog, #hilfeKarte')) return;
+      var el = e.target.closest && e.target.closest('[data-hilfe]');
+      if (el) markeFuer(el); else markeWeg();
+    });
+    document.addEventListener('focusin', function (e) { var el = e.target.closest && e.target.closest('[data-hilfe]'); if (el) markeFuer(el); });
+    document.addEventListener('DOMContentLoaded', function () {
+      var s = document.createElement('button'); s.type = 'button'; s.id = 'rmSeite'; s.className = 'rm-seite'; s.title = 'Hinweis oder Fehler zu dieser Seite melden'; s.setAttribute('aria-label', s.title); s.innerHTML = FAHNE;
+      s.addEventListener('click', function () { oeffne(null); });
+      document.body.appendChild(s);
+    });
+  }
   // Aus der Erklärungskarte (Rechtsklick / lange drücken): Link „melden“
   document.addEventListener('click', function (e) {
     var a = e.target.closest && e.target.closest('[data-rm-melden]');

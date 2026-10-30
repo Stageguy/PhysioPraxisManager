@@ -142,7 +142,7 @@ const FUNKTIONEN: { name: string; was: string; stand: 'jetzt' | 'später'; woher
   { name: 'Konfiguration', was: 'Textbausteine für Rechnungen (R1 § 4 Nr. 14, R2 § 19, R3 Dank), Kleinunternehmerregelung, Steuersatz, Verweise auf Preislisten und Wellness-Katalog.', stand: 'jetzt', woher: 'W80' },
   { name: 'Kalenderseite', was: 'Alle Termine der Kartei als Tag oder Woche, Initialen oder Namen; über das Kalender-Symbol bei „Heute im Blick“.', stand: 'jetzt', woher: 'W82' },
   { name: 'Rezepte und Serien', was: 'Rezepte als Kacheln mit sieben Rezeptarten (Erst, Folge unverändert/angepasst, Wiederaufnahme, Korrektur, Zweitschrift, Langzeit), Behandlung ohne Rezept (Direktzugang) und Wellness-Serien aus dem eigenen Katalog.', stand: 'jetzt', woher: 'W73, W74' },
-  { name: 'Rückmeldungen', was: 'Kleines Fähnchen an jedem erklärten Element und an jeder Seite: Hinweis oder Fehler mit Screenshot und Text melden – landet in einer eigenen Entwicklungs-Datenbank, Sammelseite /rueckmeldungen.', stand: 'jetzt', woher: 'W72' },
+  { name: 'Rückmeldungen', was: 'Am Rechner ein kleines Fähnchen an jedem erklärten Element und an jeder Seite, am Handy der Link „melden“ in jeder Erklärung: Hinweis oder Fehler mit Screenshot und Text melden – landet in einer eigenen Entwicklungs-Datenbank, Sammelseite /rueckmeldungen.', stand: 'jetzt', woher: 'W72, W118' },
   { name: 'Patientenkartei', was: 'Kacheln mit Anrufen, WhatsApp, Mail, letzter Behandlung und nächstem Termin; Kontaktverlauf mit Gesprächsgrund; Adressen mit Rechnungsadresse; Akte nach § 630f (unveränderlich, verschlüsselt); Termine, Rezepte als Stempelkarte.', stand: 'jetzt', woher: 'W63–W68' },
   { name: 'Terminarten für die Online-Anfrage', was: 'Kacheln mit Kennung, Kurz- und Langbeschreibung und Dauer in drei Sektionen (Rezept, Selbstzahler, Wellness); Haken „aktiv“ = im Dropdown der Website; Vorschau und HTML-Baustein für das Formular. Farbe und Symbol der Sektion kehren in Kalenderseite, Cockpit und Outlook wieder.', stand: 'jetzt', woher: 'W94, W95' },
   { name: 'Buchungsseite', was: 'Eigene Buchungsseite zum Einbetten in lilli-nebel.de: Patient wählt Terminart (die aktiven Kacheln), Tag im Monatsblatt und freie Uhrzeit, gibt Name, Telefon, Mail an – der Wunsch kommt als Anfrage mit reserviertem Termin, Lilli bestätigt mit einem Klick. Eigener kleiner Dienst ohne Zugang zu Kartei, Postfach oder Tresor; öffentlich erst nach Freigabe.', stand: 'jetzt', woher: 'W96, E29' },
@@ -198,9 +198,10 @@ Antworten vor. <b>Entscheiden tust du.</b> Nichts geht an Patienten, ohne dass d
 (wie man es zurücknimmt).</p>
 <p class="hint"><kbd>Esc</kbd> schließt die Erklärung. Tastatur: <kbd>?</kbd> oder <kbd>F1</kbd> auf einem
 ausgewählten Element. Umschalt + Rechtsklick öffnet das normale Browser-Menü.</p>
-<p><b>Etwas melden:</b> Fährst du über ein erklärtes Element, erscheint an seiner Ecke ein winziges <b>Fähnchen</b>; unten links
-steht eines für die ganze Seite, und jede Erklärung hat den Link „Hinweis oder Fehler melden“. Ein Klick macht einen Screenshot des
-Kastens, fragt <b>Hinweis oder Fehler</b> und nimmt deinen Text auf. Alles landet in einer eigenen Entwicklungs-Datenbank –
+<p><b>Etwas melden:</b> Am Rechner erscheint, wenn du mit der Maus über ein erklärtes Element fährst, an seiner Ecke ein winziges
+<b>Fähnchen</b>; unten links steht eines für die ganze Seite. Am Handy gibt es keine Fähnchen – sie würden dort jeden ersten Tipp
+verschlucken; stattdessen hat jede Erklärung (lange drücken) den Link „Hinweis oder Fehler melden“. Ein Klick macht einen Screenshot
+des Kastens, fragt <b>Hinweis oder Fehler</b> und nimmt deinen Text auf. Alles landet in einer eigenen Entwicklungs-Datenbank –
 <a href="/rueckmeldungen">alle Rückmeldungen</a>.</p>
 </div>
 

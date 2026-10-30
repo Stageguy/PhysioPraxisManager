@@ -29,6 +29,8 @@ for (const breite of auftrag.breiten ?? [1440]) {
     locale: 'de-DE',
     colorScheme: auftrag.farbschema ?? 'light',
     extraHTTPHeaders: auftrag.kopfzeilen ?? {},
+    // `beruehrung`: Handy nachstellen (Touch, keine Maus) – prüft, was unter `(hover: none)` erscheint
+    ...(auftrag.beruehrung ? { hasTouch: true, isMobile: true } : {}),
   });
   const seite = await kontext.newPage();
   for (const ansicht of auftrag.ansichten) {
@@ -45,10 +47,12 @@ for (const breite of auftrag.breiten ?? [1440]) {
         .filter((el, _, alle) => !alle.some((a) => a !== el && a.contains(el)))
         .slice(0, 10)
         .map((el) => `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''} (${Math.round(el.getBoundingClientRect().right)}px)`);
-      const ergebnis = { fenster, seite: doc.scrollWidth, ueberlaeuft: doc.scrollWidth > fenster + 1, hinaus };
-      if (!auswahl) return ergebnis;
-      const tabelle = document.querySelector(auswahl);
-      if (!tabelle) return { ...ergebnis, tabelleFehlt: auswahl };
+      const ergebnis = { fenster, seite: doc.scrollWidth, ueberlaeuft: doc.scrollWidth > fenster + 1, hinaus,
+        hover: matchMedia('(hover: hover)').matches ? 'hover' : 'none',
+        ...(auswahl.zaehlen ? { gezaehlt: document.querySelectorAll(auswahl.zaehlen).length } : {}) };
+      if (!auswahl.tabelle) return ergebnis;
+      const tabelle = document.querySelector(auswahl.tabelle);
+      if (!tabelle) return { ...ergebnis, tabelleFehlt: auswahl.tabelle };
       const behaelter = tabelle.closest('.tabelle') ?? tabelle.parentElement;
       const sicht = Math.min(behaelter.getBoundingClientRect().right, fenster);
       const spalten = [...tabelle.querySelectorAll('thead th')].map((th) => {
@@ -63,7 +67,7 @@ for (const breite of auftrag.breiten ?? [1440]) {
         unsichtbar: spalten.filter((s) => !s.sichtbar).map((s) => s.kopf),
         abgeschnitten: [...tabelle.querySelectorAll('tbody td')].filter((td) => td.scrollWidth > td.clientWidth + 1).length,
       };
-    }, ansicht.tabelle ?? null);
+    }, { tabelle: ansicht.tabelle ?? null, zaehlen: ansicht.zaehlen ?? auftrag.zaehlen ?? null });
     await seite.screenshot({ path: path.join(aus, `${name}-fenster.png`) });
     if (auftrag.ganzeSeite) await seite.screenshot({ path: path.join(aus, `${name}-ganz.png`), fullPage: true });
     bericht.push({ ansicht: ansicht.name, breite, status: antwort?.status(), ...messung });
@@ -73,6 +77,6 @@ for (const breite of auftrag.breiten ?? [1440]) {
 await browser.close();
 writeFileSync(path.join(aus, 'bericht.json'), JSON.stringify(bericht, null, 2));
 for (const b of bericht) {
-  console.log(`${b.ansicht} @ ${b.breite}px: HTTP ${b.status}, Seite ${b.seite}px in ${b.fenster}px – ${b.ueberlaeuft ? `läuft über: ${b.hinaus.join(', ')}` : 'passt'}`
+  console.log(`${b.ansicht} @ ${b.breite}px (${b.hover}): HTTP ${b.status}, Seite ${b.seite}px in ${b.fenster}px – ${b.ueberlaeuft ? `läuft über: ${b.hinaus.join(', ')}` : 'passt'}${b.gezaehlt !== undefined ? `; gezählt: ${b.gezaehlt}` : ''}`
     + `${b.tabelle ? `; Tabelle ${b.tabelle}px in ${b.behaelter}px${b.unsichtbar?.length ? `, nicht im Blick: ${b.unsichtbar.join(', ')}` : ''}${b.abgeschnitten ? `, ${b.abgeschnitten} Zellen abgeschnitten` : ''}` : ''}`);
 }

@@ -1,0 +1,11 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [1440],
+  "hoehe": 900,
+  "zaehlen": "#rmSeite, #rmMarke",
+  "ansichten": [
+    { "name": "cockpit", "pfad": "/" },
+    { "name": "patient", "pfad": "/patienten/1" }
+  ]
+}

@@ -434,7 +434,7 @@ table.regelzeiten td:nth-child(3){white-space:nowrap}details.regelzeiten-liste>s
 .mk-e{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:3px solid var(--rand);padding-left:4px;line-height:1.3}.mk-e small{color:var(--grau);font-size:11px}
 .mk-e.sek-rezept{border-left-color:var(--sek-rezept)}.mk-e.sek-selbstzahler{border-left-color:var(--sek-selbstzahler)}.mk-e.sek-wellness{border-left-color:var(--sek-wellness)}.mk-e.block{border-left-color:var(--grau);color:var(--grau)}.mk-e.luecke{border-left-color:#1f7a3f;color:#1f7a3f;font-weight:600}.mk-e.luecke small{color:#1f7a3f}.mk-e.erledigt{opacity:.6}.mk-e.mehr{color:var(--akzent);font-weight:600;border-left-color:transparent}
 .mk-mehr{display:none;position:absolute;left:-2px;top:-2px;z-index:30;min-width:calc(100% + 4px);width:max-content;max-width:320px;background:var(--karte);border:2px solid var(--akzent);border-radius:10px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.2)}.mk-mehr .mk-e{white-space:normal}
-.mk-tag:hover .mk-mehr,.mk-tag:focus-visible .mk-mehr{display:block}
+@media (hover:hover){.mk-tag:hover .mk-mehr{display:block}}.mk-tag:focus-visible .mk-mehr{display:block}
 @media (max-width:900px){.mk{grid-template-columns:repeat(7,minmax(40px,1fr));gap:3px}.mk-tag{min-height:60px;padding:3px}.mk-e,.mk-mehr{display:none!important}.mk-frei{display:none}.mk-woche{grid-template-columns:repeat(2,minmax(0,1fr))}.mk-namen{margin-left:0}}
 table.oeffnungszeiten input[type=time]{min-height:34px;width:112px}table.oeffnungszeiten input[type=checkbox]{width:20px;height:20px;accent-color:var(--akzent)}
 /* Sektionen (W95): Teilrahmen links und Symbol in der Farbe der Sektion */
@@ -463,6 +463,7 @@ table.oeffnungszeiten input[type=time]{min-height:34px;width:112px}table.oeffnun
 .rm-marke:hover{opacity:1;transform:scale(1.25)}
 .rm-seite{position:fixed;left:10px;bottom:10px;z-index:900;display:grid;place-items:center;width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--rand);background:var(--karte);color:var(--grau);cursor:pointer}
 .rm-seite:hover{color:var(--akzent);border-color:var(--akzent)}
+@media (hover:none){.rm-marke,.rm-seite{display:none!important}}
 .rm-dialog{border:1px solid var(--rand);border-radius:14px;padding:0;width:min(720px,calc(100vw - 24px));max-height:calc(100vh - 24px);background:var(--karte);color:var(--fg);box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .rm-dialog::backdrop{background:rgba(0,0,0,.45)}
 .rm-form{display:grid;gap:12px;padding:16px;margin:0}
