@@ -381,6 +381,13 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen & { vorwahl?: { vor
   }).join('') : `<div class="rk-pat-raster">${rechnungPlus}</div>`;
   const legende = `<span class="rk-legende" data-hilfe="patient.rechnung.legende" tabindex="0"><span><i></i> aus dem PPM</span><span><i class="lexware"></i> aus Lexware</span><span><i class="gelb"></i> überfällig</span><span><i class="rot"></i> gemahnt</span></span>`;
   const bezugspersonen = p.bezugspersonen.map((b) => `<li><span>${symbol('patient', { groesse: 18 })}</span><span><b>${esc(b.name)}</b> <span class="hint">${esc(b.rolle)}${b.beziehung ? ` · ${esc(b.beziehung)}` : ''}${b.berechtigungsgrund ? ` · ${esc(b.berechtigungsgrund)}` : ''}${b.telefon ? ` · ${esc(b.telefon)}` : ''}</span></span></li>`).join('');
+  // Abschnitte der Patientenseite (W106): feste Reihenfolge Termine → Rezepte → Rechnungen → Nachricht → Kontakt und Verlauf,
+  // jeder zuklappbar; Kontaktwege, Adressen und Bezugspersonen sind eingeklappt (die Kachel oben zeigt das Wichtigste),
+  // der Kontaktverlauf nur bei offenem Anruf offen. Ein Sprungziel (#adressen) öffnet den Abschnitt (praxis.js).
+  const abschnitt = (id: string, titel: string, inhalt: string, a: { offen?: boolean } = {}) =>
+    `<details class="pat-abschnitt" id="${id}"${a.offen === false ? '' : ' open'}><summary data-hilfe="patient.abschnitt"><h2>${titel}</h2></summary>
+  ${inhalt}
+</details>`;
   return seite({
     titel: name(p), aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › ${esc(name(p))}</p>${meldungen(o)}
@@ -395,25 +402,18 @@ ${kachel(p, { kopf: true })}
 
 ${offenBox}
 
-<section class="pat-abschnitt" id="rezepte"><h2>${symbol('rezept')} Rezepte und Behandlungsserien</h2>
-  <div class="rz-raster">${serienPlus(p.id)}${d.verordnungen.map((v) => rezeptKachel(v, { zurueck })).join('')}${d.serien.map((s) => serieKachel(s, { zurueck })).join('')}</div>
-  ${d.verordnungen.length || d.serien.length ? '' : '<p class="leer">Kein Rezept und keine Serie hinterlegt – über „+“ anlegen.</p>'}
-</section>
+${abschnitt('termine', `${symbol('kalender')} Termine`, `<div class="tk-raster">${plusKachel({ text: 'Neuer Termin', hilfe: 'plus.termin', href: `/kalender?ansicht=monat&patient=${p.id}`, seite: true })}${termine}</div>
+  ${termine ? '' : '<p class="leer">Keine kommenden Termine.</p>'}`)}
 
-<section class="pat-abschnitt" id="termine"><h2>${symbol('kalender')} Termine</h2>
-  <div class="tk-raster">${plusKachel({ text: 'Neuer Termin', hilfe: 'plus.termin', href: `/kalender?ansicht=monat&patient=${p.id}`, seite: true })}${termine}</div>
-  ${termine ? '' : '<p class="leer">Keine kommenden Termine.</p>'}
-</section>
+${abschnitt('rezepte', `${symbol('rezept')} Rezepte und Behandlungsserien`, `<div class="rz-raster">${serienPlus(p.id)}${d.verordnungen.map((v) => rezeptKachel(v, { zurueck })).join('')}${d.serien.map((s) => serieKachel(s, { zurueck })).join('')}</div>
+  ${d.verordnungen.length || d.serien.length ? '' : '<p class="leer">Kein Rezept und keine Serie hinterlegt – über „+“ anlegen.</p>'}`)}
 
-<section class="pat-abschnitt" id="rechnungen"><h2>${symbol('euro')} Rechnungen ${legende}</h2>
-  ${rechnungen}${jahre.length ? '' : '<p class="leer">Noch keine Rechnung – Rezepte und Serien legen ihren Entwurf selbst an.</p>'}
+${abschnitt('rechnungen', `${symbol('euro')} Rechnungen ${legende}`, `${rechnungen}${jahre.length ? '' : '<p class="leer">Noch keine Rechnung – Rezepte und Serien legen ihren Entwurf selbst an.</p>'}
   ${d.lexwareRechnungen ? `<p>${form('lexware_rechnungen', `<button class="knopf klein" data-hilfe="patient.lexware_rechnungen">${symbol('rechnung', { groesse: 16 })} Rechnungen und Zahlungen aus Lexware prüfen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Lexware kennt diesen Patienten als Kunden – neue Rechnungen kommen als Kacheln, bezahlte bekommen Zahldatum und Zahlungsposten.</span></p>` : ''}
   ${d.lexwareAbgleich?.abweichungen.length ? `<div class="hinweis-muster lx-abgleich" data-hilfe="patient.lexware-abgleich" tabindex="0"><p><b>Lexware-Kunde ${esc(d.lexwareAbgleich.nummer)}:</b> ${d.lexwareAbgleich.abweichungen.length} Feld${d.lexwareAbgleich.abweichungen.length === 1 ? '' : 'er'} weicht ab – der PPM-Wert bleibt, bis du den Lexware-Wert übernimmst.</p><ul class="lx-abweichungen">${d.lexwareAbgleich.abweichungen.map((a) => `<li><b>${esc(a.titel)}</b>: hier „${esc(a.ppm ?? '–')}“ · Lexware „${esc(a.lexware)}“ ${form('lexware_uebernehmen', `<input type="hidden" name="feld" value="${a.feld}"><button class="knopf klein" data-hilfe="patient.lexware-uebernehmen">Lexware-Wert übernehmen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })}</li>`).join('')}</ul></div>` : ''}
-  ${d.lexwareKundeAnlegbar ? `<p>${form('lexware_kunde_anlegen', `<button class="knopf klein" data-hilfe="patient.lexware-kunde">${symbol('euro', { groesse: 16 })} In Lexware als Kunde anlegen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Noch kein Lexware-Kunde – nötig, bevor eine Rechnung nach Lexware geht (passiert sonst beim ersten „Nach Lexware“ von selbst).</span></p>` : ''}
-</section>
+  ${d.lexwareKundeAnlegbar ? `<p>${form('lexware_kunde_anlegen', `<button class="knopf klein" data-hilfe="patient.lexware-kunde">${symbol('euro', { groesse: 16 })} In Lexware als Kunde anlegen</button>`, { id: p.id, zurueck: `${zurueck}#rechnungen` })} <span class="hint">Noch kein Lexware-Kunde – nötig, bevor eine Rechnung nach Lexware geht (passiert sonst beim ersten „Nach Lexware“ von selbst).</span></p>` : ''}`)}
 
-<section class="pat-abschnitt" id="nachricht"><h2>${symbol('email')} Nachricht an ${esc(p.vorname)} <span class="hint">WhatsApp vom Handy · Mail-Entwurf für Outlook</span></h2>
-  ${d.whatsapp.length
+${abschnitt('nachricht', `${symbol('email')} Nachricht an ${esc(p.vorname)} <span class="hint">WhatsApp vom Handy · Mail-Entwurf für Outlook</span>`, `${d.whatsapp.length
     ? `<div class="knopfreihe wa-knoepfe" data-hilfe="nachricht.whatsapp">${d.whatsapp.filter((w) => !w.terminId).map((w) => `<a class="knopf klein" href="${esc(w.link)}" target="_blank" rel="noopener" data-whatsapp="${p.id}" data-vorlage="${w.code}">${symbol('whatsapp', { groesse: 16 })} ${esc(w.name)}</a>`).join('')}</div>
   <p class="hint">Terminbestätigung und -erinnerung stehen oben an jedem Termin. Der Knopf öffnet WhatsApp mit fertigem Text – Sie lesen, ändern und senden selbst. Keine Gesundheitsangaben (Leitplanke 9).</p>`
     : '<p class="hint">Keine WhatsApp-Nummer hinterlegt – unten unter Kontaktwege eintragen, dann erscheinen hier die WhatsApp-Knöpfe.</p>'}
@@ -430,31 +430,26 @@ ${offenBox}
     <div class="knopfreihe"><button class="knopf primaer" name="aktion" value="mail_entwurf" data-hilfe="nachricht.mail">${symbol('email', { groesse: 18 })} Entwurf in Outlook anlegen</button>
     ${d.whatsappCloud && p.whatsapp ? `<button class="knopf" name="aktion" value="whatsapp_senden" data-hilfe="nachricht.whatsapp-senden">${symbol('whatsapp', { groesse: 18 })} Per WhatsApp senden</button>` : ''}</div>
     <p class="hint">Der Entwurf landet an ${esc(p.email.wert)} im Postfach der Praxis (Outlook, Apple Mail: „Entwürfe“) – gesendet wird dort von Hand.</p>
-  </form>` : '<p class="hint">Keine Mailadresse hinterlegt – unten unter Kontaktwege eintragen, dann lässt sich hier ein Mail-Entwurf anlegen.</p>'}
-</section>
+  </form>` : '<p class="hint">Keine Mailadresse hinterlegt – unten unter Kontaktwege eintragen, dann lässt sich hier ein Mail-Entwurf anlegen.</p>'}`)}
 
-<section class="pat-abschnitt" id="kontakte"><h2>${symbol('anfrage')} Kontaktwege</h2>
-  <ul class="kanaele">${kontakte || '<li class="hint">noch keiner</li>'}</ul>
+${abschnitt('kontakte', `${symbol('anfrage')} Kontaktwege <span class="hint">${p.kontakte.length}</span>`, `<ul class="kanaele">${kontakte || '<li class="hint">noch keiner</li>'}</ul>
+  <details class="mehr-form"><summary class="knopf klein" data-hilfe="kontakt.neu">Kontakt hinzufügen</summary>
   ${form('kontakt_speichern', `<label>Art<select name="art">${Object.entries(KONTAKT_NAME).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>
     <label>Nummer bzw. Adresse<input name="wert" required></label><label>Bezeichnung<input name="bezeichnung" placeholder="privat, Arbeit …" maxlength="40"></label>
     <label class="haken"><input type="checkbox" name="primaer" value="1"> als primär (auf der Kachel)</label>
-    <button class="knopf" data-hilfe="kontakt.neu">Kontakt hinzufügen</button>`, { id: p.id, zurueck, klasse: 'formular zeile' })}
-</section>
+    <button class="knopf" data-hilfe="kontakt.speichern">Speichern</button>`, { id: p.id, zurueck, klasse: 'formular zeile' })}
+  </details>`, { offen: false })}
 
-<section class="pat-abschnitt" id="adressen"><h2>${symbol('ordner')} Adressen</h2>
-  <div class="adr-raster">${plusKachel({ text: 'Neue Adresse', hilfe: 'adresse.neu', href: `/patienten/${p.id}/adressen/neu` })}${p.adressen.map((a) => adresseKachel(p, a)).join('')}
-  </div>
-</section>
+${abschnitt('adressen', `${symbol('ordner')} Adressen <span class="hint">${p.adressen.length}</span>`, `<div class="adr-raster">${plusKachel({ text: 'Neue Adresse', hilfe: 'adresse.neu', href: `/patienten/${p.id}/adressen/neu` })}${p.adressen.map((a) => adresseKachel(p, a)).join('')}
+  </div>`, { offen: false })}
 
-${bezugspersonen ? `<section class="pat-abschnitt"><h2>${symbol('patient')} Bezugspersonen</h2><ul class="kanaele" data-hilfe="bezugspersonen.liste">${bezugspersonen}</ul></section>` : ''}
+${bezugspersonen ? abschnitt('bezugspersonen', `${symbol('patient')} Bezugspersonen <span class="hint">${p.bezugspersonen.length}</span>`, `<ul class="kanaele" data-hilfe="bezugspersonen.liste">${bezugspersonen}</ul>`, { offen: false }) : ''}
 
-<section class="pat-abschnitt" id="verlauf"><h2>${symbol('telefon')} Kontaktverlauf <span class="hint">${d.verlauf.length} Einträge</span></h2>
-  ${verlauf ? `<div class="verlauf-fenster" data-hilfe="verlauf.liste" tabindex="0"><ul class="kanaele">${verlauf}</ul></div>` : '<p class="leer">Noch kein Gespräch vermerkt. Ein Tipp auf die Telefonnummer oben legt den ersten Eintrag an.</p>'}
+${abschnitt('verlauf', `${symbol('telefon')} Kontaktverlauf <span class="hint">${d.verlauf.length} Einträge</span>`, `${verlauf ? `<div class="verlauf-fenster" data-hilfe="verlauf.liste" tabindex="0"><ul class="kanaele">${verlauf}</ul></div>` : '<p class="leer">Noch kein Gespräch vermerkt. Ein Tipp auf die Telefonnummer oben legt den ersten Eintrag an.</p>'}
   <details class="mehr-form"><summary class="knopf klein" data-hilfe="verlauf.eintragen">Eintrag von Hand</summary>
   ${form('verlauf_eintragen', `<label>Art<select name="art">${Object.entries(VERLAUF_ART).map(([k, [, t]]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select></label>
     <div class="chips">${gruende()}</div><label>Notiz<input name="notiz" maxlength="500"></label><div class="knopfreihe"><button class="knopf primaer">Speichern</button></div>`, { id: p.id, zurueck, klasse: 'formular' })}
-  </details>
-</section>`,
+  </details>`, { offen: offene.length > 0 })}`,
   });
 }
 

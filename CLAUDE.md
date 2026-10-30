@@ -22,8 +22,9 @@ Kommentare, Oberfläche, Commits.
    `npm run typecheck`, `npm test`, committen, pushen, in die **Testumgebung** ausspielen
    (`deploy/strato-dev.sh test`). Die Produktion (`prod`) erst nach Lillis Abnahme.
 2. **Hilfe immer mitziehen.** Jedes bedienbare Element trägt `data-hilfe="<schlüssel>"`; zu jedem Schlüssel
-   steht in `src/web/hilfe.ts` eine Erklärung mit den fünf Fragen (Löst aus · Bezug · Ändert · Ergebnis ·
-   Rückweg). `test/hilfe.test.ts` prüft beides; danach `npm run hilfe:vorschau -- konzept/hilfe-vorschau.html`.
+   steht in `src/web/hilfe/<seite>.ts` (zusammengeführt in `src/web/hilfe.ts`) eine Erklärung mit den fünf Fragen
+   (Löst aus · Bezug · Ändert · Ergebnis · Rückweg). `test/hilfe.test.ts` prüft beides; danach
+   `npm run hilfe:vorschau -- konzept/hilfe-vorschau.html`.
 3. **Prüfbrowser statt eigenem Browser.** Oberfläche nur mit WebKit im Container am Server ansehen
    (`pruefung/browser/ansehen.sh`), kein Chrome auf dem Mac.
 4. **Tests gegen PGlite** (`test/testdb.ts`), Graph über Attrappen (`test/attrappe.ts`,
@@ -68,8 +69,10 @@ kennt, werden nie gelöscht oder überschrieben. Jobs (z. B. Rechnung zusammenst
   `src/zeit.ts` (ZONE, heuteBerlin, tagPlus, wocheUm), `src/praxis.ts` (Praxisname, Konto),
   `src/telefon.ts` (E.164).
 - **Zwei Prozesse:** der Praxisdienst (`src/cli/serve.ts`, Tailnet) und der öffentliche Buchungsdienst (`src/cli/buchung-serve.ts`, `src/buchung/`) – Letzterer darf nie Datenbank, Tresor, Postfach oder Kartei importieren; er kennt nur Angebot und Buchungswünsche.
-- Schichten: `src/kartei/*` (Fachlogik gegen `Db`), `src/kartei/dienst.ts` (Aktionen aus Formularen),
-  `src/server.ts` (Routen, Zugang, Kopfzeilen), `src/web/*` (HTML). Keine SQL in `src/web`.
+- Schichten: `src/kartei/*` (Fachlogik gegen `Db`; die Patientenkartei in `src/kartei/patienten/*`, zusammengeführt
+  in `patienten.ts`), `src/kartei/aktionen/*` (Aktionen aus Formularen als Tabelle je Fachgebiet, Kontext in
+  `kontext.ts`; `src/kartei/dienst.ts` liefert Seitendaten und baut den Kontext), `src/kartei/formular.ts`
+  (Eingaben prüfen), `src/server.ts` (Routen, Zugang, Kopfzeilen), `src/web/*` (HTML). Keine SQL in `src/web`.
 - Fehler für die Oberfläche sind `KarteiFehler`/`PreislisteFehler`/`AktionAbgelehnt` – sie landen als
   Meldung auf der Seite, alles andere ist ein 500 und gehört ins Protokoll.
 - **Kachel-Regeln (W114/W115, requirements §4h):** Wo ein Raster Neues zulässt, ist die erste Kachel `plusKachel()`;

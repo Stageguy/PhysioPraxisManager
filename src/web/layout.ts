@@ -270,6 +270,8 @@ a.pat-kontakt:hover,a.pat-kontakt:focus-visible{background:color-mix(in srgb,var
 .plus-menue a:hover{background:color-mix(in srgb,var(--akzent) 10%,transparent)}.plus-menue .aus{color:var(--grau)}.plus-menue small{margin-left:auto;font-size:11px}
 .pat-aktionen{margin:12px 0}
 .pat-abschnitt{margin-top:24px}.pat-abschnitt h2{display:flex;gap:8px;align-items:center;margin:0 0 10px}
+details.pat-abschnitt>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:36px}details.pat-abschnitt>summary::-webkit-details-marker{display:none}details.pat-abschnitt>summary h2{flex:1;margin:0}
+details.pat-abschnitt>summary::after{content:'›';font-size:24px;line-height:1;color:var(--grau);transform:rotate(90deg);transition:transform .15s}details.pat-abschnitt:not([open])>summary::after{transform:none}details.pat-abschnitt[open]>summary{margin-bottom:10px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}.wahl-chip{display:inline-flex;gap:6px;align-items:center;min-height:40px;padding:4px 12px;border-radius:999px;border:1px solid var(--rand);cursor:pointer;font-size:15px}
 .formular label.wahl-chip{flex-direction:row;color:var(--fg);font-size:15px;gap:6px}
 .wahl-chip:has(input:checked){background:var(--akzent);color:var(--bg);border-color:var(--akzent)}.wahl-chip input{accent-color:var(--akzent);min-height:0;width:18px;height:18px}
