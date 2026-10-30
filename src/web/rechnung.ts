@@ -39,7 +39,7 @@ export const statusChip = (status: Rechnung['status']) => {
   return `<span class="chip ${f}">${esc(t)}</span>`;
 };
 
-export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen & { /** nach dem Anlegen des Entwurfs (W122): Hinweisfenster mit Sprung nach Outlook */ entwurfDialog?: boolean }): string {
+export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen & { /** nach dem Anlegen des Entwurfs (W122): Hinweisfenster mit Sprung nach Outlook */ entwurfDialog?: boolean; /** Mac, iPhone, iPad: zusätzlich der Sprung in Apple Mail (W122b) */ appleMail?: boolean }): string {
   const { patient: p, rechnung: r } = d;
   const name = `${p.vorname} ${p.nachname}`;
   const zurueck = `/patienten/${p.id}/rechnungen/${r.id}`;
@@ -90,12 +90,15 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen & { /** nach dem 
         <span class="hint">Per Mail: Entwurf mit PDF in Outlook, gesendet wird dort. Per Post: vermerkt, du druckst das PDF.</span>` : '';
   // Entwurf in Outlook (W122): Hinweisblock mit Sprung in den Entwurf; nach dem Anlegen zusätzlich das Fenster
   const ew = r.versandEntwurf;
+  // Apple Mail (W122b): macOS und iOS öffnen eine Nachricht über message://<Message-ID> – nur, wenn das Konto sie schon geladen hat
+  const appleMailLink = ew?.messageId && o.appleMail ? `message://${encodeURIComponent(ew.messageId.startsWith('<') ? ew.messageId : `<${ew.messageId}>`)}` : null;
+  const appleMail = (klasse: string, groesse: number) => (appleMailLink ? ` <a class="${klasse}" href="${esc(appleMailLink)}" data-hilfe="rechnung.entwurf-applemail">${symbol('brief', { groesse })} In Apple Mail öffnen</a>` : '');
   const entwurfLink = ew?.link ? `<a class="knopf klein primaer" href="${esc(ew.link)}" target="_blank" rel="noopener" data-hilfe="rechnung.entwurf-outlook">${symbol('email', { groesse: 16 })} In Outlook öffnen</a>` : '';
-  const entwurfBlock = ew ? `<div class="meldung ok entwurf" data-hilfe="rechnung.entwurf" tabindex="0">${symbol('email', { groesse: 20 })}<span><b>Die Rechnungs-Mail liegt als Entwurf in Outlook</b>${ew.am ? ` (seit ${datumText(datumBerlin(ew.am))})` : ''} – mit PDF und der Adresse ${esc(p.email?.wert ?? '')}. Dort ggf. anpassen und senden. „Versendet“ steht hier, sobald Outlook den Versand bestätigt – diese Seite sieht bei jedem Öffnen nach.<br>${entwurfLink} <a class="knopf klein" href="${zurueck}" data-hilfe="rechnung.entwurf-pruefen">Versand prüfen</a></span></div>` : '';
+  const entwurfBlock = ew ? `<div class="meldung ok entwurf" data-hilfe="rechnung.entwurf" tabindex="0">${symbol('email', { groesse: 20 })}<span><b>Die Rechnungs-Mail liegt als Entwurf in Outlook</b>${ew.am ? ` (seit ${datumText(datumBerlin(ew.am))})` : ''} – mit PDF und der Adresse ${esc(p.email?.wert ?? '')}. Dort ggf. anpassen und senden. „Versendet“ steht hier, sobald Outlook den Versand bestätigt – diese Seite sieht bei jedem Öffnen nach.<br>${entwurfLink}${appleMail('knopf klein', 16)} <a class="knopf klein" href="${zurueck}" data-hilfe="rechnung.entwurf-pruefen">Versand prüfen</a></span></div>` : '';
   const dialog = ew && o.entwurfDialog ? `<dialog open class="rm-dialog entwurf-dialog" data-hilfe="rechnung.entwurf-dialog"><div class="rm-form"><div class="rm-kopf"><strong>${symbol('email', { groesse: 18 })} Entwurf in Outlook</strong></div>
     <p>Die Rechnungs-Mail an <b>${esc(p.email?.wert ?? '')}</b> liegt als Entwurf in Outlook – mit PDF${d.girocode ? ' und GiroCode' : ''}. Dort kannst du den Text noch anpassen und sendest sie.</p>
     <p class="hint">„Versendet“ steht an der Rechnung, sobald Outlook den Versand bestätigt hat.</p>
-    <div class="knopfreihe">${ew.link ? `<a class="knopf primaer" href="${esc(ew.link)}" target="_blank" rel="noopener" data-hilfe="rechnung.entwurf-outlook">${symbol('email', { groesse: 18 })} In Outlook öffnen</a>` : ''}<form method="dialog"><button class="knopf" data-hilfe="rechnung.entwurf-ok">OK – später in Outlook</button></form></div></div></dialog>` : '';
+    <div class="knopfreihe">${ew.link ? `<a class="knopf primaer" href="${esc(ew.link)}" target="_blank" rel="noopener" data-hilfe="rechnung.entwurf-outlook">${symbol('email', { groesse: 18 })} In Outlook öffnen</a>` : ''}${appleMail('knopf', 18)}<form method="dialog"><button class="knopf" data-hilfe="rechnung.entwurf-ok">OK – später${appleMailLink ? '' : ' in Outlook'}</button></form></div></div></dialog>` : '';
   const storno = form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`);
   const aktionen = (() => {
     switch (r.status) {

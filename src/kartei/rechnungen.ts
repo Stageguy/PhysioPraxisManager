@@ -71,7 +71,7 @@ export interface Rechnung {
   versandArt: string | null;
   versendetAm: string | null;
   /** Rechnungs-Mail liegt als Entwurf in Outlook (W122) – bis Outlook den Versand bestätigt */
-  versandEntwurf: { id: string; link: string | null; am: string | null } | null;
+  versandEntwurf: { id: string; link: string | null; am: string | null; /** Internet-Message-ID für den Sprung in Apple Mail (W122b) */ messageId: string | null } | null;
   bezahltAm: string | null;
   storniertAm: string | null;
   stornoGrund: string | null;
@@ -110,7 +110,7 @@ export async function rechnungLesen(db: Db, patientId: string, id: string): Prom
     preisliste: r.plid ? { id: String(r.plid), name: String(r.preisliste_name) } : null, zeitraumVon: tag(r.zeitraum_von), zeitraumBis: tag(r.zeitraum_bis), datum: tag(r.datum), faelligAm: tag(r.faellig_am),
     nummer: (r.nummer as string | null) ?? null, netto: betrag(r.netto), ust: betrag(r.ust), ustSatz: betrag(r.ust_satz), betrag: betrag(r.betrag), kleinunternehmer: Boolean(r.kleinunternehmer),
     versandArt: (r.versand_art as string | null) ?? null, versendetAm: tag(r.versendet_am),
-    versandEntwurf: r.versand_entwurf_id ? { id: String(r.versand_entwurf_id), link: (r.versand_entwurf_link as string | null) ?? null, am: iso(r.versand_entwurf_am) } : null, bezahltAm: tag(r.bezahlt_am), storniertAm: tag(r.storniert_am), stornoGrund: (r.storno_grund as string | null) ?? null,
+    versandEntwurf: r.versand_entwurf_id ? { id: String(r.versand_entwurf_id), link: (r.versand_entwurf_link as string | null) ?? null, am: iso(r.versand_entwurf_am), messageId: (r.versand_entwurf_message_id as string | null) ?? null } : null, bezahltAm: tag(r.bezahlt_am), storniertAm: tag(r.storniert_am), stornoGrund: (r.storno_grund as string | null) ?? null,
     lexware: {
       invoiceId: (r.lexware_invoice_id as string | null) ?? null, status: (r.lexware_status as string | null) ?? null, betrag: r.lexware_betrag == null ? null : Number(r.lexware_betrag),
       geprueftAm: iso(r.lexware_geprueft_am), abweichung: (r.lexware_abweichung as string | null) ?? null, pdfAm: iso(r.lexware_pdf_am), pdfName: (r.lexware_pdf_name as string | null) ?? null,

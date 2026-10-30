@@ -105,6 +105,8 @@ test('Klick 1 „Nach Lexware“: Entwurf wird fertig, Kunde in Lexware angelegt
 });
 
 test('Klick 2 „Versenden“ per Mail (W122): Entwurf in Outlook mit PDF und GiroCode, Rechnung bleibt „in Lexware“; verworfen → wieder frei; gesendet → „versendet“ mit Outlooks Datum', async () => {
+  // Die Attrappe gibt beim Anlegen keine Message-ID zurück – der PPM liest sie nach (Apple Mail, W122b)
+  GET['/me/messages/neu-1?$select=internetMessageId'] = { internetMessageId: '<entwurf-1@praxis.example>' };
   const r = await post({ aktion: 'rechnung_versenden', id: pid, rechnung_id: rid, versand_art: 'email', zurueck: `/patienten/${pid}` });
   assert.match(ziel(r), new RegExp(`^/patienten/${pid}/rechnungen/${rid}\\?entwurf=1&meldung=Rechnungs-Mail an shopping\\+bernd@2late\\.de liegt als Entwurf in Outlook – mit PDF und GiroCode\\. „Versendet“ steht hier, sobald Outlook den Versand bestätigt\\.$`));
   assert.ok(!graph.schreibende().some((a) => a.pfad === '/me/sendMail'), 'nichts direkt gesendet – E37');
@@ -131,6 +133,10 @@ test('Klick 2 „Versenden“ per Mail (W122): Entwurf in Outlook mit PDF und Gi
   assert.match(html, /<div class="meldung ok entwurf" data-hilfe="rechnung.entwurf" tabindex="0">/);
   assert.match(html, /<button class="knopf" data-hilfe="rechnung.entwurf-ok">OK – später in Outlook<\/button>/);
   assert.ok(!html.includes('data-hilfe="rechnung.versenden"'), 'kein zweiter Entwurf');
+  assert.ok(!html.includes('rechnung.entwurf-applemail'), 'ohne Mac oder iPhone kein Apple-Mail-Knopf');
+  const mac = await (await fetch(`${basis}/patienten/${pid}/rechnungen/${rid}?entwurf=1`, { headers: { ...wer, 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15' } })).text();
+  assert.match(mac, /<a class="knopf" href="message:\/\/%3Centwurf-1%40praxis\.example%3E" data-hilfe="rechnung.entwurf-applemail">.*In Apple Mail öffnen<\/a><form method="dialog"><button class="knopf" data-hilfe="rechnung.entwurf-ok">OK – später<\/button>/, 'am Mac zusätzlich Apple Mail über die Message-ID');
+  assert.match(mac, /<a class="knopf klein" href="message:\/\/%3Centwurf-1%40praxis\.example%3E" data-hilfe="rechnung.entwurf-applemail">/, 'auch im Hinweisblock');
   assert.ok(!html.includes('name="status_aktion" value="versendet"'), 'kein Vermerk von Hand, solange der Entwurf wartet');
   assert.ok(!(await seite(`/patienten/${pid}/rechnungen/${rid}`)).includes('<dialog open class="rm-dialog entwurf-dialog"'), 'das Fenster nur direkt nach dem Anlegen');
   assert.match(ziel(await post({ aktion: 'rechnung_versenden', id: pid, rechnung_id: rid, versand_art: 'email', zurueck: `/patienten/${pid}` })), /fehler=Die Rechnungs-Mail liegt schon als Entwurf in Outlook/);

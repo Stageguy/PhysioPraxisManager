@@ -51,7 +51,7 @@ export const UNVERAENDERLICHE_KENNUNG = { Prefer: 'IdType="ImmutableId"' };
  * den Versand bestätigt (rechnungsversandPruefen). Per Post wird der Versand vermerkt, Lilli druckt das PDF.
  */
 export async function rechnungSenden(
-  db: Db, t: Tresor, graph: Pick<GraphClient, 'post'> | undefined, patientId: string, rechnungId: string, d: { art?: string }, wer: string,
+  db: Db, t: Tresor, graph: Pick<GraphClient, 'post' | 'get'> | undefined, patientId: string, rechnungId: string, d: { art?: string }, wer: string,
 ): Promise<{ meldung: string; art: string; entwurf: { id: string; link: string | null } | null }> {
   const patient = await patientLesen(db, t, patientId);
   if (!patient) throw new KarteiFehler('Unbekannter Patient');
@@ -76,7 +76,7 @@ export async function rechnungSenden(
       mail.text += '\n\nPS: Mit dem beigefügten GiroCode überweisen Sie per Banking-App – scannen, prüfen, bestätigen; Betrag und Rechnungsnummer sind vorbelegt.';
       girocode = true;
     }
-    let e: { id?: string; webLink?: string; conversationId?: string };
+    let e: { id?: string; webLink?: string; conversationId?: string; messageId?: string };
     try {
       e = await entwurfAnlegen(graph, mail, { ausfuehren: true, kopfzeilen: UNVERAENDERLICHE_KENNUNG });
     } catch (err) {
@@ -86,8 +86,8 @@ export async function rechnungSenden(
       throw err;
     }
     await db.query(
-      'UPDATE rechnung SET versand_entwurf_id = $2, versand_entwurf_link = $3, versand_entwurf_am = now(), versand_conversation_id = $4, versand_art = $5, geaendert_am = now() WHERE id = $1',
-      [rechnungId, e.id ?? null, e.webLink ?? null, e.conversationId ?? null, art],
+      'UPDATE rechnung SET versand_entwurf_id = $2, versand_entwurf_link = $3, versand_entwurf_am = now(), versand_conversation_id = $4, versand_art = $5, versand_entwurf_message_id = $6, geaendert_am = now() WHERE id = $1',
+      [rechnungId, e.id ?? null, e.webLink ?? null, e.conversationId ?? null, art, e.messageId ?? null],
     );
     await verlauf(db, t, patientId, { art: 'email', kontaktId: patient.email.id, terminId: null, notiz: `Rechnung ${kurz.nummer ?? rechnungId} als Entwurf im Postfach (${pdf.name}) – Versand in Outlook`, quelleRef: e.webLink ?? null, wer });
     await protokolliere(db, { actor: wer, action: 'rechnung_entwurf', objectType: 'patient', objectId: patientId, details: { rechnung: Number(rechnungId), art, girocode } });
@@ -136,14 +136,14 @@ export async function rechnungsversandPruefen(
         const tagG = m.sentDateTime ? datumBerlin(m.sentDateTime) : null;
         await db.query(
           `UPDATE rechnung SET status = 'gesendet', versendet_am = COALESCE($2::date, CURRENT_DATE), gesendet_am = COALESCE($2::date, CURRENT_DATE), faellig_am = COALESCE(faellig_am, COALESCE($2::date, CURRENT_DATE) + 14),
-             versand_entwurf_id = NULL, versand_entwurf_link = NULL, geaendert_am = now() WHERE id = $1`, [r.id, tagG],
+             versand_entwurf_id = NULL, versand_entwurf_link = NULL, versand_entwurf_message_id = NULL, geaendert_am = now() WHERE id = $1`, [r.id, tagG],
         );
         await verlauf(db, t, r.patient_id, { art: 'email', notiz: `Rechnung ${r.nummer ?? r.id} per Mail gesendet – von Outlook bestätigt${tagG ? ` (${datumText(tagG)})` : ''}`, quelleRef: null, wer });
         await protokolliere(db, { actor: wer, action: 'rechnung_gesendet', objectType: 'patient', objectId: r.patient_id, details: { rechnung: Number(r.id), art: r.art ?? 'email', bestaetigt: 'outlook' } });
         e.bestaetigt++;
       } else if (!m && r.alt) {
         // Nicht gefunden und älter als zehn Minuten: Lilli hat den Entwurf verworfen (ein frischer Entwurf bekommt erst Zeit, im Postfach anzukommen)
-        await db.query('UPDATE rechnung SET versand_entwurf_id = NULL, versand_entwurf_link = NULL, versand_entwurf_am = NULL, geaendert_am = now() WHERE id = $1', [r.id]);
+        await db.query('UPDATE rechnung SET versand_entwurf_id = NULL, versand_entwurf_link = NULL, versand_entwurf_am = NULL, versand_entwurf_message_id = NULL, geaendert_am = now() WHERE id = $1', [r.id]);
         await verlauf(db, t, r.patient_id, { art: 'email', notiz: `Entwurf der Rechnungs-Mail ${r.nummer ?? r.id} ist in Outlook nicht mehr da – nicht gesendet; „Versenden“ legt ihn neu an`, quelleRef: null, wer });
         await protokolliere(db, { actor: wer, action: 'rechnung_entwurf_weg', objectType: 'patient', objectId: r.patient_id, details: { rechnung: Number(r.id) } });
         e.verworfen++;
