@@ -7,6 +7,9 @@ Entscheidung durch Christian; Umsetzung danach Schritt für Schritt.
 führt Patienten, Organisation und Ablauf, auch die Rechnung als Vorgang, und ist die Drehscheibe zu Lexware und
 Exchange. Hauptprämisse: für Lilli mit jeder Funktion so einfach und so schnell wie möglich ans Ergebnis; mobil
 dürfen Detailfunktionen fehlen. Die Zahl der Klicks ist keine Vorgabe (E30 war in diesem Punkt ein Missverständnis).
+Grundregel für Sendungen: der PPM erstellt den Entwurf, Outlook sendet; Ungefährliches darf der PPM direkt senden oder
+eintragen (wie Termine). Ob die Rechnungs-Mail direkt geht (so heute) oder als Entwurf – **E37**; „Rechnung stellen“
+unten meint den Weg, den Christian dort wählt.
 
 ## 1. Ausgangslage
 

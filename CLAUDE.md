@@ -42,15 +42,17 @@ kennt, werden nie gelöscht oder überschrieben. Jobs (z. B. Rechnung zusammenst
 **Hauptprämisse (31.10.2026):** Für Lilli mit jeder Funktion so einfach und so schnell wie möglich ans Ergebnis –
 weniger Klicks, weniger Begriffe, weniger Entscheidungen, die das System selbst treffen kann. Die Mobilversion darf
 weniger Detailfunktionen haben als der Desktop. Lexware führt die Buchhaltung (Rechnungen, Nummern, Zahlungsstand),
-der PPM führt Patienten, Organisation und Ablauf (auch Rechnungen als Vorgang) und ist die Drehscheibe.
+der PPM führt Patienten, Organisation und Ablauf (auch Rechnungen als Vorgang) und ist die Drehscheibe. Lilli arbeitet
+primär im PPM; was in Lexware zu tun ist (Verbuchung), geschieht dort; gesendet wird in Outlook, der PPM erstellt den
+Entwurf – Ungefährliches (Termine) trägt der PPM direkt ein.
 
 ## Harte Regeln (Leitplanken, requirements §3 und N28)
 
 - **Nichts geht ohne Lillis Freigabe an Patienten.** Mails nur als Entwurf im Postfach (Leitplanke 3); WhatsApp nur
   per Click-to-Chat vom Handy oder – mit Einwilligung – über die Cloud API, nie automatisch.
-  **Rechnungen (E30, klargestellt 31.10.2026):** der Versand aus dem PPM ist gewollt und braucht Lillis Freigabe –
-  aber keine bestimmte Zahl von Klicks. Lexware führt die Buchhaltung (Rechnungen, Nummern, Zahlungsstand), der
-  PPM führt den Ablauf und ist die Drehscheibe; so wenig Klicks wie möglich (§4d).
+  **Grundregel (E30, klargestellt 31.10.2026):** der PPM erstellt (Entwurf), Outlook sendet, Lexware verbucht.
+  Ungefährliches darf der PPM direkt senden oder eintragen (z. B. Termine in den Kalender). Rechnungs-Mail: E37 offen
+  (heute direkt, Klick 2). Keine Vorgabe zur Zahl der Klicks – so wenig wie möglich (§4d).
 - **Keine Gesundheitsdaten außerhalb der Kartei:** nicht im Kalendertitel (nur Initialen + Patientennummer),
   nicht in Mails oder WhatsApp, nicht in Protokollen (Leitplanke 9). Gesundheitsbezogenes in der Datenbank
   nur verschlüsselt (`src/tresor.ts`, Kontext = Spaltenname).
