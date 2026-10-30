@@ -13,6 +13,7 @@ Kommentare, Oberfläche, Commits.
 | `konzept/claude-code-prompts-praxis-lilli-nebel.md` | Die ursprüngliche Prompt-Sammlung (0–15) mit Leitplanken. Gilt, soweit requirements.md nichts Neueres sagt. Neue Wünsche damit abgleichen. |
 | `konzept/fragen-an-lilli.md` | Was nur Lilli entscheiden kann. |
 | `konzept/mandantenfaehigkeit.md` | Prüfung Mehrbenutzer und Mandanten (W89). |
+| `konzept/lexware-validierung.md` | Validierungen zu Lexware (W121): zwei Lösungen im Vergleich, Empfehlung „Lexware-Spiegel“ in Stufen. |
 | `konzept/hilfe-vorschau.html` | Erzeugt aus `src/web/hilfe.ts` – nie von Hand ändern. |
 | `README.md` | Einrichtung, Befehle, Bereitstellung. |
 
