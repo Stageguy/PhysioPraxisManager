@@ -202,7 +202,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
   const patientParam = s?.patient ? `&patient=${s.patient.id}` : '';
   const patientFeld = d.patienten ? `<form method="get" action="/" class="schnell-patient" data-hilfe="schnell.patient">
       <input type="hidden" name="schnell" value="${s?.dauer ?? 30}">${d.namenZeigen ? '<input type="hidden" name="namen" value="1">' : ''}
-      <label>Für Patient <span class="hint">(optional)</span><input name="patient" list="schnell-patienten" value="${esc(s?.patient ? s.patient.patientennummer : d.patientWahl ?? '')}" placeholder="Name oder Nummer" autocomplete="off" maxlength="120"></label>
+      <label><span>Für Patient <span class="hint">(optional)</span></span><input name="patient" list="schnell-patienten" value="${esc(s?.patient ? s.patient.patientennummer : d.patientWahl ?? '')}" placeholder="Name oder Nummer" autocomplete="off" maxlength="120"></label>
       <datalist id="schnell-patienten">${d.patienten.map((p) => `<option value="${esc(p.patientennummer)}">${esc(p.name)}</option>`).join('')}</datalist>
       <button class="knopf klein">Übernehmen</button>
       ${s?.patient ? `<span class="schnell-fuer">${symbol('patient', { groesse: 16 })} <b>${esc(s.patient.name)}</b> <a href="/?schnell=${s.dauer}${namenParam}#t-sc" data-hilfe="schnell.ohne-patient">ohne Patient</a></span>`

@@ -1,0 +1,13 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "liste-dubletten", "pfad": "/patienten?dubletten=1" },
+    { "name": "patient-oskar", "pfad": "/patienten/100" },
+    { "name": "klaerung-oskar2", "pfad": "/patienten/120/dubletten" },
+    { "name": "klaerung-nora2", "pfad": "/patienten/119/dubletten" }
+  ]
+}
