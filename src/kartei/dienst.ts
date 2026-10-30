@@ -144,6 +144,8 @@ export interface KarteiDienst {
   freieWoche(o: { dauer: number; wochenstart: string }): Promise<WochenSuche>;
   /** Schnelltermin (W117): die nächsten drei freien Zeiten einer Dauer samt Vorlage und Links */
   schnelltermin(dauer: number): Promise<Schnelltermin>;
+  /** Freigegebene, aktive Preislisten – für „Neuer Patient“ (W115b) */
+  preislisten(): Promise<Preisliste[]>;
   /** Ein Tag aus dem Monatsplan – für die Tagesansicht mit Lücken */
   tagesplan(datum: string): Promise<(TagesPlan & { dauerMin: number }) | undefined>;
   steuer(jahr: number, maskiert: boolean): Promise<SteuerListe>;
@@ -265,6 +267,7 @@ export function karteiDienst(q: DienstQuellen): KarteiDienst {
     monatsplan: (jahr, monat) => monatsPlan(db, q.graph, jahr, monat),
     freieWoche: (o) => freieWoche(db, q.graph, o),
     schnelltermin: (dauer) => schnelltermin(db, q.graph, { dauer, buchungUrl: q.buchung?.url }),
+    preislisten: async () => (await preislistenListen(db)).filter((l) => l.status === 'freigegeben' && l.aktiv),
     async tagesplan(datum) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return undefined;
       const plan = await monatsPlan(db, q.graph, Number(datum.slice(0, 4)), Number(datum.slice(5, 7)));

@@ -209,7 +209,65 @@ function personFelder(v: Partial<Pick<Patient, 'anrede' | 'titel' | 'vorname' | 
   </fieldset>`;
 }
 
-export function neuSeite(o: Rahmen & { vorbelegung?: Vorbelegung }): string {
+/**
+ * Adresse als Kachel im Stammdatenformular (W115b): Rechnungsadresse und Hausbesuchadresse. Die Felder stehen im Popup
+ * (Feldnamen ra_* bzw. ha_*), die Kachel zeigt die Zusammenfassung – ohne Skript den gespeicherten Stand, mit Skript live.
+ */
+function adresseKachelFeld(art: 'ra' | 'ha', titel: string, a: Partial<Adresse> | undefined, o: { hilfe: string; wieRechnung?: boolean }): string {
+  const w = (k: keyof Adresse) => esc(String(a?.[k] ?? ''));
+  const zeilen = a ? [a.zusatz, [a.strasse, a.hausnummer].filter(Boolean).join(' '), [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean) : [];
+  return `<details class="plus-kachel adr-feld" data-adresse-kachel="${art}"><summary data-hilfe="${o.hilfe}"><span class="adr-titel"><b>${esc(titel)}</b>${a?.id ? stiftZeichen() : ''}</span><span class="adr-text">${zeilen.length ? zeilen.map((z) => esc(String(z))).join('<br>') : '<span class="hint">noch nicht angegeben – antippen</span>'}</span></summary>
+    <div class="plus-popup" role="dialog" aria-label="${esc(titel)}"><header><b>${esc(titel)}</b><button type="button" class="knopf klein plus-schliessen" data-hilfe="kachel.popup-schliessen">Fertig</button></header>
+      ${a?.id ? `<input type="hidden" name="${art}_id" value="${esc(a.id)}">` : ''}
+      <div class="zwei"><label>Bezeichnung<input name="${art}_bezeichnung" value="${w('bezeichnung')}" maxlength="40" placeholder="${art === 'ra' ? 'Zuhause' : 'Pflegeheim, Eltern …'}"></label><label>Zusatz (c/o …)<input name="${art}_zusatz" value="${w('zusatz')}"></label></div>
+      <div class="zwei"><label>Straße<input name="${art}_strasse" value="${w('strasse')}"></label><label>Nr.<input name="${art}_hausnummer" class="kurz" value="${w('hausnummer')}"></label></div>
+      <div class="zwei"><label>PLZ<input name="${art}_plz" class="kurz" inputmode="numeric" value="${w('plz')}"></label><label>Ort<input name="${art}_ort" value="${w('ort')}"></label></div>
+      ${o.wieRechnung ? `<label class="haken"><input type="checkbox" name="ha_wie_rechnung" value="1" data-adresse-kopie="ra" data-hilfe="patient.hausbesuch-wie-rechnung"> wie die Rechnungsadresse</label>` : ''}
+    </div>
+  </details>`;
+}
+const stiftZeichen = () => `<span class="adr-stift" aria-hidden="true">${symbol('stift', { groesse: 14 })}</span>`;
+
+/**
+ * Die vier Blöcke, die „Neuer Patient“ und „Stammdaten bearbeiten“ gemeinsam haben (W115b): Person, Kontaktwege,
+ * Adressen als Kacheln (Rechnung, Hausbesuch), Abrechnung (Preisliste, Rechnungsversand). Beim Bearbeiten stehen die
+ * primären Kontaktwege und die beiden Adressen vorbelegt – weitere Einträge pflegt die Patientenseite.
+ */
+function stammdatenFelder(o: { p?: Patient; v?: Vorbelegung; preislisten: PatientSeiteDaten['preislisten'] }): string {
+  const p = o.p;
+  const v = o.v ?? {};
+  const primaer = (art: Kontakt['art']) => p?.kontakte.find((k) => k.art === art && k.primaer) ?? p?.kontakte.find((k) => k.art === art);
+  const mobil = primaer('mobil');
+  const telefon = primaer('telefon');
+  const email = primaer('email');
+  const whatsapp = primaer('whatsapp');
+  const whatsappWieMobil = p ? Boolean(mobil && whatsapp && mobil.normiert === whatsapp.normiert) || (!whatsapp && !mobil) : true;
+  const ra = p ? (p.adressen.find((a) => a.rechnungsadresse) ?? p.adressen.find((a) => a.typ === 'rechnung')) : (v.strasse || v.ort || v.plz ? { strasse: v.strasse ?? null, hausnummer: v.hausnummer ?? null, plz: v.plz ?? null, ort: v.ort ?? null } : undefined);
+  const ha = p?.adressen.find((a) => a.typ === 'hausbesuch');
+  const standard = o.preislisten.find((l) => l.standard);
+  const versand = p?.rechnungsversand ?? 'email';
+  const kontaktId = (k: Kontakt | undefined, name: string) => (k ? `<input type="hidden" name="${name}" value="${esc(k.id)}">` : '');
+  return `${personFelder(p ?? { anrede: v.anrede, vorname: v.vorname, nachname: v.nachname }, !p)}
+  <fieldset data-hilfe="patient.formular.kontakte"><legend>Kontaktwege</legend>
+    ${kontaktId(mobil, 'mobil_id')}${kontaktId(telefon, 'telefon_id')}${kontaktId(email, 'email_id')}${kontaktId(whatsapp, 'whatsapp_id')}
+    <label>Mobil<input name="mobil" inputmode="tel" placeholder="0151 …" value="${esc(mobil?.wert ?? v.mobil ?? '')}"></label>
+    <label class="haken"><input type="checkbox" name="whatsapp_wie_mobil" value="1"${whatsappWieMobil ? ' checked' : ''}> WhatsApp unter der Mobilnummer</label>
+    <label>Telefon (Festnetz)<input name="telefon" inputmode="tel" value="${esc(telefon?.wert ?? v.telefon ?? '')}"></label>
+    <label>E-Mail<input name="email" type="email" value="${esc(email?.wert ?? v.email ?? '')}"></label>
+    ${p ? `<p class="hint">Die primären Einträge; leer lassen ändert nichts. Weitere Kontaktwege: <a href="/patienten/${p.id}#kontakte">auf der Patientenseite</a>.</p>` : ''}
+  </fieldset>
+  <fieldset><legend>Adressen</legend>
+    <div class="adr-raster">${adresseKachelFeld('ra', 'Rechnungsadresse', ra, { hilfe: 'patient.formular.rechnungsadresse' })}${adresseKachelFeld('ha', 'Hausbesuchadresse', ha, { hilfe: 'patient.formular.hausbesuchadresse', wieRechnung: true })}</div>
+    ${p ? `<p class="hint">Weitere Adressen (Betreuer, Arbeit …): <a href="/patienten/${p.id}#adressen">auf der Patientenseite</a>.</p>` : '<p class="hint">Die Rechnungsadresse steht auf der Rechnung; die Hausbesuchadresse ist am Termin als Behandlungsort wählbar. Beides lässt sich später ergänzen.</p>'}
+  </fieldset>
+  <fieldset><legend>Abrechnung</legend>
+    <div class="zwei"><label>Preisliste<select name="preisliste_id" data-hilfe="patient.preisliste"><option value=""${!p?.preisliste ? ' selected' : ''}>Standard${standard ? ` (zurzeit „${esc(standard.name)}“)` : ''}</option>${o.preislisten.map((l) => `<option value="${l.id}"${p?.preisliste?.id === l.id ? ' selected' : ''}>${esc(l.name)}${l.standard ? ' – Standard' : ''}</option>`).join('')}${p?.preisliste && !o.preislisten.some((l) => l.id === p.preisliste!.id) ? `<option value="${p.preisliste.id}" selected>${esc(p.preisliste.name)} (nicht mehr aktiv – es gilt der Standard)</option>` : ''}</select>${p ? `<span class="hint">${p.preislisteGilt ? `Es gilt: ${esc(p.preislisteGilt.name)}${p.preislisteGilt.standard && !p.preisliste ? ' (Standard)' : ''}` : 'Keine Standard-Preisliste – bitte unter Preislisten eine setzen'}</span>` : ''}</label>
+      <label>Rechnungen erhält der Patient<select name="rechnungsversand" data-hilfe="patient.rechnungsversand"><option value="email"${versand === 'email' ? ' selected' : ''}>per Mail</option><option value="post"${versand === 'post' ? ' selected' : ''}>per Post (drucken)</option><option value="beides"${versand === 'beides' ? ' selected' : ''}>per Mail und Post</option></select></label></div>
+    ${p ? `<p class="hint">Nummer ${esc(p.patientennummer)} · Abrechnung ${esc(p.abrechnungsmodus)}${p.lexwareKundennummer ? ` · Lexware ${esc(p.lexwareKundennummer)}` : ''}${p.exchangeKontaktId ? ' · im Postfach als Kontakt' : ' · noch nicht als Kontakt im Postfach'}</p>` : ''}
+  </fieldset>`;
+}
+
+export function neuSeite(o: Rahmen & { vorbelegung?: Vorbelegung; preislisten?: PatientSeiteDaten['preislisten'] }): string {
   const v = o.vorbelegung ?? {};
   const zurueck = v.lexwareKundennummer ? `/patienten/neu?lexware=${esc(v.lexwareKundennummer)}` : '/patienten/neu';
   const oben = `${meldungen(o)}${v.anfrageId ? `<p class="meldung ok">${symbol('anfrage', { groesse: 18 })} Aus <a href="/anfragen/${esc(v.anfrageId)}">Terminanfrage ${esc(v.anfrageId)}</a> – nach dem Anlegen ist der Patient der Anfrage zugeordnet.</p>` : ''}${v.lexwareKundennummer ? `<p class="meldung ok">${symbol('euro', { groesse: 18 })} Aus <a href="/patienten/lexware#lx-${esc(v.lexwareKundennummer)}">Lexware-Kunde ${esc(v.lexwareKundennummer)}</a> „${esc(v.lexwareName ?? '')}“ – bitte prüfen und ergänzen; nach dem Anlegen ist der Patient mit dem Kunden verknüpft.${v.firma ? ' In Lexware ist das eine Firma – Vor- und Nachname sind geraten.' : ''}</p>` : ''}`;
@@ -219,36 +277,20 @@ export function neuSeite(o: Rahmen & { vorbelegung?: Vorbelegung }): string {
       pfad: [{ href: '/patienten', text: 'Patienten' }], titel: 'Neuer Patient', symbol: 'patient', aktion: 'anlegen', zurueck, abbrechen: '/patienten',
       hilfe: 'patient.neu.formular', knopf: 'Patient anlegen', knopfHilfe: 'patient.anlegen', oben,
       felder: `${v.anfrageId ? `<input type="hidden" name="anfrage_id" value="${esc(v.anfrageId)}">` : ''}${v.lexwareKundennummer ? `<input type="hidden" name="lexware_kundennummer" value="${esc(v.lexwareKundennummer)}"><input type="hidden" name="lexware_kontakt_id" value="${esc(v.lexwareKontaktId ?? '')}">` : ''}
-  ${personFelder({ anrede: v.anrede, vorname: v.vorname, nachname: v.nachname }, true)}
-  <fieldset><legend>Kontaktwege</legend>
-    <label>Mobil<input name="mobil" inputmode="tel" placeholder="0151 …" value="${esc(v.mobil ?? '')}"></label>
-    <label class="haken"><input type="checkbox" name="whatsapp_wie_mobil" value="1" checked> WhatsApp unter der Mobilnummer</label>
-    <label>Telefon (Festnetz)<input name="telefon" inputmode="tel" value="${esc(v.telefon ?? '')}"></label>
-    <label>E-Mail<input name="email" type="email" value="${esc(v.email ?? '')}"></label>
-  </fieldset>
-  <fieldset><legend>Adresse (wird Rechnungsadresse)</legend>
-    <div class="zwei"><label>Straße<input name="strasse" value="${esc(v.strasse ?? '')}"></label><label>Nr.<input name="hausnummer" class="kurz" value="${esc(v.hausnummer ?? '')}"></label></div>
-    <div class="zwei"><label>PLZ<input name="plz" inputmode="numeric" class="kurz" value="${esc(v.plz ?? '')}"></label><label>Ort<input name="ort" value="${esc(v.ort ?? '')}"></label></div>
-  </fieldset>`,
+  ${stammdatenFelder({ v, preislisten: o.preislisten ?? [] })}`,
     }),
   });
 }
 
-/** Stammdaten bearbeiten – dasselbe Formular wie „Neuer Patient“, dazu Abrechnung und Archiv (W115) */
+/** Stammdaten bearbeiten – dasselbe Formular wie „Neuer Patient“ (W115b), dazu das Archiv */
 export function bearbeitenSeite(d: { patient: Patient; preislisten: PatientSeiteDaten['preislisten'] }, o: Rahmen): string {
   const p = d.patient;
-  const standard = d.preislisten.find((l) => l.standard);
   return seite({
     titel: `Stammdaten – ${name(p)}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: formular({
       pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel: 'Stammdaten bearbeiten', symbol: 'patient', aktion: 'stammdaten', id: p.id,
       zurueck: `/patienten/${p.id}/bearbeiten`, abbrechen: `/patienten/${p.id}`, hilfe: 'patient.bearbeiten.formular', knopf: 'Speichern', knopfHilfe: 'patient.speichern', oben: meldungen(o),
-      felder: `${personFelder(p, false)}
-  <fieldset><legend>Abrechnung</legend>
-    <div class="zwei"><label>Preisliste<select name="preisliste_id" data-hilfe="patient.preisliste"><option value=""${!p.preisliste ? ' selected' : ''}>Standard${standard ? ` (zurzeit „${esc(standard.name)}“)` : ''}</option>${d.preislisten.map((l) => `<option value="${l.id}"${p.preisliste?.id === l.id ? ' selected' : ''}>${esc(l.name)}${l.standard ? ' – Standard' : ''}</option>`).join('')}${p.preisliste && !d.preislisten.some((l) => l.id === p.preisliste!.id) ? `<option value="${p.preisliste.id}" selected>${esc(p.preisliste.name)} (nicht mehr aktiv – es gilt der Standard)</option>` : ''}</select><span class="hint">${p.preislisteGilt ? `Es gilt: ${esc(p.preislisteGilt.name)}${p.preislisteGilt.standard && !p.preisliste ? ' (Standard)' : ''}` : 'Keine Standard-Preisliste – bitte unter Preislisten eine setzen'}</span></label>
-      <label>Rechnungen erhält der Patient<select name="rechnungsversand" data-hilfe="patient.rechnungsversand"><option value="email"${p.rechnungsversand === 'email' ? ' selected' : ''}>per Mail</option><option value="post"${p.rechnungsversand === 'post' ? ' selected' : ''}>per Post (drucken)</option><option value="beides"${p.rechnungsversand === 'beides' ? ' selected' : ''}>per Mail und Post</option></select></label></div>
-    <p class="hint">Nummer ${esc(p.patientennummer)} · Abrechnung ${esc(p.abrechnungsmodus)}${p.lexwareKundennummer ? ` · Lexware ${esc(p.lexwareKundennummer)}` : ''}${p.exchangeKontaktId ? ' · im Postfach als Kontakt' : ' · noch nicht als Kontakt im Postfach'}</p>
-  </fieldset>`,
+      felder: stammdatenFelder({ p, preislisten: d.preislisten }),
       weitere: p.status === 'archiviert'
         ? `<button class="knopf" name="aktion" value="reaktivieren" data-hilfe="patient.reaktivieren">Wieder aktiv</button>`
         : `<button class="knopf warnend" name="aktion" value="archivieren" data-hilfe="patient.archivieren">Archivieren</button>`,

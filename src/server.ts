@@ -520,8 +520,9 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const q = (k: string) => adresse.searchParams.get(k)?.slice(0, 120) ?? '';
       const anfrage = /^\d+$/.test(q('anfrage')) ? q('anfrage') : '';
       const kunde = /^\d{1,12}$/.test(q('lexware')) ? await d.lexwareKunde(q('lexware')) : undefined;
-      if (q('lexware') && !kunde) return senden(res, 200, 'text/html', patientNeuSeite({ ...r, fehler: `Lexware-Kunde ${q('lexware')} ist nicht bekannt – Liste unter „Aus Lexware“ neu laden` }));
-      return senden(res, 200, 'text/html', patientNeuSeite({ ...r, vorbelegung: kunde ? vorbelegungAusLexware(kunde) : anfrage || q('vorname') || q('nachname') ? { anfrageId: anfrage, vorname: q('vorname'), nachname: q('nachname'), email: q('email'), mobil: q('mobil') } : undefined }));
+      const preislisten = await d.preislisten();
+      if (q('lexware') && !kunde) return senden(res, 200, 'text/html', patientNeuSeite({ ...r, preislisten, fehler: `Lexware-Kunde ${q('lexware')} ist nicht bekannt – Liste unter „Aus Lexware“ neu laden` }));
+      return senden(res, 200, 'text/html', patientNeuSeite({ ...r, preislisten, vorbelegung: kunde ? vorbelegungAusLexware(kunde) : anfrage || q('vorname') || q('nachname') ? { anfrageId: anfrage, vorname: q('vorname'), nachname: q('nachname'), email: q('email'), mobil: q('mobil') } : undefined }));
     }
     const fm = /^\/patienten\/(\d+)\/faelle\/(\d+)$/.exec(pfad);
     if (fm) {

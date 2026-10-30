@@ -110,7 +110,12 @@ function stammdatenPruefen(d: Stammdaten): void {
 
 export async function patientAnlegen(
   db: Db, t: Tresor,
-  d: Stammdaten & { kontakte?: { art: Kontaktart; wert: string; bezeichnung?: string }[]; adresse?: Omit<Adresse, 'id' | 'rechnungsadresse' | 'land' | 'typ'> & { land?: string; typ?: AdresseTyp } },
+  d: Stammdaten & {
+    kontakte?: { art: Kontaktart; wert: string; bezeichnung?: string }[];
+    adresse?: Omit<Adresse, 'id' | 'rechnungsadresse' | 'land' | 'typ'> & { land?: string; typ?: AdresseTyp };
+    /** Hausbesuchadresse gleich beim Anlegen (W115b) – wird Behandlungsort für Hausbesuche (W113) */
+    hausbesuchAdresse?: Omit<Adresse, 'id' | 'rechnungsadresse' | 'land' | 'typ'> & { land?: string };
+  },
   wer: string,
 ): Promise<string> {
   stammdatenPruefen(d);
@@ -135,6 +140,11 @@ export async function patientAnlegen(
   if (d.adresse && (d.adresse.strasse || d.adresse.ort || d.adresse.plz)) {
     await adresseSpeichern(db, id, { ...d.adresse, rechnungsadresse: true }, wer, { ohneProtokoll: true });
   }
+  if (d.hausbesuchAdresse && (d.hausbesuchAdresse.strasse || d.hausbesuchAdresse.ort || d.hausbesuchAdresse.plz)) {
+    await adresseSpeichern(db, id, { ...d.hausbesuchAdresse, rechnungsadresse: false, typ: 'hausbesuch' }, wer, { ohneProtokoll: true });
+  }
+  // Rechnungsversand gleich beim Anlegen (W115b); ohne Angabe gilt „per Mail“ (Standard der Tabelle)
+  if (['email', 'post', 'beides'].includes(d.rechnungsversand ?? '')) await db.query('UPDATE patient SET rechnungsversand = $2 WHERE id = $1', [id, d.rechnungsversand]);
   await protokolliere(db, { actor: wer, action: 'patient_angelegt', objectType: 'patient', objectId: id });
   return id;
 }

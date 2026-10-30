@@ -3,10 +3,25 @@ import { istId } from '../../db/werte.ts';
 import { kontaktart } from '../formular.ts';
 import { lexwareNummerFrei, lexwareVerknuepfen } from '../lexware-kunden.ts';
 import {
-  adresseLoeschen, adresseSpeichern, anrufBeginnen, kontaktLoeschen, kontaktSpeichern, patientAnlegen, rechnungsadresseSetzen, stammdatenSpeichern, statusSetzen,
+  adresseLoeschen, adresseSpeichern, anrufBeginnen, kontaktLoeschen, kontaktSpeichern, patientAnlegen, patientLesen, rechnungsadresseSetzen, stammdatenSpeichern, statusSetzen,
   verlaufAbschliessen, verlaufEintragen, verlaufVerwerfen, type Kontaktart,
 } from '../patienten.ts';
 import type { Aktionen } from './kontext.ts';
+
+type AdresseFelder = { bezeichnung?: string; zusatz?: string; strasse?: string; hausnummer?: string; plz?: string; ort?: string };
+/** Adresse aus den Kachel-Feldern ra_* (Rechnung) bzw. ha_* (Hausbesuch) des Stammdatenformulars (W115b); „ra“ versteht auch die alten Feldnamen ohne Vorsilbe */
+const adresseAus = (g: (n: string) => string | undefined, art: 'ra' | 'ha'): AdresseFelder => {
+  const feld = (k: string) => g(`${art}_${k}`) ?? (art === 'ra' ? g(k === 'bezeichnung' ? 'adresse_bezeichnung' : k) : undefined);
+  return { bezeichnung: feld('bezeichnung'), zusatz: feld('zusatz'), strasse: feld('strasse'), hausnummer: feld('hausnummer'), plz: feld('plz'), ort: feld('ort') };
+};
+const angegeben = (a: AdresseFelder) => Boolean(a.strasse?.trim() || a.ort?.trim() || a.plz?.trim());
+/** Hausbesuchadresse: eigene Felder oder, mit Haken „wie die Rechnungsadresse“ und leeren Feldern, die Rechnungsadresse */
+const hausbesuchAus = (g: (n: string) => string | undefined, f: URLSearchParams, ra: AdresseFelder): AdresseFelder | undefined => {
+  const ha = adresseAus(g, 'ha');
+  if (angegeben(ha)) return ha;
+  return f.has('ha_wie_rechnung') && angegeben(ra) ? { ...ra, bezeichnung: ha.bezeichnung?.trim() || 'Hausbesuch' } : undefined;
+};
+const alsAdresse = (a: AdresseFelder, standardName: string) => ({ bezeichnung: a.bezeichnung?.trim() || standardName, zusatz: a.zusatz ?? null, strasse: a.strasse ?? null, hausnummer: a.hausnummer ?? null, plz: a.plz ?? null, ort: a.ort ?? null });
 
 /** Ohne Patient: der Patient entsteht erst */
 export const PATIENT_ANLEGEN: Aktionen = {
@@ -20,11 +35,16 @@ export const PATIENT_ANLEGEN: Aktionen = {
     // Aus Lexware (W99): die Kundennummer muss frei sein, bevor der Patient entsteht
     const lexwareNummer = g('lexware_kundennummer')?.trim() || undefined;
     if (lexwareNummer) await lexwareNummerFrei(db, lexwareNummer);
+    // Adressen als Kacheln (W115b): Rechnungsadresse und Hausbesuchadresse; Preisliste und Rechnungsversand gleich beim Anlegen
+    const ra = adresseAus(g, 'ra');
+    const ha = hausbesuchAus(g, f, ra);
     const neu = await patientAnlegen(db, t, {
       anrede: g('anrede'), titel: g('titel'), vorname: g('vorname') ?? '', nachname: g('nachname') ?? '', geburtsdatum: g('geburtsdatum'), patientSeit: g('patient_seit'),
       ansprache: g('ansprache'), besonderheiten: g('besonderheiten'), sprache: g('sprache'), kontakte,
       geburtsname: g('geburtsname'), kommunikationshilfe: g('kommunikationshilfe'), berufBelastung: g('beruf_belastung'), notiz: g('notiz'),
-      adresse: { bezeichnung: g('adresse_bezeichnung') ?? 'Zuhause', zusatz: null, strasse: g('strasse') ?? null, hausnummer: g('hausnummer') ?? null, plz: g('plz') ?? null, ort: g('ort') ?? null, land: g('land') },
+      preislisteId: g('preisliste_id') || undefined, rechnungsversand: g('rechnungsversand'),
+      adresse: angegeben(ra) ? { ...alsAdresse(ra, 'Zuhause'), land: g('land') } : undefined,
+      hausbesuchAdresse: ha ? alsAdresse(ha, 'Hausbesuch') : undefined,
     }, wer);
     if (lexwareNummer) {
       await lexwareVerknuepfen(db, neu, { nummer: lexwareNummer, kontaktId: g('lexware_kontakt_id') }, wer);
@@ -47,6 +67,20 @@ export const PATIENT: Aktionen = {
       patientSeit: g('patient_seit'), ansprache: g('ansprache'), besonderheiten: g('besonderheiten'), sprache: g('sprache'), kommunikationshilfe: g('kommunikationshilfe'),
       berufBelastung: g('beruf_belastung'), notiz: g('notiz'), preislisteId: f.has('preisliste_id') ? (g('preisliste_id') || 'standard') : undefined, rechnungsversand: g('rechnungsversand'),
     }, wer);
+    // Kontaktwege im Formular (W115b): die primären Einträge – leer lassen ändert nichts, Entfernen geht auf der Patientenseite.
+    // Fehlt die Kennung im Formular, zählt der primäre Eintrag der Art, damit nie ein Doppelter entsteht
+    const vorhandene = (await patientLesen(db, t, id))?.kontakte ?? [];
+    const kennung = (art: Kontaktart) => g(`${art}_id`) || (vorhandene.find((k) => k.art === art && k.primaer) ?? vorhandene.find((k) => k.art === art))?.id;
+    for (const art of ['mobil', 'telefon', 'email'] as const) {
+      const wert = g(art)?.trim();
+      if (wert) await kontaktSpeichern(db, id, { kontaktId: kennung(art), art, wert, primaer: true }, wer);
+    }
+    if (f.has('whatsapp_wie_mobil') && g('mobil')?.trim()) await kontaktSpeichern(db, id, { kontaktId: kennung('whatsapp'), art: 'whatsapp', wert: g('mobil')!.trim(), primaer: true }, wer);
+    // Adressen als Kacheln (W115b): Rechnungsadresse und Hausbesuchadresse – mit Kennung ändern, ohne neu anlegen
+    const ra = adresseAus(g, 'ra');
+    if (angegeben(ra)) await adresseSpeichern(db, id, { adresseId: g('ra_id') || undefined, ...alsAdresse(ra, 'Zuhause'), rechnungsadresse: true, typ: 'rechnung' }, wer);
+    const ha = hausbesuchAus(g, f, ra);
+    if (ha) await adresseSpeichern(db, id, { adresseId: g('ha_id') || undefined, ...alsAdresse(ha, 'Hausbesuch'), rechnungsadresse: false, typ: 'hausbesuch' }, wer);
     return nach(seite, 'Stammdaten gespeichert.');
   },
   async kontakt_speichern({ db, id, g, f, wer, nach, seite }) {

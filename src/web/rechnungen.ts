@@ -416,6 +416,24 @@ export const PRAXIS_SKRIPT = String.raw`
     if (offen && !e.target.closest('.plus-popup') && !e.target.closest('details.plus-kachel>summary')) offen.open = false;
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.querySelectorAll('details.plus-kachel[open]').forEach(function (d) { d.open = false; }); });
+  // Adresskacheln im Stammdatenformular (W115b): die Kachel zeigt live, was im Popup steht; „wie die Rechnungsadresse“ kopiert die Felder
+  document.querySelectorAll('details[data-adresse-kachel]').forEach(function (d) {
+    var art = d.getAttribute('data-adresse-kachel'), text = d.querySelector('.adr-text');
+    var wert = function (k) { var e = d.querySelector('[name="' + art + '_' + k + '"]'); return e ? e.value.trim() : ''; };
+    var sicher = function (s) { return s.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); };
+    var zeige = function () {
+      var z = [wert('zusatz'), [wert('strasse'), wert('hausnummer')].filter(Boolean).join(' '), [wert('plz'), wert('ort')].filter(Boolean).join(' ')].filter(Boolean);
+      if (text) text.innerHTML = z.length ? z.map(sicher).join('<br>') : '<span class="hint">noch nicht angegeben – antippen</span>';
+    };
+    d.addEventListener('input', zeige);
+    var kopie = d.querySelector('[data-adresse-kopie]');
+    if (kopie) kopie.addEventListener('change', function () {
+      if (!kopie.checked) return;
+      var von = kopie.getAttribute('data-adresse-kopie');
+      ['zusatz', 'strasse', 'hausnummer', 'plz', 'ort'].forEach(function (k) { var q = document.querySelector('[name="' + von + '_' + k + '"]'), z = d.querySelector('[name="' + art + '_' + k + '"]'); if (q && z) z.value = q.value; });
+      zeige();
+    });
+  });
   // Text in die Zwischenablage (Schnelltermin W117): Knopf mit data-kopieren="<id des Textfelds>"
   document.querySelectorAll('[data-kopieren]').forEach(function (b) {
     b.addEventListener('click', function () {
