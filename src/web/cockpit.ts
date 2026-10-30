@@ -10,6 +10,7 @@ import type { CockpitDaten, Quelle, RechnungZeile, Rechnungsstand, Termin } from
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText, zeitText } from '../format.ts';
 import { routenLinks } from '../kartei/hausbesuche.ts';
+import { SCHNELL_DAUERN } from '../kartei/schnelltermin.ts';
 
 /** Wegbeschreibung (W113c): Apple Karten und Google Maps mit dem Ziel – als Knöpfe oder als kleine Textlinks */
 export function routeHtml(ziel: string, hilfe: string, o: { klein?: boolean } = {}): string {
@@ -194,6 +195,19 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
       : '<p class="leer">In den letzten sieben Tagen hat sich nichts geändert.</p>')}
   </section>`;
 
+  // Schnelltermin (W117): vier Kreise, ein Tipp sucht die nächsten drei freien Zeiten; Vorlage nur zum Kopieren, nie senden (Leitplanke 3)
+  const namenParam = d.namenZeigen ? '&namen=1' : '';
+  const s = d.schnell;
+  const schnell = `<section class="tafel schnell" data-hilfe="schnell.abschnitt" aria-labelledby="t-sc">
+    <h2 id="t-sc">${symbol('blitz')} Schnelltermin</h2>
+    <div class="schnell-kreise">${SCHNELL_DAUERN.map((m) => `<a class="kreis${s?.dauer === m ? ' aktiv' : ''}" href="/?schnell=${m}${namenParam}#t-sc" data-hilfe="schnell.dauer" aria-label="${m} Minuten">${m}</a>`).join('')}<span class="hint">Minuten – die nächsten drei freien Zeiten</span></div>
+    ${s ? (s.zeiten.length
+      ? `<details class="schnell-direkt"><summary class="knopf primaer" data-hilfe="schnell.direkt">${symbol('kalender', { groesse: 18 })} Direkt buchen</summary>
+      <div class="knopfreihe">${s.zeiten.map((z) => `<a class="knopf" href="${esc(z.direkt)}" data-fenster="Neuer Termin" data-hilfe="schnell.direkt-zeit">${esc(z.text)}</a>`).join('')}</div></details>
+      <label class="schnell-vorlage">Vorlage für Mail oder WhatsApp${s.buchung ? '' : ' <span class="hint">(ohne Buchungsseite ohne Links)</span>'}<textarea id="schnell-text" class="ta-baustein" rows="${8 + s.zeiten.length * 2}" readonly data-hilfe="schnell.vorlage">${esc(s.vorlage)}</textarea></label>
+      <div class="knopfreihe"><button type="button" class="knopf" data-kopieren="schnell-text" data-hilfe="schnell.kopieren">${symbol('brief', { groesse: 18 })} Text kopieren</button></div>`
+      : `<p class="leer">In den nächsten Wochen ist keine Zeit mit ${s.dauer} Minuten frei – Öffnungszeiten und Kalender prüfen.</p>`) : ''}
+  </section>`;
   // Nächste Fahrt (W113c): steht sie unmittelbar bevor, fragt die Zeile nach der Karten-App – Start ist der Standort des Handys
   const fahrt = d.fahrt ? `<p class="meldung fahrt${d.fahrt.jetzt ? ' jetzt' : ''}" data-hilfe="termine.fahrt">${symbol('auto', { groesse: 20 })}<span><b>${d.fahrt.jetzt ? 'Gleich Fahrt' : 'Nächste Fahrt'} ${zeitText(d.fahrt.beginn)}</b> → ${esc(d.fahrt.zielText)}${d.fahrt.art === 'weiter' ? ' <span class="hint">(weiter vom Hausbesuch)</span>' : ''}${d.fahrt.jetzt ? '<br>Wegbeschreibung öffnen mit: ' : ' · '}${routeHtml(d.fahrt.ziel, 'termine.route', { klein: !d.fahrt.jetzt })}</span></p>` : '';
   return seite({
@@ -209,7 +223,7 @@ ${fahrt}
   </div>
   <section class="uebersicht" aria-labelledby="b-ue"><h2 id="b-ue" class="spaltenkopf" data-hilfe="bereich.uebersicht" tabindex="0">${symbol('auge')} Heute im Blick
       <a class="kopf-kalender" href="/kalender" data-hilfe="uebersicht.kalender" aria-label="Kalender öffnen">→ ${symbol('kalender', { groesse: 22 })}</a></h2>
-    ${termine}${rechnungen}${anfragen}</section>
+    ${schnell}${termine}${rechnungen}${anfragen}</section>
   ${log}
 </div>`,
   });

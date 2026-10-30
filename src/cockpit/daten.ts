@@ -14,6 +14,7 @@ import type { GraphClient } from '../graph.ts';
 import { termineZeitraum, type TerminKalender } from '../kartei/patienten.ts';
 import { naechsteFreie } from '../kartei/terminplan.ts';
 import { naechsteFahrt, type Fahrt } from '../kartei/hausbesuche.ts';
+import type { Schnelltermin } from '../kartei/schnelltermin.ts';
 import { einstellungen } from '../kartei/konfiguration.ts';
 import { praxisName } from '../praxis.ts';
 import { kalenderBasis } from '../umgebung.ts';
@@ -76,6 +77,8 @@ export interface CockpitDaten {
   namenZeigen: boolean;
   /** Die nächste Fahrt heute (W113c): hin zum Hausbesuch oder weiter zum Folgetermin; null = keine */
   fahrt?: Fahrt | null;
+  /** Schnelltermin (W117): die nächsten drei freien Zeiten der gewählten Dauer mit Vorlage – nur nach Tipp auf eine Dauer */
+  schnell?: Schnelltermin;
 }
 
 const KEINE_DB = 'Die Praxis-Datenbank ist noch nicht verbunden – Rechnungen erscheinen, sobald der Rechnungseingang läuft.';

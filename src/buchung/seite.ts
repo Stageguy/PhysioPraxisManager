@@ -147,16 +147,29 @@ select:focus,input:focus,textarea:focus,button:focus{outline:2px solid var(--bro
     fetch('api/angebot', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (a) {
       angebot = a; RASTER = a.rasterMin || 15;
       if (a.hinweis) $('hinweis').textContent = a.hinweis;
+      // Vorwahl aus dem Link: ?terminart=<code> von der Website, ?dauer=30&zeit=<ISO> aus dem Schnelltermin der Praxis (W117) –
+      // dann stehen nur Behandlungen dieser Dauer zur Wahl, Tag und Uhrzeit sind vorgewählt, falls noch frei
+      var params = new URLSearchParams(location.search), vor = params.get('terminart'), dauer = Number(params.get('dauer')), zeit = params.get('zeit');
+      var liste = dauer && a.terminarten.some(function (t) { return t.dauerMin === dauer; }) ? a.terminarten.filter(function (t) { return t.dauerMin === dauer; }) : a.terminarten;
       var sel = $('terminart'), gruppen = {};
-      a.terminarten.forEach(function (t) { (gruppen[t.sektion] = gruppen[t.sektion] || []).push(t); });
+      liste.forEach(function (t) { (gruppen[t.sektion] = gruppen[t.sektion] || []).push(t); });
       ['rezept', 'selbstzahler', 'wellness'].forEach(function (s) {
         if (!gruppen[s]) return;
         var g = document.createElement('optgroup'); g.label = { rezept: 'Physiotherapie auf Rezept', selbstzahler: 'Physiotherapie als Selbstzahler', wellness: 'Wellness & Ayurveda' }[s];
         gruppen[s].forEach(function (t) { var o = document.createElement('option'); o.value = t.code; o.textContent = t.kurz + ' (' + t.dauerMin + ' Min.)'; g.appendChild(o); });
         sel.appendChild(g);
       });
-      var vor = new URLSearchParams(location.search).get('terminart');
-      if (vor && a.terminarten.some(function (t) { return t.code === vor; })) { sel.value = vor; artGewaehlt(); }
+      if (vor && liste.some(function (t) { return t.code === vor; })) { sel.value = vor; artGewaehlt(); }
+      else if (dauer && liste.length === 1) { sel.value = liste[0].code; artGewaehlt(); }
+      else if (dauer && liste.length && liste[0].dauerMin === dauer) { sel.value = liste[0].code; artGewaehlt(); }
+      if (zeit && wahl.art && !isNaN(new Date(zeit).getTime())) {
+        var tag = tagVon(zeit), d0 = new Date(tag + 'T12:00:00Z');
+        monat = { j: d0.getUTCFullYear(), m: d0.getUTCMonth() };
+        var frei = freieTage()[tag];
+        if (frei && anfangszeiten(frei.fenster, wahl.art.dauerMin).indexOf(new Date(zeit).toISOString()) >= 0) { wahl.tag = tag; wahl.zeit = new Date(zeit).toISOString(); }
+        else { wahl.tag = frei ? tag : null; fehler('Die vorgeschlagene Zeit ist leider schon vergeben – bitte wählen Sie eine andere.'); }
+        zeichneMonat(); zeichneZeiten();
+      }
       hoehe();
     }).catch(function () { fehler('Die Terminwahl ist gerade nicht erreichbar – bitte rufen Sie uns an.'); });
   }

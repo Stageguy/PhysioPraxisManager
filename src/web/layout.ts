@@ -144,6 +144,8 @@ h3{font-size:15px;margin:0 0 8px}
 .meldung{display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:10px;margin:12px 0}
 .meldung[hidden]{display:none}
 .meldung.ok{background:color-mix(in srgb,var(--ok) 14%,transparent)}.meldung.fehler{background:color-mix(in srgb,var(--fehler) 14%,transparent)}
+.schnell-kreise{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.schnell-kreise .kreis{width:56px;height:56px;border-radius:50%;border:2px solid var(--akzent);display:grid;place-items:center;font-weight:700;font-size:18px;color:var(--akzent);text-decoration:none;background:var(--karte)}.schnell-kreise .kreis.aktiv,.schnell-kreise .kreis:hover{background:var(--akzent);color:var(--bg)}
+.schnell-direkt>summary{list-style:none;display:inline-flex;cursor:pointer}.schnell-direkt>summary::-webkit-details-marker{display:none}.schnell-direkt .knopfreihe{margin:8px 0}.schnell-vorlage{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--grau);margin-top:10px}.schnell-vorlage textarea{font:14px/1.45 system-ui,sans-serif;color:var(--fg)}
 .meldung.fahrt{background:color-mix(in srgb,var(--grau) 10%,transparent);align-items:flex-start}.meldung.fahrt.jetzt{background:color-mix(in srgb,var(--ok) 16%,transparent);border:2px solid var(--ok)}.meldung.fahrt .knopf{margin:4px 4px 0 0}a.route{white-space:nowrap}
 .rk-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin:12px 0 20px}
 .rk{position:relative;display:flex;flex-direction:column;background:var(--karte);border:1px solid var(--rand);border-radius:14px;min-width:0}

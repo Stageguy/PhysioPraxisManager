@@ -416,6 +416,16 @@ export const PRAXIS_SKRIPT = String.raw`
     if (offen && !e.target.closest('.plus-popup') && !e.target.closest('details.plus-kachel>summary')) offen.open = false;
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.querySelectorAll('details.plus-kachel[open]').forEach(function (d) { d.open = false; }); });
+  // Text in die Zwischenablage (Schnelltermin W117): Knopf mit data-kopieren="<id des Textfelds>"
+  document.querySelectorAll('[data-kopieren]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var feld = document.getElementById(b.getAttribute('data-kopieren')), alt = b.textContent;
+      if (!feld) return;
+      var fertig = function () { b.textContent = 'Kopiert ✓'; setTimeout(function () { b.textContent = alt; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(feld.value).then(fertig, function () { feld.select(); });
+      else { feld.select(); try { document.execCommand('copy'); fertig(); } catch (e) { /* dann bleibt der Text markiert */ } }
+    });
+  });
   // Sprungmarke auf ein zugeklapptes <details> (z. B. #stammdaten vom Stift der Patientenkachel) klappt es auf
   var sprung = location.hash && document.getElementById(location.hash.slice(1));
   if (sprung && sprung.tagName === 'DETAILS') sprung.open = true;

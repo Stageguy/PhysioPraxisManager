@@ -27,6 +27,7 @@ import { regelzeiten, type Regelzeit } from './regelzeiten.ts';
 import { rezeptTermineDaten, type RezeptTermineDaten } from './rezept-termine.ts';
 import { outlookBloecke, type KalenderBlock } from './outlook-termine.ts';
 import { freieWoche, monatsPlan, type MonatsPlan, type TagesPlan, type WochenSuche } from './terminplan.ts';
+import { schnelltermin, type Schnelltermin } from './schnelltermin.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
 import type { Oeffnungszeit } from '../anfragen/slots.ts';
 import type { EingehendeNachricht } from '../whatsapp/schnittstelle.ts';
@@ -141,6 +142,8 @@ export interface KarteiDienst {
   monatsplan(jahr: number, monat: number): Promise<MonatsPlan>;
   /** Freie Anfangszeiten einer Woche für eine Dauer – das Suchfenster */
   freieWoche(o: { dauer: number; wochenstart: string }): Promise<WochenSuche>;
+  /** Schnelltermin (W117): die nächsten drei freien Zeiten einer Dauer samt Vorlage und Links */
+  schnelltermin(dauer: number): Promise<Schnelltermin>;
   /** Ein Tag aus dem Monatsplan – für die Tagesansicht mit Lücken */
   tagesplan(datum: string): Promise<(TagesPlan & { dauerMin: number }) | undefined>;
   steuer(jahr: number, maskiert: boolean): Promise<SteuerListe>;
@@ -261,6 +264,7 @@ export function karteiDienst(q: DienstQuellen): KarteiDienst {
     kalender: (von, bis) => termineZeitraum(db, von, bis),
     monatsplan: (jahr, monat) => monatsPlan(db, q.graph, jahr, monat),
     freieWoche: (o) => freieWoche(db, q.graph, o),
+    schnelltermin: (dauer) => schnelltermin(db, q.graph, { dauer, buchungUrl: q.buchung?.url }),
     async tagesplan(datum) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return undefined;
       const plan = await monatsPlan(db, q.graph, Number(datum.slice(0, 4)), Number(datum.slice(5, 7)));

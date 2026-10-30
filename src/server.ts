@@ -234,6 +234,9 @@ export function praxisDienst(opt: DienstOptionen): Server {
         const daten: CockpitDaten = opt.cockpit
           ? await opt.cockpit({ namenZeigen })
           : { heute: new Date().toISOString().slice(0, 10), rechnungen: NICHT_VERBUNDEN, termine: NICHT_VERBUNDEN, anfragen: NICHT_VERBUNDEN, protokoll: NICHT_VERBUNDEN, namenZeigen };
+        // Schnelltermin (W117): ?schnell=20|30|40|60 sucht die nächsten drei freien Zeiten dieser Dauer
+        const schnell = adresse.searchParams.get('schnell') ?? '';
+        if (/^(20|30|40|60)$/.test(schnell) && opt.kartei) daten.schnell = await opt.kartei.schnelltermin(Number(schnell));
         const jetzt = zeitText(new Date().toISOString());
         return senden(res, 200, 'text/html', cockpitSeite(daten, { wer, fassung: opt.fassung, jetzt }));
       }
