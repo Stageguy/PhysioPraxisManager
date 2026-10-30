@@ -53,6 +53,7 @@ function patientMenue(p: Pick<PatientKurz, 'id'>): string {
     <a href="/patienten/${p.id}/neu/direktzugang" data-hilfe="plus.direktzugang">${symbol('freigabe', { groesse: 18 })} Behandlung ohne Rezept</a>
     <a href="/patienten/${p.id}/neu/wellness" data-hilfe="plus.wellness">${symbol('wellness', { groesse: 18 })} Wellness</a>
     <a href="/patienten/${p.id}#rechnungen" data-hilfe="plus.rechnung">${symbol('rechnung', { groesse: 18 })} Neue Rechnung</a>
+    <a href="/?schnell=30&patient=${p.id}#t-sc" data-hilfe="plus.schnell">${symbol('blitz', { groesse: 18 })} Schnelltermin</a>
   </div></details>`;
 }
 

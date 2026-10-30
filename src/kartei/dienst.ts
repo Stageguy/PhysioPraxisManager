@@ -27,7 +27,7 @@ import { regelzeiten, type Regelzeit } from './regelzeiten.ts';
 import { rezeptTermineDaten, type RezeptTermineDaten } from './rezept-termine.ts';
 import { outlookBloecke, type KalenderBlock } from './outlook-termine.ts';
 import { freieWoche, monatsPlan, type MonatsPlan, type TagesPlan, type WochenSuche } from './terminplan.ts';
-import { schnelltermin, type Schnelltermin } from './schnelltermin.ts';
+import { schnelltermin, schnellPatientFinden, type Schnelltermin } from './schnelltermin.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
 import type { Oeffnungszeit } from '../anfragen/slots.ts';
 import type { EingehendeNachricht } from '../whatsapp/schnittstelle.ts';
@@ -142,8 +142,10 @@ export interface KarteiDienst {
   monatsplan(jahr: number, monat: number): Promise<MonatsPlan>;
   /** Freie Anfangszeiten einer Woche für eine Dauer – das Suchfenster */
   freieWoche(o: { dauer: number; wochenstart: string }): Promise<WochenSuche>;
-  /** Schnelltermin (W117): die nächsten drei freien Zeiten einer Dauer samt Vorlage und Links */
-  schnelltermin(dauer: number): Promise<Schnelltermin>;
+  /** Schnelltermin (W117): die nächsten drei freien Zeiten einer Dauer samt Vorlage und Links; mit Patient (W117b: Kennung, Nummer oder eindeutiger Name) Einladung und Anrede */
+  schnelltermin(dauer: number, wer: string, patientWahl?: string): Promise<Schnelltermin>;
+  /** Aktive Patienten mit Name und Nummer – für die Wahl im Schnelltermin */
+  patientenNamen(): Promise<{ id: string; name: string; patientennummer: string }[]>;
   /** Freigegebene, aktive Preislisten – für „Neuer Patient“ (W115b) */
   preislisten(): Promise<Preisliste[]>;
   /** Ein Tag aus dem Monatsplan – für die Tagesansicht mit Lücken */
@@ -266,7 +268,14 @@ export function karteiDienst(q: DienstQuellen): KarteiDienst {
     kalender: (von, bis) => termineZeitraum(db, von, bis),
     monatsplan: (jahr, monat) => monatsPlan(db, q.graph, jahr, monat),
     freieWoche: (o) => freieWoche(db, q.graph, o),
-    schnelltermin: (dauer) => schnelltermin(db, q.graph, { dauer, buchungUrl: q.buchung?.url }),
+    async schnelltermin(dauer, wer, patientWahl) {
+      const patientId = await schnellPatientFinden(db, patientWahl);
+      const patient = patientId ? await patientLesen(db, t, patientId) : undefined;
+      return schnelltermin(db, q.graph, { dauer, buchungUrl: q.buchung?.url, patient, wer, einladen: q.buchungClient ? (e) => q.buchungClient!.einladungenSenden([e]) : undefined });
+    },
+    patientenNamen: async () => (await db.query<{ id: string; name: string; patientennummer: string }>(
+      "SELECT id::text, vorname || ' ' || nachname AS name, patientennummer FROM patient WHERE status <> 'archiviert' ORDER BY lower(nachname), lower(vorname)",
+    )).rows,
     preislisten: async () => (await preislistenListen(db)).filter((l) => l.status === 'freigegeben' && l.aktiv),
     async tagesplan(datum) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return undefined;

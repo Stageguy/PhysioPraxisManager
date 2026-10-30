@@ -12,6 +12,7 @@ import { protokolliere, type Db } from '../db/index.ts';
 import { datumText, datumZeitText } from '../format.ts';
 import type { GraphClient } from '../graph.ts';
 import { einstellungen, einstellungSetzen } from '../kartei/konfiguration.ts';
+import { einladungPatient } from '../kartei/schnelltermin.ts';
 import { terminarten } from '../kartei/terminarten.ts';
 import { praxisName } from '../praxis.ts';
 import type { Tresor } from '../tresor.ts';
@@ -71,7 +72,8 @@ export async function buchungUebernehmen(db: Db, t: Tresor, graph: Graph | undef
     quelle: 'buchung', anliegen: 'termin', buchungId: b.id, absenderName: b.name, absenderTelefon: b.telefon, absenderAdresse: b.email || null,
     betreff: `Terminwunsch ${datumText(b.beginn)} ${zeitBerlin(b.beginn)} Uhr`, text, eingegangenAm: b.eingegangen,
     erkannt: { daten: [datumBerlin(b.beginn)], uhrzeiten: [zeitBerlin(b.beginn)] }, terminartId: art?.id ?? null,
-    patientId: await patientFinden(db, { email: b.email, telefon: b.telefon }),
+    // Aus einem Schnelltermin (W117b): die Einladungskennung ordnet sicher zu, sonst Mail oder Telefon
+    patientId: (await einladungPatient(db, b.einladung)) ?? (await patientFinden(db, { email: b.email, telefon: b.telefon })),
   }, ACTOR);
   let vorschlaege: Vorschlag[] = [{ beginn: b.beginn, ende, exchangeEventId: null }];
   if (graph) {

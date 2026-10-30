@@ -5,6 +5,7 @@
  */
 import type { Db } from '../../db/index.ts';
 import type { GraphClient } from '../../graph.ts';
+import type { BuchungsClient } from '../../buchung/client.ts';
 import type { LexwareKunde, LexwareKunden } from '../../lexware/kunden.ts';
 import type { LexwareRechnungen } from '../../lexware/rechnungen.ts';
 import type { Tresor } from '../../tresor.ts';
@@ -17,6 +18,8 @@ export interface DienstQuellen {
   graph?: Pick<GraphClient, 'get' | 'post' | 'patch' | 'delete' | 'postOhneAntwort' | 'paginate'>;
   whatsapp?: WhatsAppCloud;
   buchung?: { url: string; oeffentlich: boolean };
+  /** Verbindung zum Buchungsdienst – schiebt Einladungen zum Schnelltermin (W117b) */
+  buchungClient?: BuchungsClient;
   /** Kunden aus Lexware (W99) */
   lexware?: LexwareKunden;
   /** Rechnungen aus Lexware (W103) */

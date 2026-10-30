@@ -4,15 +4,16 @@
  * Buchungswünsche (vom Manager abgeholt). Fällt er, fällt nur die Buchungsseite; wird er angegriffen,
  * ist nichts zu holen außer den Wünschen, die der Manager noch nicht abgeholt hat.
  *
- * Öffentlich: GET / (Seite), GET /einbetten.js, GET /api/angebot, POST /api/buchung, GET /api/health.
- * Nur mit Schlüssel (X-Buchung-Schluessel): PUT /api/angebot, GET /api/buchungen?ab=<nr>,
+ * Öffentlich: GET / (Seite), GET /einbetten.js, GET /api/angebot, POST /api/buchung, GET /api/health,
+ * GET /api/einladung/<kennung> (Vorbelegung zum Schnelltermin, W117b – nur mit gültiger Kennung).
+ * Nur mit Schlüssel (X-Buchung-Schluessel): PUT /api/angebot, PUT /api/einladungen, GET /api/buchungen?ab=<nr>,
  * POST /api/buchungen/abgeholt. Zustand liegt in einer Datei (DATEI), damit ein Neustart nichts verliert.
  */
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import path from 'node:path';
-import { angebotPruefen, AngebotFehler, BuchungFehler, buchungPruefen, sperren, type Angebot, type Buchung } from './angebot.ts';
+import { angebotPruefen, AngebotFehler, BuchungFehler, buchungPruefen, einladungenPruefen, sperren, type Angebot, type Buchung, type Einladung } from './angebot.ts';
 import { buchungsSeite, EINBETTEN_SKRIPT } from './seite.ts';
 
 export interface BuchungsdienstOptionen {
@@ -32,6 +33,8 @@ interface Zustand {
   angebot: Angebot | null;
   buchungen: Buchung[];
   naechsteNr: number;
+  /** Einladungen zum Schnelltermin (W117b) – fallen nach ihrer Gültigkeit weg */
+  einladungen: Einladung[];
 }
 
 const LEER: Angebot = { erstellt: '1970-01-01T00:00:00.000Z', praxis: '', hinweis: '', rasterMin: 15, terminarten: [], tage: [] };
@@ -57,7 +60,8 @@ async function rumpf(req: IncomingMessage, max: number): Promise<string> {
 }
 
 export function buchungsdienst(opt: BuchungsdienstOptionen): Server & { zustand(): Zustand; laden(): Promise<void> } {
-  const zustand: Zustand = { angebot: null, buchungen: [], naechsteNr: 1 };
+  const zustand: Zustand = { angebot: null, buchungen: [], naechsteNr: 1, einladungen: [] };
+  const gueltige = () => { const jetzt = new Date().toISOString(); return zustand.einladungen.filter((e) => e.bis > jetzt); };
   const hoechstens = opt.hoechstensJeStunde ?? 5;
   const mindest = opt.mindestDauerMs ?? 3000;
   const anfragenJeAdresse = new Map<string, number[]>();
@@ -76,6 +80,7 @@ export function buchungsdienst(opt: BuchungsdienstOptionen): Server & { zustand(
       zustand.angebot = alt.angebot ? angebotPruefen(alt.angebot) : null;
       zustand.buchungen = Array.isArray(alt.buchungen) ? alt.buchungen : [];
       zustand.naechsteNr = Number(alt.naechsteNr) || zustand.buchungen.reduce((m, b) => Math.max(m, b.nr + 1), 1);
+      zustand.einladungen = Array.isArray(alt.einladungen) ? einladungenPruefen(alt.einladungen) : [];
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') console.warn(`Buchungsdienst: Zustand nicht lesbar – ${(err as Error).message}`);
     }
@@ -109,6 +114,12 @@ export function buchungsdienst(opt: BuchungsdienstOptionen): Server & { zustand(
         const jetzt = new Date().toISOString();
         return json(res, 200, { ...a, tage: a.tage.map((t) => ({ ...t, fenster: t.fenster.filter((f) => f.ende > jetzt).map((f) => (f.beginn < jetzt ? { beginn: jetzt, ende: f.ende } : f)) })).filter((t) => t.fenster.length) });
       }
+      // Vorbelegung zum Schnelltermin (W117b): nur, wer die zufällige Kennung aus seinem Link hat, bekommt Name, Telefon und Mail
+      const ek = /^\/api\/einladung\/([A-Za-z0-9_-]{8,40})$/.exec(pfad);
+      if (req.method === 'GET' && ek) {
+        const e = gueltige().find((x) => x.kennung === ek[1]);
+        return e ? json(res, 200, { name: e.name, telefon: e.telefon, email: e.email }) : json(res, 404, { ok: false, fehler: 'Diese Einladung ist nicht mehr gültig.' });
+      }
       if (req.method === 'POST' && pfad === '/api/buchung') {
         const adresse = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? '?').split(',')[0]!.trim();
         if (zuViele(adresse)) return json(res, 429, { ok: false, fehler: 'Zu viele Anfragen – bitte in einer Stunde noch einmal oder anrufen.' });
@@ -123,6 +134,8 @@ export function buchungsdienst(opt: BuchungsdienstOptionen): Server & { zustand(
         if (!zustand.angebot) return json(res, 503, { ok: false, fehler: 'Die Terminwahl ist gerade nicht verfügbar – bitte rufen Sie uns an.' });
         try {
           const b = buchungPruefen(roh, zustand.angebot);
+          // Die Kennung zählt nur, wenn die Praxis sie wirklich ausgegeben hat
+          if (b.einladung && !gueltige().some((e) => e.kennung === b.einladung)) b.einladung = null;
           const buchung: Buchung = { id: randomBytes(9).toString('base64url'), nr: zustand.naechsteNr++, eingegangen: new Date().toISOString(), ...b };
           zustand.buchungen.push(buchung);
           zustand.angebot = sperren(zustand.angebot, b.beginn, b.dauerMin);
@@ -134,7 +147,7 @@ export function buchungsdienst(opt: BuchungsdienstOptionen): Server & { zustand(
         }
       }
       // ── Manager-Schnittstelle ──
-      if (pfad.startsWith('/api/angebot') || pfad.startsWith('/api/buchungen')) {
+      if (pfad.startsWith('/api/angebot') || pfad.startsWith('/api/buchungen') || pfad === '/api/einladungen') {
         if (!mitSchluessel(req)) return json(res, 403, { ok: false, fehler: 'Kein Zugang' });
         if (req.method === 'PUT' && pfad === '/api/angebot') {
           try {
@@ -143,6 +156,18 @@ export function buchungsdienst(opt: BuchungsdienstOptionen): Server & { zustand(
             zustand.angebot = zustand.buchungen.reduce((a, b) => sperren(a, b.beginn, b.dauerMin), neu);
             await speichern();
             return json(res, 200, { ok: true, terminarten: neu.terminarten.length, tage: neu.tage.length });
+          } catch (err) {
+            if (err instanceof AngebotFehler || err instanceof SyntaxError || err instanceof BuchungFehler) return json(res, 400, { ok: false, fehler: err.message });
+            throw err;
+          }
+        }
+        if (req.method === 'PUT' && pfad === '/api/einladungen') {
+          try {
+            const neu = einladungenPruefen((JSON.parse(await rumpf(req, 256 * 1024)) as { einladungen?: unknown }).einladungen);
+            const kennungen = new Set(neu.map((e) => e.kennung));
+            zustand.einladungen = [...gueltige().filter((e) => !kennungen.has(e.kennung)), ...neu].slice(-2000);
+            await speichern();
+            return json(res, 200, { ok: true, einladungen: zustand.einladungen.length });
           } catch (err) {
             if (err instanceof AngebotFehler || err instanceof SyntaxError || err instanceof BuchungFehler) return json(res, 400, { ok: false, fehler: err.message });
             throw err;

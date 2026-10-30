@@ -198,13 +198,24 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
   // Schnelltermin (W117): vier Kreise, ein Tipp sucht die nächsten drei freien Zeiten; Vorlage nur zum Kopieren, nie senden (Leitplanke 3)
   const namenParam = d.namenZeigen ? '&namen=1' : '';
   const s = d.schnell;
+  // Für einen bekannten Patienten (W117b): Kennung in den Kreisen, Feld mit Vorschlagsliste (Name oder Nummer), Anrede in der Vorlage
+  const patientParam = s?.patient ? `&patient=${s.patient.id}` : '';
+  const patientFeld = d.patienten ? `<form method="get" action="/" class="schnell-patient" data-hilfe="schnell.patient">
+      <input type="hidden" name="schnell" value="${s?.dauer ?? 30}">${d.namenZeigen ? '<input type="hidden" name="namen" value="1">' : ''}
+      <label>Für Patient <span class="hint">(optional)</span><input name="patient" list="schnell-patienten" value="${esc(s?.patient ? s.patient.patientennummer : d.patientWahl ?? '')}" placeholder="Name oder Nummer" autocomplete="off" maxlength="120"></label>
+      <datalist id="schnell-patienten">${d.patienten.map((p) => `<option value="${esc(p.patientennummer)}">${esc(p.name)}</option>`).join('')}</datalist>
+      <button class="knopf klein">Übernehmen</button>
+      ${s?.patient ? `<span class="schnell-fuer">${symbol('patient', { groesse: 16 })} <b>${esc(s.patient.name)}</b> <a href="/?schnell=${s.dauer}${namenParam}#t-sc" data-hilfe="schnell.ohne-patient">ohne Patient</a></span>`
+        : d.patientWahl ? '<span class="hint">Niemand passt eindeutig – Nummer aus der Liste wählen.</span>' : ''}
+    </form>` : '';
   const schnell = `<section class="tafel schnell" data-hilfe="schnell.abschnitt" aria-labelledby="t-sc">
     <h2 id="t-sc">${symbol('blitz')} Schnelltermin</h2>
-    <div class="schnell-kreise">${SCHNELL_DAUERN.map((m) => `<a class="kreis${s?.dauer === m ? ' aktiv' : ''}" href="/?schnell=${m}${namenParam}#t-sc" data-hilfe="schnell.dauer" aria-label="${m} Minuten">${m}</a>`).join('')}<span class="hint">Minuten – die nächsten drei freien Zeiten</span></div>
+    <div class="schnell-kreise">${SCHNELL_DAUERN.map((m) => `<a class="kreis${s?.dauer === m ? ' aktiv' : ''}" href="/?schnell=${m}${namenParam}${patientParam}#t-sc" data-hilfe="schnell.dauer" aria-label="${m} Minuten">${m}</a>`).join('')}<span class="hint">Minuten – die nächsten drei freien Zeiten</span></div>
+    ${patientFeld}
     ${s ? (s.zeiten.length
-      ? `<details class="schnell-direkt"><summary class="knopf primaer" data-hilfe="schnell.direkt">${symbol('kalender', { groesse: 18 })} Direkt buchen</summary>
+      ? `${s.einladungFehler ? '<p class="meldung fehler">Die Buchungsseite kennt die Einladung nicht – die Links gehen, nur ohne vorbelegte Angaben.</p>' : ''}<details class="schnell-direkt"><summary class="knopf primaer" data-hilfe="schnell.direkt">${symbol('kalender', { groesse: 18 })} Direkt buchen${s.patient ? ` für ${esc(s.patient.name)}` : ''}</summary>
       <div class="knopfreihe">${s.zeiten.map((z) => `<a class="knopf" href="${esc(z.direkt)}" data-fenster="Neuer Termin" data-hilfe="schnell.direkt-zeit">${esc(z.text)}</a>`).join('')}</div></details>
-      <label class="schnell-vorlage">Vorlage für Mail oder WhatsApp${s.buchung ? '' : ' <span class="hint">(ohne Buchungsseite ohne Links)</span>'}<textarea id="schnell-text" class="ta-baustein" rows="${8 + s.zeiten.length * 2}" readonly data-hilfe="schnell.vorlage">${esc(s.vorlage)}</textarea></label>
+      <label class="schnell-vorlage">Vorlage für Mail oder WhatsApp${s.patient ? ` an ${esc(s.patient.name)}` : ''}${s.buchung ? '' : ' <span class="hint">(ohne Buchungsseite ohne Links)</span>'}<textarea id="schnell-text" class="ta-baustein" rows="${8 + s.zeiten.length * 2}" readonly data-hilfe="schnell.vorlage">${esc(s.vorlage)}</textarea></label>
       <div class="knopfreihe"><button type="button" class="knopf" data-kopieren="schnell-text" data-hilfe="schnell.kopieren">${symbol('brief', { groesse: 18 })} Text kopieren</button></div>`
       : `<p class="leer">In den nächsten Wochen ist keine Zeit mit ${s.dauer} Minuten frei – Öffnungszeiten und Kalender prüfen.</p>`) : ''}
   </section>`;

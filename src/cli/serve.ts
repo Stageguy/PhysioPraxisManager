@@ -118,7 +118,7 @@ const dienst = praxisDienst({
   cockpit: ({ namenZeigen }) => cockpitDaten({ db, graph, namenZeigen, anfragen: anfragen?.stand }),
   rechnungen: db ? rechnungsDienst({ db, graph, laufwerk: (await ladeEinstellungen()).rechnungen.laufwerk }) : undefined,
   preislisten: db ? preislistenDienst({ db }) : undefined,
-  kartei: db && schluessel ? karteiDienst({ db, tresor: schluessel, graph, whatsapp, buchung: buchungAnzeige, lexware, lexwareRechnungen: lexwareRechnungenQuelle }) : undefined,
+  kartei: db && schluessel ? karteiDienst({ db, tresor: schluessel, graph, whatsapp, buchung: buchungAnzeige, buchungClient: buchung, lexware, lexwareRechnungen: lexwareRechnungenQuelle }) : undefined,
   anfragen,
   entwicklung,
   whatsapp: whatsappEinstellungen ? { verifyToken: whatsappEinstellungen.verifyToken, appSecret: whatsappEinstellungen.appSecret } : undefined,

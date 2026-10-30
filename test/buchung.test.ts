@@ -84,6 +84,28 @@ test('Buchungsdienst: Seite, Angebot nur mit Schlüssel, Buchung mit Prüfung, H
   assert.equal(((await (await fetch(`${basis}/api/angebot`)).json()) as Angebot).tage[0]!.fenster[0]!.beginn, '2026-11-02T07:30:00.000Z');
   await fetch(`${basis}/api/buchungen/abgeholt`, { method: 'POST', headers: mitSchluessel, body: JSON.stringify({ bis: 1 }) });
   assert.equal(((await (await fetch(`${basis}/api/buchungen?ab=0`, { headers: mitSchluessel })).json()) as { buchungen: Buchung[] }).buchungen.length, 0);
+  // Einladungen zum Schnelltermin (W117b): nur mit Schlüssel hinüberschieben, öffentlich nur mit gültiger Kennung lesbar; die Buchung trägt die Kennung
+  const bis = new Date(Date.now() + 86_400_000).toISOString();
+  assert.equal((await fetch(`${basis}/api/einladungen`, { method: 'PUT', body: JSON.stringify({ einladungen: [] }) })).status, 403, 'ohne Schlüssel');
+  const ep = await fetch(`${basis}/api/einladungen`, { method: 'PUT', headers: mitSchluessel, body: JSON.stringify({ einladungen: [
+    { kennung: 'k7Hx2pQdLmZa', name: 'Hanna Müller', telefon: '0151 2222222', email: 'Hanna@Example.org', bis },
+    { kennung: 'abgelaufen01', name: 'Alt', telefon: '1', email: '', bis: '2020-01-01T00:00:00Z' },
+  ] }) });
+  assert.deepEqual(await ep.json(), { ok: true, einladungen: 2 });
+  assert.equal((await fetch(`${basis}/api/einladungen`, { method: 'PUT', headers: mitSchluessel, body: JSON.stringify({ einladungen: [{ kennung: 'kurz', name: 'x', telefon: '', email: '', bis }] }) })).status, 400, 'Kennung zu kurz');
+  const e = await fetch(`${basis}/api/einladung/k7Hx2pQdLmZa`);
+  assert.equal(e.status, 200);
+  assert.deepEqual(await e.json(), { name: 'Hanna Müller', telefon: '0151 2222222', email: 'hanna@example.org' });
+  assert.equal((await fetch(`${basis}/api/einladung/abgelaufen01`)).status, 404, 'abgelaufen');
+  assert.equal((await fetch(`${basis}/api/einladung/gibtesnicht1`)).status, 404);
+  const mitKennung = await buchen({ terminart: 'P4', beginn: '2026-11-02T08:00:00Z', name: 'H. Müller', telefon: '0151 2222222', einwilligung: true, einladung: 'k7Hx2pQdLmZa' });
+  assert.equal(mitKennung.status, 200);
+  const ohneKennung = await buchen({ terminart: 'P4', beginn: '2026-11-02T08:30:00Z', name: 'Bernd Beispiel', telefon: '0170 1234567', einwilligung: true, einladung: 'gibtesnicht1' });
+  assert.equal(ohneKennung.status, 200);
+  const liste2 = (await (await fetch(`${basis}/api/buchungen?ab=1`, { headers: mitSchluessel })).json()) as { buchungen: Buchung[] };
+  assert.deepEqual(liste2.buchungen.map((b) => [b.name, b.einladung]), [['H. Müller', 'k7Hx2pQdLmZa'], ['Bernd Beispiel', null]], 'nur eine ausgegebene Kennung zählt');
+  await fetch(`${basis}/api/buchungen/abgeholt`, { method: 'POST', headers: mitSchluessel, body: JSON.stringify({ bis: 3 }) });
+  await fetch(`${basis}/api/angebot`, { method: 'PUT', headers: mitSchluessel, body: JSON.stringify(ANGEBOT) });
   // Drosselung je Adresse
   let letzter = 200;
   for (let i = 0; i < 4; i++) letzter = (await buchen({ terminart: 'W1', beginn: '2026-11-02T07:30:00Z', name: 'Spam Bot', telefon: '0', einwilligung: true })).status;
@@ -113,7 +135,7 @@ test('Abgleich: Angebot aus Terminarten, Öffnungszeiten, Kartei und Kalender; B
   const buchungen: Buchung[] = [{ id: 'b1', nr: 7, eingegangen: '2026-10-30T11:00:00Z', terminart: 'W1', beginn: '2026-11-03T08:30:00.000Z', dauerMin: 90, name: 'Anna Test', telefon: '0151 1234567', email: 'anna@example.org', nachricht: 'Gern mit Öl', einwilligung: true }];
   let geschoben: Angebot | undefined;
   let abgeholtBis = 0;
-  const client = { angebotSenden: async (a: Angebot) => { geschoben = a; return { terminarten: a.terminarten.length, tage: a.tage.length }; }, buchungenAbholen: async (ab: number) => buchungen.filter((b) => b.nr > ab), abgeholt: async (bis: number) => { abgeholtBis = bis; } };
+  const client = { einladungenSenden: async () => {}, angebotSenden: async (a: Angebot) => { geschoben = a; return { terminarten: a.terminarten.length, tage: a.tage.length }; }, buchungenAbholen: async (ab: number) => buchungen.filter((b) => b.nr > ab), abgeholt: async (bis: number) => { abgeholtBis = bis; } };
   const b = await buchungAbgleich(db, t, graph, client, { jetzt });
   assert.deepEqual([b.buchungen, b.neu, b.bekannt, b.fehler, abgeholtBis], [1, 1, 0, 0, 7]);
   const a = (await anfragenListe(db, t, { filter: 'offen' }))[0]!;
@@ -129,4 +151,10 @@ test('Abgleich: Angebot aus Terminarten, Öffnungszeiten, Kartei und Kalender; B
   buchungen.push({ ...buchungen[0]!, id: 'b1', nr: 8 });
   assert.deepEqual([(await buchungAbgleich(db, t, graph, client, { jetzt })).bekannt], [1], 'gleiche Kennung = Dublette');
   assert.equal((await anfrageLesen(db, t, a.id))!.terminart?.kurz, 'Abhyanga – Ganzkörper-Ölmassage');
+  // Schnelltermin-Einladung (W117b): die Kennung ordnet den Patienten zu, auch wenn Name, Mail und Telefon auf der Seite anders lauten
+  await db.query("INSERT INTO schnelltermin_einladung (kennung, patient_id, dauer_min, erstellt_von, gueltig_bis) VALUES ('k7Hx2pQdLmZa', $1, 30, 'lilli', now() + interval '30 days')", [pid]);
+  buchungen.push({ id: 'b3', nr: 9, eingegangen: '2026-10-30T12:00:00Z', terminart: 'P4', beginn: '2026-11-02T08:30:00.000Z', dauerMin: 30, name: 'A. Test-Müller', telefon: '0160 9999999', email: 'anna.neu@example.org', nachricht: '', einwilligung: true, einladung: 'k7Hx2pQdLmZa' });
+  assert.equal((await buchungAbgleich(db, t, graph, client, { jetzt })).neu, 1);
+  const b3 = (await anfragenListe(db, t, { filter: 'offen' })).find((x) => x.absenderName === 'A. Test-Müller')!;
+  assert.equal(b3.patient?.id, pid, 'über die Einladung zugeordnet – kein neuer Patient nötig');
 });

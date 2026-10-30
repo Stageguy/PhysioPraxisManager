@@ -119,6 +119,33 @@ export interface Buchung {
   nachricht: string;
   /** Hat der Datenschutzinformation zugestimmt */
   einwilligung: boolean;
+  /** Einladungskennung aus dem Schnelltermin der Praxis (W117b) – der Manager ordnet die Buchung damit dem Patienten zu */
+  einladung?: string | null;
+}
+
+/** Einladung zum Schnelltermin (W117b): die Praxis schiebt sie herüber, die Seite belegt damit die Felder vor – nur mit gültiger Kennung lesbar */
+export interface Einladung {
+  kennung: string;
+  name: string;
+  telefon: string;
+  email: string;
+  /** ISO – danach gibt die Seite nichts mehr heraus */
+  bis: string;
+}
+
+export const KENNUNG_MUSTER = /^[A-Za-z0-9_-]{8,40}$/;
+
+export function einladungenPruefen(roh: unknown): Einladung[] {
+  if (!Array.isArray(roh)) throw new AngebotFehler('Einladungen fehlen');
+  return roh.map((e) => {
+    const x = (e ?? {}) as Record<string, unknown>;
+    const kennung = String(x.kennung ?? '');
+    if (!KENNUNG_MUSTER.test(kennung)) throw new AngebotFehler('Einladung ohne gültige Kennung');
+    const bis = new Date(String(x.bis ?? ''));
+    if (Number.isNaN(bis.getTime())) throw new AngebotFehler('Einladung ohne Gültigkeit');
+    const s = (k: string, max: number) => String(x[k] ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
+    return { kennung, name: s('name', 120), telefon: s('telefon', 40), email: s('email', 120).toLowerCase(), bis: bis.toISOString() };
+  });
 }
 
 export class BuchungFehler extends Error {}
@@ -138,5 +165,6 @@ export function buchungPruefen(roh: Record<string, unknown>, angebot: Angebot): 
   const email = s('email', 120).toLowerCase();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new BuchungFehler('Die Mailadresse sieht nicht richtig aus.');
   if (!roh.einwilligung) throw new BuchungFehler('Bitte der Verarbeitung Ihrer Angaben zustimmen.');
-  return { terminart: code, beginn: new Date(beginn).toISOString(), dauerMin: art.dauerMin, name, telefon, email, nachricht: s('nachricht', 500), einwilligung: true };
+  const einladung = s('einladung', 40);
+  return { terminart: code, beginn: new Date(beginn).toISOString(), dauerMin: art.dauerMin, name, telefon, email, nachricht: s('nachricht', 500), einwilligung: true, einladung: KENNUNG_MUSTER.test(einladung) ? einladung : null };
 }

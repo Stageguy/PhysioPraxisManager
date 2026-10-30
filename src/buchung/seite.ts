@@ -84,7 +84,7 @@ select:focus,input:focus,textarea:focus,button:focus{outline:2px solid var(--bro
 </div>
 <script>
 (function () {
-  var ZONE = 'Europe/Berlin', RASTER = 15, angebot = null, wahl = { art: null, tag: null, zeit: null }, monat = null, start = Date.now();
+  var ZONE = 'Europe/Berlin', RASTER = 15, angebot = null, wahl = { art: null, tag: null, zeit: null }, monat = null, start = Date.now(), einladung = null;
   var $ = function (id) { return document.getElementById(id); };
   var fmtTag = new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   var fmtZeit = new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, hour: '2-digit', minute: '2-digit' });
@@ -150,6 +150,15 @@ select:focus,input:focus,textarea:focus,button:focus{outline:2px solid var(--bro
       // Vorwahl aus dem Link: ?terminart=<code> von der Website, ?dauer=30&zeit=<ISO> aus dem Schnelltermin der Praxis (W117) –
       // dann stehen nur Behandlungen dieser Dauer zur Wahl, Tag und Uhrzeit sind vorgewählt, falls noch frei
       var params = new URLSearchParams(location.search), vor = params.get('terminart'), dauer = Number(params.get('dauer')), zeit = params.get('zeit');
+      // Einladung zum Schnelltermin (W117b): ?e=<Kennung> – die Praxis hat Name, Telefon und Mail hinterlegt, die Felder bleiben änderbar
+      var e = params.get('e');
+      if (e && /^[A-Za-z0-9_-]{8,40}$/.test(e)) fetch('api/einladung/' + e, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (p) {
+        if (!p) return;
+        einladung = e;
+        if (p.name && !$('name').value) $('name').value = p.name;
+        if (p.telefon && !$('telefon').value) $('telefon').value = p.telefon;
+        if (p.email && !$('email').value) $('email').value = p.email;
+      }).catch(function () { /* ohne Vorbelegung geht es auch */ });
       var liste = dauer && a.terminarten.some(function (t) { return t.dauerMin === dauer; }) ? a.terminarten.filter(function (t) { return t.dauerMin === dauer; }) : a.terminarten;
       var sel = $('terminart'), gruppen = {};
       liste.forEach(function (t) { (gruppen[t.sektion] = gruppen[t.sektion] || []).push(t); });
@@ -179,7 +188,7 @@ select:focus,input:focus,textarea:focus,button:focus{outline:2px solid var(--bro
   $('f').addEventListener('submit', function (e) {
     e.preventDefault(); fehler('');
     if (!wahl.art || !wahl.zeit) return fehler('Bitte Behandlung, Tag und Uhrzeit wählen.');
-    var daten = { terminart: wahl.art.code, beginn: wahl.zeit, name: $('name').value, telefon: $('telefon').value, email: $('email').value, nachricht: $('nachricht').value, einwilligung: $('einwilligung').checked, website: $('f').elements.website.value, dauerMs: Date.now() - start };
+    var daten = { terminart: wahl.art.code, beginn: wahl.zeit, name: $('name').value, telefon: $('telefon').value, email: $('email').value, nachricht: $('nachricht').value, einwilligung: $('einwilligung').checked, website: $('f').elements.website.value, dauerMs: Date.now() - start, einladung: einladung };
     $('senden').disabled = true;
     fetch('api/buchung', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(daten) }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (x) {
       if (!x.ok) { $('senden').disabled = false; return fehler(x.j.fehler || 'Das hat nicht geklappt – bitte rufen Sie uns an.'); }

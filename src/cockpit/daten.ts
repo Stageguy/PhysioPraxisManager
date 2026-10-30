@@ -79,6 +79,10 @@ export interface CockpitDaten {
   fahrt?: Fahrt | null;
   /** Schnelltermin (W117): die nächsten drei freien Zeiten der gewählten Dauer mit Vorlage – nur nach Tipp auf eine Dauer */
   schnell?: Schnelltermin;
+  /** Aktive Patienten für die Wahl „Für Patient“ im Schnelltermin (W117b): Name und Nummer */
+  patienten?: { id: string; name: string; patientennummer: string }[];
+  /** Was im Feld „Für Patient“ stand – bleibt stehen, wenn niemand eindeutig passte */
+  patientWahl?: string;
 }
 
 const KEINE_DB = 'Die Praxis-Datenbank ist noch nicht verbunden – Rechnungen erscheinen, sobald der Rechnungseingang läuft.';
