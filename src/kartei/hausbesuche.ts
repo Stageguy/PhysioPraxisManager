@@ -6,7 +6,7 @@
  */
 import type { Db } from '../db/index.ts';
 import { berlinMitternachtUtc, tagPlus } from '../zeit.ts';
-import type { TerminKalender } from './patienten.ts';
+import type { TerminKalender } from './patienten/termine.ts';
 
 // ── Wegbeschreibung (W113c) ─────────────────────────────────────────────────
 

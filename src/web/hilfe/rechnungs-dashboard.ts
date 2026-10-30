@@ -1,5 +1,5 @@
 /** Erklärungen (Rechtsklick-Hilfe): Rechnungs-Dashboard – Teil von src/web/hilfe.ts (A32) */
-import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, kachel, type HilfeEintrag } from './basis.ts';
+import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, type HilfeEintrag } from './basis.ts';
 
 export const RECHNUNGS_DASHBOARD: Record<string, HilfeEintrag> = {
   'rechnungen.zaehler.eingegangen': { seite: 'Rechnungs-Dashboard', titel: 'Zahl: eingegangen', loest_aus: AUSKUNFT,

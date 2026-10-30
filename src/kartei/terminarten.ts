@@ -6,7 +6,7 @@
  */
 import { protokolliere, type Db } from '../db/index.ts';
 import { istId, text } from '../db/werte.ts';
-import { KarteiFehler } from './patienten.ts';
+import { KarteiFehler } from './patienten/basis.ts';
 
 export type Sektion = 'rezept' | 'selbstzahler' | 'wellness';
 

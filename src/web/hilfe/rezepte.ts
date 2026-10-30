@@ -1,5 +1,5 @@
 /** Erklärungen (Rechtsklick-Hilfe): Rezepte, Serien und Wellness (W73, W74) – Teil von src/web/hilfe.ts (A32) */
-import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, kachel, type HilfeEintrag } from './basis.ts';
+import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, type HilfeEintrag } from './basis.ts';
 
 export const REZEPTE: Record<string, HilfeEintrag> = {
   'rezepte.kachel': { seite: 'Rezepte', titel: 'Rezept-Kachel',

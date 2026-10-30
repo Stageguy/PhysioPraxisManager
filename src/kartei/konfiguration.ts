@@ -4,7 +4,7 @@
  */
 import { protokolliere, type Db } from '../db/index.ts';
 import { oeffnungszeitenLesen, oeffnungszeitenText } from '../anfragen/slots.ts';
-import { KarteiFehler } from './patienten.ts';
+import { KarteiFehler } from './patienten/basis.ts';
 
 export interface Textbaustein {
   id: string;

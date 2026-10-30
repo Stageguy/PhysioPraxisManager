@@ -1,5 +1,5 @@
 /** Erklärungen (Rechtsklick-Hilfe): Patientenseite: Kacheln, Termine, Kontaktwege, Adressen, Nachricht, Verlauf, Akte, Behandlung – Teil von src/web/hilfe.ts (A32) */
-import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, kachel, type HilfeEintrag } from './basis.ts';
+import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, type HilfeEintrag } from './basis.ts';
 
 export const PATIENTENSEITE: Record<string, HilfeEintrag> = {
   'patienten.kachel': { seite: 'Patienten', titel: 'Patientenkachel',

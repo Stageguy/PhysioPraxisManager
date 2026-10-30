@@ -14,7 +14,7 @@ import { verwendungVermerken } from '../preise/preislisten.ts';
 import { betrag, iso, rund, tag } from '../db/werte.ts';
 import { TresorFehler, type Tresor } from '../tresor.ts';
 import { kleinunternehmer, textbausteine, type Textbaustein } from './konfiguration.ts';
-import { KarteiFehler } from './patienten.ts';
+import { KarteiFehler } from './patienten/basis.ts';
 
 export type RechnungStatus = 'entwurf' | 'freigegeben' | 'in_lexware' | 'gesendet' | 'bezahlt' | 'storniert';
 export const STATUS_TEXT: Record<RechnungStatus, [string, string]> = {

@@ -1,5 +1,5 @@
 /** Erklärungen (Rechtsklick-Hilfe): Kunden aus Lexware (W99) – Teil von src/web/hilfe.ts (A32) */
-import { NICHTS, KEIN_RUECKWEG, kachel, type HilfeEintrag } from './basis.ts';
+import { NICHTS, KEIN_RUECKWEG, type HilfeEintrag } from './basis.ts';
 
 export const LEXWARE: Record<string, HilfeEintrag> = {
   'patienten.lexware': { seite: 'Patienten', titel: 'Aus Lexware',

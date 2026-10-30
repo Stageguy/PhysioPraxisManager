@@ -9,7 +9,7 @@
 import { protokolliere, type Db } from '../db/index.ts';
 import { istId, tag } from '../db/werte.ts';
 import type { Tresor } from '../tresor.ts';
-import { KarteiFehler } from './patienten.ts';
+import { KarteiFehler } from './patienten/basis.ts';
 
 export const PHASEN = ['anfrage', 'aufnahme', 'anamnese', 'befund_start', 'behandlung', 'abschluss', 'rechnung', 'nachsorge', 'archiviert'] as const;
 export type Phase = (typeof PHASEN)[number];

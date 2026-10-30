@@ -1,5 +1,5 @@
 /** Erklärungen (Rechtsklick-Hilfe): Konfiguration, Terminarten, Textbausteine (W80, W94, W110–W113) – Teil von src/web/hilfe.ts (A32) */
-import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, kachel, type HilfeEintrag } from './basis.ts';
+import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, type HilfeEintrag } from './basis.ts';
 
 export const KONFIGURATION: Record<string, HilfeEintrag> = {
   'konfiguration.jahr': { seite: 'Konfiguration', titel: 'Jahr der freien Tage',

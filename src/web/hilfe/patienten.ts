@@ -1,5 +1,5 @@
 /** Erklärungen (Rechtsklick-Hilfe): Patientenliste (W63–W68) – Teil von src/web/hilfe.ts (A32) */
-import { NICHTS, KEIN_RUECKWEG, kachel, type HilfeEintrag } from './basis.ts';
+import { NICHTS, KEIN_RUECKWEG, type HilfeEintrag } from './basis.ts';
 
 export const PATIENTEN_LISTE: Record<string, HilfeEintrag> = {
   'patienten.suche': { seite: 'Patienten', titel: 'Suche',
