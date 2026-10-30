@@ -39,7 +39,7 @@ export const statusChip = (status: Rechnung['status']) => {
   return `<span class="chip ${f}">${esc(t)}</span>`;
 };
 
-export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen): string {
+export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen & { /** nach dem Anlegen des Entwurfs (W122): Hinweisfenster mit Sprung nach Outlook */ entwurfDialog?: boolean }): string {
   const { patient: p, rechnung: r } = d;
   const name = `${p.vorname} ${p.nachname}`;
   const zurueck = `/patienten/${p.id}/rechnungen/${r.id}`;
@@ -86,7 +86,17 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen): string {
   // Rechnung in zwei Klicks (W100): Klick 1 nach Lexware (Nummer, PDF), Klick 2 versenden über den Standardweg des Patienten
   const nachLexware = d.lexware && r.quelle !== 'lexware' ? form('rechnung_lexware', `<button class="knopf primaer" data-hilfe="rechnung.lexware">${symbol('euro', { groesse: 18 })} Nach Lexware – Nummer und PDF holen</button>`) : '';
   const VERSAND: Record<string, string> = { email: 'per Mail', post: 'per Post', beides: 'per Mail und Post' };
-  const versenden = d.postfach ? form('rechnung_versenden', `<label>Versand<select name="versand_art" data-hilfe="rechnung.versand-art"><option value="${p.rechnungsversand}">${versandWunsch} (Wunsch des Patienten)</option>${(['email', 'post', 'beides'] as const).filter((a) => a !== p.rechnungsversand).map((a) => `<option value="${a}">${VERSAND[a]}</option>`).join('')}</select></label><button class="knopf primaer" data-hilfe="rechnung.versenden">${symbol('email', { groesse: 18 })} Versenden</button>`) : '';
+  const versenden = d.postfach ? `${form('rechnung_versenden', `<label>Versand<select name="versand_art" data-hilfe="rechnung.versand-art"><option value="${p.rechnungsversand}">${versandWunsch} (Wunsch des Patienten)</option>${(['email', 'post', 'beides'] as const).filter((a) => a !== p.rechnungsversand).map((a) => `<option value="${a}">${VERSAND[a]}</option>`).join('')}</select></label><button class="knopf primaer" data-hilfe="rechnung.versenden">${symbol('email', { groesse: 18 })} Versenden</button>`)}
+        <span class="hint">Per Mail: Entwurf mit PDF in Outlook, gesendet wird dort. Per Post: vermerkt, du druckst das PDF.</span>` : '';
+  // Entwurf in Outlook (W122): Hinweisblock mit Sprung in den Entwurf; nach dem Anlegen zusätzlich das Fenster
+  const ew = r.versandEntwurf;
+  const entwurfLink = ew?.link ? `<a class="knopf klein primaer" href="${esc(ew.link)}" target="_blank" rel="noopener" data-hilfe="rechnung.entwurf-outlook">${symbol('email', { groesse: 16 })} In Outlook öffnen</a>` : '';
+  const entwurfBlock = ew ? `<div class="meldung ok entwurf" data-hilfe="rechnung.entwurf" tabindex="0">${symbol('email', { groesse: 20 })}<span><b>Die Rechnungs-Mail liegt als Entwurf in Outlook</b>${ew.am ? ` (seit ${datumText(ew.am.slice(0, 10))})` : ''} – mit PDF und der Adresse ${esc(p.email?.wert ?? '')}. Dort ggf. anpassen und senden. „Versendet“ steht hier, sobald Outlook den Versand bestätigt – diese Seite sieht bei jedem Öffnen nach.<br>${entwurfLink} <a class="knopf klein" href="${zurueck}" data-hilfe="rechnung.entwurf-pruefen">Versand prüfen</a></span></div>` : '';
+  const dialog = ew && o.entwurfDialog ? `<dialog open class="rm-dialog entwurf-dialog" data-hilfe="rechnung.entwurf-dialog"><div class="rm-form"><div class="rm-kopf"><strong>${symbol('email', { groesse: 18 })} Entwurf in Outlook</strong></div>
+    <p>Die Rechnungs-Mail an <b>${esc(p.email?.wert ?? '')}</b> liegt als Entwurf in Outlook – mit PDF${d.girocode ? ' und GiroCode' : ''}. Dort kannst du den Text noch anpassen und sendest sie.</p>
+    <p class="hint">„Versendet“ steht an der Rechnung, sobald Outlook den Versand bestätigt hat.</p>
+    <div class="knopfreihe">${ew.link ? `<a class="knopf primaer" href="${esc(ew.link)}" target="_blank" rel="noopener" data-hilfe="rechnung.entwurf-outlook">${symbol('email', { groesse: 18 })} In Outlook öffnen</a>` : ''}<form method="dialog"><button class="knopf" data-hilfe="rechnung.entwurf-ok">OK – später in Outlook</button></form></div></div></dialog>` : '';
+  const storno = form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`);
   const aktionen = (() => {
     switch (r.status) {
       case 'entwurf': return `${nachLexware}${d.preislisteAktuell && d.preislisteAktuell.id !== r.preisliste?.id ? form('rechnung_preise', `<button class="knopf" data-hilfe="rechnung.preise">${symbol('euro', { groesse: 18 })} Preise aus „${esc(d.preislisteAktuell.name)}“ übernehmen</button>`) : ''}${form('rechnung_status', `<input type="hidden" name="status_aktion" value="fertig"><button class="knopf primaer" data-hilfe="rechnung.fertig">${symbol('haken', { groesse: 18 })} Fertig – an Lexware übertragen</button>`)}
@@ -96,8 +106,9 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen): string {
         ${d.lexware ? '' : `<button class="knopf" disabled data-hilfe="rechnung.nummer-holen">${symbol('euro', { groesse: 18 })} Nummer aus Lexware holen <small>(kommt mit XL)</small></button>`}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="zurueck"><button class="knopf" data-hilfe="ausgang.zurueck">Zurück in den Entwurf</button>`)}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`)}`;
-      case 'in_lexware': return `${versenden}${form('rechnung_status', `<input type="hidden" name="status_aktion" value="versendet"><label>Versendet<select name="versand_art"><option value="${p.rechnungsversand}">${versandWunsch} (Wunsch des Patienten)</option><option value="email">per Mail</option><option value="post">per Post</option><option value="beides">per Mail und Post</option></select></label><button class="knopf primaer" data-hilfe="rechnung.versendet">${symbol('email', { groesse: 18 })} Als versendet vermerken</button>`, 'formular zeile')}
-        ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`)}`;
+      // In Lexware (W122): per Mail als Entwurf nach Outlook – wartet ein Entwurf, gibt es hier nur noch Storno; per Post vermerkt Lilli selbst
+      case 'in_lexware': return r.versandEntwurf ? storno : `${versenden}${form('rechnung_status', `<input type="hidden" name="status_aktion" value="versendet"><input type="hidden" name="versand_art" value="post"><button class="knopf" data-hilfe="rechnung.versendet">${symbol('brief', { groesse: 18 })} Per Post versendet – vermerken</button>`)}
+        ${storno}`;
       case 'gesendet': return `${form('rechnung_status', `<input type="hidden" name="status_aktion" value="bezahlt"><label>Bezahlt am<input type="date" name="datum" value="${heuteBerlin()}"></label><button class="knopf primaer" data-hilfe="rechnung.bezahlt">${symbol('euro', { groesse: 18 })} Bezahlt</button>`, 'formular zeile')}
         ${form('rechnung_status', `<input type="hidden" name="status_aktion" value="storno"><input name="grund" placeholder="Grund" maxlength="200" required><button class="knopf warnend" data-hilfe="rechnung.storno">Storno</button>`)}`;
       default: return '';
@@ -108,7 +119,7 @@ export function rechnungSeite(d: RechnungSeiteDaten, o: Rahmen): string {
     inhalt: `<p class="hint"><a href="/patienten">Patienten</a> › <a href="/patienten/${p.id}#rechnungen">${esc(name)}</a> › Rechnung ${esc(r.nummer ?? `Entwurf Nr. ${r.id}`)}
   <a class="nur-desktop konfig-link" href="/konfiguration" data-hilfe="konfiguration.link">${symbol('protokoll', { groesse: 14 })} Konfiguration</a></p>
 <header class="kopf"><h1>${symbol('euro', { groesse: 26 })} ${esc(ART_TEXT[r.art] ?? 'Rechnung')} ${r.nummer ? esc(r.nummer) : ''} ${statusChip(r.status)}</h1></header>
-${abweichung}
+${abweichung}${entwurfBlock}${dialog}
 ${r.quelle === 'lexware' ? `<p class="meldung ok">${symbol('rechnung', { groesse: 18 })} Aus Lexware übernommen – Positionen, Rezept und Behandlung liegen hier nicht vor; die Datei ist die Rechnung${r.lexware.pdfName ? `: <a href="${zurueck}/pdf" data-pdf="${esc(r.nummer ?? r.lexware.pdfName)}">${esc(r.lexware.pdfName)}</a>` : ''}.</p>` : ''}
 ${meldungen(o)}
 <div class="re-kopf">

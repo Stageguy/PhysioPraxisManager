@@ -10,6 +10,7 @@ import { attrappeKunden } from '../src/lexware/kunden.ts';
 import { attrappeRechnungen, kontaktKoerper, lexwareDatum, lexwareRechnungen, rechnungKoerper } from '../src/lexware/rechnungen.ts';
 import { einstellungSetzen } from '../src/kartei/konfiguration.ts';
 import { standardSetzen } from '../src/preise/preislisten.ts';
+import { rechnungsversandPruefen } from '../src/kartei/nachrichten.ts';
 import { praxisDienst } from '../src/server.ts';
 import { neuerHauptschluessel, tresor } from '../src/tresor.ts';
 import { graphAttrappe } from './attrappe.ts';
@@ -54,7 +55,8 @@ const wer = { 'Tailscale-User-Login': 'lilli@example.org' };
 const post = (felder: Record<string, string>) => fetch(`${basis}/patienten/aktion`, { method: 'POST', redirect: 'manual', headers: { ...wer, 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(felder).toString() });
 const ziel = (r: Response) => decodeURIComponent(r.headers.get('location') ?? '');
 const seite = async (pfad: string) => (await fetch(`${basis}${pfad}`, { headers: wer })).text();
-const graph = { ...graphAttrappe({}), delete: async () => {} };
+const GET: Record<string, unknown> = {};
+const graph = { ...graphAttrappe({ get: GET }), delete: async () => {} };
 const lexware = attrappeRechnungen();
 
 before(async () => {
@@ -102,34 +104,65 @@ test('Klick 1 „Nach Lexware“: Entwurf wird fertig, Kunde in Lexware angelegt
   assert.match(ziel(a), /1 Rechnung in Lexware – 0 neu, 0 aktualisiert, 1 unverändert\./);
 });
 
-test('Klick 2 „Versenden“: Mail sofort aus dem Postfach mit PDF-Anhang, Status versendet, Kontaktverlauf; per Post nur Vermerk', async () => {
+test('Klick 2 „Versenden“ per Mail (W122): Entwurf in Outlook mit PDF und GiroCode, Rechnung bleibt „in Lexware“; verworfen → wieder frei; gesendet → „versendet“ mit Outlooks Datum', async () => {
   const r = await post({ aktion: 'rechnung_versenden', id: pid, rechnung_id: rid, versand_art: 'email', zurueck: `/patienten/${pid}` });
-  assert.match(ziel(r), /meldung=Rechnung RE-\d{4}-9001 versendet per Mail an shopping\+bernd@2late\.de\./);
-  const mail = graph.schreibende().find((a) => a.pfad === '/me/sendMail');
-  assert.ok(mail, 'sendMail aufgerufen');
-  const m = mail!.body as { message: { subject: string; toRecipients: { emailAddress: { address: string } }[]; attachments: { name: string; contentType: string }[]; body: { content: string } }; saveToSentItems: boolean };
-  assert.equal(m.saveToSentItems, true);
-  assert.match(m.message.subject, /^Ihre Rechnung RE-\d{4}-9001$/);
-  assert.equal(m.message.toRecipients[0]!.emailAddress.address, 'shopping+bernd@2late.de');
-  assert.match(m.message.attachments[0]!.name, /^RE-\d{4}-9001\.pdf$/);
-  assert.equal(m.message.attachments[0]!.contentType, 'application/pdf');
-  assert.match(m.message.body.content, /Verwendungszweck nur die Rechnungsnummer RE-\d{4}-9001/);
-  // GiroCode (W102) hängt als PNG an, der Text sagt es
-  assert.match(m.message.attachments[1]!.name, /^GiroCode-RE-\d{4}-9001\.png$/);
-  assert.equal(m.message.attachments[1]!.contentType, 'image/png');
-  assert.equal(Buffer.from((m.message.attachments[1] as unknown as { contentBytes: string }).contentBytes, 'base64').subarray(1, 4).toString(), 'PNG');
-  assert.match(m.message.body.content, /PS: Mit dem beigefügten GiroCode/);
-  const zeile = (await db.query<Record<string, unknown>>('SELECT status::text, versand_art, versendet_am::text FROM rechnung WHERE id = $1', [rid])).rows[0]!;
-  assert.deepEqual([zeile.status, zeile.versand_art, Boolean(zeile.versendet_am)], ['gesendet', 'email', true]);
-  const html = await seite(`/patienten/${pid}`);
-  assert.match(html, /Rechnung RE-\d{4}-9001 per Mail gesendet \(RE-\d{4}-9001\.pdf\)/, 'im Kontaktverlauf');
-  // Zweite Rechnung per Post: kein Mailversand, Hinweis zum Drucken
+  assert.match(ziel(r), new RegExp(`^/patienten/${pid}/rechnungen/${rid}\\?entwurf=1&meldung=Rechnungs-Mail an shopping\\+bernd@2late\\.de liegt als Entwurf in Outlook – mit PDF und GiroCode\\. „Versendet“ steht hier, sobald Outlook den Versand bestätigt\\.$`));
+  assert.ok(!graph.schreibende().some((a) => a.pfad === '/me/sendMail'), 'nichts direkt gesendet – E37');
+  const entwurf = graph.schreibende().find((a) => a.pfad === '/me/messages');
+  assert.ok(entwurf, 'Entwurf im Postfach angelegt');
+  const m = entwurf!.body as { subject: string; toRecipients: { emailAddress: { address: string } }[]; body: { content: string } };
+  assert.match(m.subject, /^Ihre Rechnung RE-\d{4}-9001$/);
+  assert.equal(m.toRecipients[0]!.emailAddress.address, 'shopping+bernd@2late.de');
+  assert.match(m.body.content, /Verwendungszweck nur die Rechnungsnummer RE-\d{4}-9001/);
+  assert.match(m.body.content, /PS: Mit dem beigefügten GiroCode/);
+  const anhaenge = graph.schreibende().filter((a) => /\/me\/messages\/[^/]+\/attachments$/.test(a.pfad)).map((a) => a.body as { name: string; contentType: string; contentBytes: string });
+  assert.match(anhaenge[0]!.name, /^RE-\d{4}-9001\.pdf$/);
+  assert.equal(anhaenge[0]!.contentType, 'application/pdf');
+  assert.match(anhaenge[1]!.name, /^GiroCode-RE-\d{4}-9001\.png$/);
+  assert.equal(Buffer.from(anhaenge[1]!.contentBytes, 'base64').subarray(1, 4).toString(), 'PNG');
+  const stand = async () => (await db.query<Record<string, unknown>>('SELECT status::text, versand_art, versendet_am::text, versand_entwurf_id FROM rechnung WHERE id = $1', [rid])).rows[0]!;
+  let z = await stand();
+  assert.deepEqual([z.status, z.versand_art, z.versendet_am], ['in_lexware', 'email', null], 'noch nicht versendet – erst, wenn Outlook bestätigt');
+  const entwurfId = String(z.versand_entwurf_id);
+  assert.match(entwurfId, /^neu-\d+$/);
+  // Seite: Fenster nach dem Anlegen, Hinweisblock, kein zweites „Versenden“, kein Vermerk von Hand per Mail
+  let html = await seite(`/patienten/${pid}/rechnungen/${rid}?entwurf=1`);
+  assert.match(html, /<dialog open class="rm-dialog entwurf-dialog" data-hilfe="rechnung.entwurf-dialog">/);
+  assert.match(html, /<div class="meldung ok entwurf" data-hilfe="rechnung.entwurf" tabindex="0">/);
+  assert.match(html, /<button class="knopf" data-hilfe="rechnung.entwurf-ok">OK – später in Outlook<\/button>/);
+  assert.ok(!html.includes('data-hilfe="rechnung.versenden"'), 'kein zweiter Entwurf');
+  assert.ok(!html.includes('name="status_aktion" value="versendet"'), 'kein Vermerk von Hand, solange der Entwurf wartet');
+  assert.ok(!(await seite(`/patienten/${pid}/rechnungen/${rid}`)).includes('<dialog open class="rm-dialog entwurf-dialog"'), 'das Fenster nur direkt nach dem Anlegen');
+  assert.match(ziel(await post({ aktion: 'rechnung_versenden', id: pid, rechnung_id: rid, versand_art: 'email', zurueck: `/patienten/${pid}` })), /fehler=Die Rechnungs-Mail liegt schon als Entwurf in Outlook/);
+  assert.match(await seite(`/patienten/${pid}`), /Entwurf in Outlook/, 'Marke an der Rechnungskachel');
+  assert.match(await seite(`/patienten/${pid}`), /als Entwurf im Postfach \(RE-\d{4}-9001\.pdf\) – Versand in Outlook/, 'im Kontaktverlauf');
+  // Outlook: Entwurf noch da → nichts; Entwurf weg (Lilli hat ihn verworfen) → Rechnung wieder frei
+  GET[`/me/messages/${entwurfId}?$select=id,isDraft,sentDateTime`] = { id: entwurfId, isDraft: true, sentDateTime: null };
+  assert.deepEqual(await rechnungsversandPruefen(db, t, graph, 'system'), { geprueft: 1, bestaetigt: 0, verworfen: 0, fehler: 0 });
+  delete GET[`/me/messages/${entwurfId}?$select=id,isDraft,sentDateTime`];
+  assert.deepEqual(await rechnungsversandPruefen(db, t, graph, 'system'), { geprueft: 1, bestaetigt: 0, verworfen: 0, fehler: 0 }, 'ein frischer Entwurf, der (noch) nicht gefunden wird, gilt nicht als verworfen');
+  await db.query("UPDATE rechnung SET versand_entwurf_am = now() - interval '1 hour' WHERE id = $1", [rid]);
+  assert.deepEqual(await rechnungsversandPruefen(db, t, graph, 'system'), { geprueft: 1, bestaetigt: 0, verworfen: 1, fehler: 0 });
+  z = await stand();
+  assert.deepEqual([z.status, z.versand_entwurf_id], ['in_lexware', null], 'nicht gesendet, Entwurf vergessen');
+  assert.match(await seite(`/patienten/${pid}/rechnungen/${rid}`), /data-hilfe="rechnung.versenden"/, '„Versenden“ geht wieder');
+  // Noch einmal anlegen, dann in Outlook gesendet → „versendet“ mit dem Datum aus Outlook
+  await post({ aktion: 'rechnung_versenden', id: pid, rechnung_id: rid, versand_art: 'email', zurueck: `/patienten/${pid}` });
+  const entwurf2 = String((await stand()).versand_entwurf_id);
+  GET[`/me/messages/${entwurf2}?$select=id,isDraft,sentDateTime`] = { id: entwurf2, isDraft: false, sentDateTime: '2026-10-31T09:15:00Z' };
+  html = await seite(`/patienten/${pid}/rechnungen/${rid}`);
+  assert.ok(!html.includes('rechnung.entwurf"'), 'die Seite sieht beim Öffnen nach – der Hinweis ist weg');
+  z = await stand();
+  assert.deepEqual([z.status, z.versand_art, z.versendet_am, z.versand_entwurf_id], ['gesendet', 'email', '2026-10-31', null], 'versendet mit dem Datum aus Outlook');
+  assert.match(await seite(`/patienten/${pid}`), /per Mail gesendet – von Outlook bestätigt \(31\.10\.2026\)/, 'im Kontaktverlauf');
+  assert.deepEqual(await rechnungsversandPruefen(db, t, graph, 'system'), { geprueft: 0, bestaetigt: 0, verworfen: 0, fehler: 0 }, 'nichts mehr offen');
+  // Zweite Rechnung per Post: kein Entwurf, sofort vermerkt, Hinweis zum Drucken
   await verordnungAnlegen(db, t, pid, { ausgestelltAm: '2026-10-05', massnahme: 'Manuelle Therapie', leistungNummer: '21201', anzahl: 1 }, 'x');
   const rid2 = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE patient_id = $1 ORDER BY id DESC LIMIT 1', [pid])).rows[0]!.id;
   const vorher = graph.schreibende().length;
   assert.match(ziel(await post({ aktion: 'rechnung_lexware', id: pid, rechnung_id: rid2, zurueck: `/patienten/${pid}` })), /In Lexware mit Nummer RE-\d{4}-9002 – PDF liegt im Tresor\. Jetzt/);
   const p = await post({ aktion: 'rechnung_versenden', id: pid, rechnung_id: rid2, versand_art: 'post', zurueck: `/patienten/${pid}` });
-  assert.match(ziel(p), /versendet per Post – bitte das PDF drucken\./);
+  assert.match(ziel(p), /als versendet vermerkt – per Post, bitte das PDF drucken\./);
   assert.equal(graph.schreibende().length, vorher, 'keine Mail bei Post');
   assert.equal((await db.query<{ v: string }>('SELECT versand_art AS v FROM rechnung WHERE id = $1', [rid2])).rows[0]!.v, 'post');
 });

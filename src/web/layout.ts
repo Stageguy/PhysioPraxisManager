@@ -144,6 +144,8 @@ h3{font-size:15px;margin:0 0 8px}
 .meldung{display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:10px;margin:12px 0}
 .meldung[hidden]{display:none}
 .meldung.ok{background:color-mix(in srgb,var(--ok) 14%,transparent)}.meldung.fehler{background:color-mix(in srgb,var(--fehler) 14%,transparent)}
+.meldung.entwurf{align-items:flex-start}.meldung.entwurf>span{display:block;min-width:0}.meldung.entwurf .knopf{margin-top:8px}
+.entwurf-dialog{position:fixed;top:12vh;left:50%;transform:translateX(-50%);z-index:1300;margin:0;max-width:min(560px,calc(100vw - 24px))}.entwurf-dialog .knopfreihe form{display:inline}
 .meldung.abweichung{align-items:flex-start}.meldung.abweichung>span{display:block;min-width:0;overflow-wrap:anywhere}.meldung.abweichung form.inline{display:block;margin-top:8px}
 .schnell-kreise{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.schnell-kreise .kreis{width:56px;height:56px;border-radius:50%;border:2px solid var(--akzent);display:grid;place-items:center;font-weight:700;font-size:18px;color:var(--akzent);text-decoration:none;background:var(--karte)}.schnell-kreise .kreis.aktiv,.schnell-kreise .kreis:hover{background:var(--akzent);color:var(--bg)}
 .schnell-patient{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:0 0 10px}.schnell-patient label{display:grid;gap:4px;font-size:13px;color:var(--grau);flex:1 1 220px;min-width:0}.schnell-patient label>span{display:inline}.schnell-patient input{font:inherit;padding:8px 10px;border:1px solid var(--rand);border-radius:8px;background:var(--bg);color:var(--fg);min-width:0}.schnell-fuer{display:inline-flex;gap:6px;align-items:center;font-size:14px}.schnell-fuer a{font-size:13px}

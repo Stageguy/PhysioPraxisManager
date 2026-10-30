@@ -74,13 +74,13 @@ export async function antwortEntwurf(graph: Pick<GraphClient, 'post' | 'patch'>,
 export async function entwurfAnlegen(
   graph: Pick<GraphClient, 'post'>,
   mail: NeueMail,
-  optionen: { ausfuehren: boolean },
-): Promise<{ angelegt: boolean; id?: string; webLink?: string }> {
+  optionen: { ausfuehren: boolean; /** z. B. `Prefer: IdType="ImmutableId"`, damit die Kennung das Senden überlebt (W122) */ kopfzeilen?: Record<string, string> },
+): Promise<{ angelegt: boolean; id?: string; webLink?: string; conversationId?: string }> {
   pruefeMail(mail);
   // Schranke 2: die Testumgebung schreibt nur an Testadressen – auch im Probelauf geprüft
   pruefeEmpfaenger([...mail.an, ...(mail.cc ?? [])]);
   if (!optionen.ausfuehren) return { angelegt: false };
-  const m = await graph.post<{ id: string; webLink: string }>('/me/messages', entwurfKoerper(mail));
-  for (const a of mail.anhaenge ?? []) await graph.post(`/me/messages/${m.id}/attachments`, anhangKoerper(a));
-  return { angelegt: true, id: m.id, webLink: m.webLink };
+  const m = await graph.post<{ id: string; webLink: string; conversationId?: string }>('/me/messages', entwurfKoerper(mail), optionen.kopfzeilen);
+  for (const a of mail.anhaenge ?? []) await graph.post(`/me/messages/${m.id}/attachments`, anhangKoerper(a), optionen.kopfzeilen);
+  return { angelegt: true, id: m.id, webLink: m.webLink, conversationId: m.conversationId };
 }

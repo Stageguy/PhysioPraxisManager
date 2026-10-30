@@ -8,8 +8,8 @@ führt Patienten, Organisation und Ablauf, auch die Rechnung als Vorgang, und is
 Exchange. Hauptprämisse: für Lilli mit jeder Funktion so einfach und so schnell wie möglich ans Ergebnis; mobil
 dürfen Detailfunktionen fehlen. Die Zahl der Klicks ist keine Vorgabe (E30 war in diesem Punkt ein Missverständnis).
 Grundregel für Sendungen: der PPM erstellt den Entwurf, Outlook sendet; Ungefährliches darf der PPM direkt senden oder
-eintragen (wie Termine). Ob die Rechnungs-Mail direkt geht (so heute) oder als Entwurf – **E37**; „Rechnung stellen“
-unten meint den Weg, den Christian dort wählt.
+eintragen (wie Termine). Die Rechnungs-Mail geht als **Entwurf nach Outlook** (E37, entschieden 31.10.2026, W122): „Rechnung
+stellen“ unten endet also mit dem Entwurf und dem Sprung nach Outlook; „versendet“ bestätigt Outlook.
 
 ## 1. Ausgangslage
 

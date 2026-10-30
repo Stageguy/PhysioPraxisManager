@@ -498,7 +498,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
         return void res.end(Buffer.from(pdf.daten));
       }
       const rd = await d.rechnung(rm[1]!, rm[2]!);
-      return rd ? senden(res, 200, 'text/html', ausgangsrechnungSeite(rd, r)) : senden(res, 404, 'text/plain', 'Diese Rechnung gibt es nicht');
+      return rd ? senden(res, 200, 'text/html', ausgangsrechnungSeite(rd, { ...r, entwurfDialog: adresse.searchParams.get('entwurf') === '1' })) : senden(res, 404, 'text/plain', 'Diese Rechnung gibt es nicht');
     }
     if (pfad === '/pinnwand') {
       const ansicht = adresse.searchParams.get('ansicht') === 'vertikal' ? 'vertikal' : 'horizontal';

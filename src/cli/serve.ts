@@ -25,6 +25,7 @@ import { anfragenDienst } from '../anfragen/dienst.ts';
 import { anfragenEingang } from '../anfragen/eingang.ts';
 import { einstellungen } from '../kartei/konfiguration.ts';
 import { buchungAbgleich } from '../buchung/abgleich.ts';
+import { rechnungsversandPruefen } from '../kartei/nachrichten.ts';
 import { buchungsClientAusUmgebung } from '../buchung/client.ts';
 import { LexwareClient } from '../lexware/client.ts';
 import { attrappeKunden, lexwareKunden } from '../lexware/kunden.ts';
@@ -140,6 +141,9 @@ if (db && schluessel && anfragen && takt > 0) {
         const bb = await buchungAbgleich(db, schluessel, graph, buchung);
         if (bb.neu || bb.fehler) console.log(`Buchungsseite: ${bb.neu} neue Buchungen, ${bb.fehler} Fehler; Angebot ${bb.angebot.terminarten} Terminarten, ${bb.angebot.tage} Tage`);
       }
+      // Rechnungs-Mails als Entwurf in Outlook (W122): hat Lilli sie gesendet, wird die Rechnung „versendet“
+      const rv = await rechnungsversandPruefen(db, schluessel, graph, 'system');
+      if (rv.bestaetigt || rv.verworfen || rv.fehler) console.log(`Rechnungsversand: ${rv.bestaetigt} von Outlook bestätigt, ${rv.verworfen} Entwürfe verworfen, ${rv.fehler} Fehler`);
       // Outlook → Kartei (W112): Praxis-Termine mit Patientennummer übernehmen, verschobene Zeiten nachziehen
       const ot = await outlookTermineUebernehmen(db, graph, 'system');
       if (ot.neu || ot.verschoben) console.log(`Kalender: ${ot.neu} Outlook-Termine in die Kartei übernommen, ${ot.verschoben} Zeiten nachgezogen${ot.unbekannt ? `, ${ot.unbekannt} ohne bekannte Patientennummer` : ''}`);

@@ -35,14 +35,14 @@ before(async () => {
   pid = await patientAnlegen(db, t, { vorname: 'Mia', nachname: 'Anamnese' }, 'x');
   // Die ältere Rechnung trägt die Nummer schon (etwa von Hand eingetragen); die neue hat sie von Lexware bekommen – Lexware-Kennung vermerkt, Nummer nicht
   andere = await rechnungAnlegen(db, pid, { steuerklasse: 'heilbehandlung_steuerfrei', art: 'einzel', notiz: 'ältere' }, 'x');
-  await db.query("UPDATE rechnung SET nummer = 'RE-2026-9001', status = 'in_lexware', datum = CURRENT_DATE WHERE id = $1", [andere]);
+  await db.query("UPDATE rechnung SET nummer = 'RE-2026-9001', status = 'in_lexware', datum = '2026-10-30' WHERE id = $1", [andere]);
   diese = await rechnungAnlegen(db, pid, { steuerklasse: 'heilbehandlung_steuerfrei', art: 'einzel', notiz: 'neue' }, 'x');
   await db.query("UPDATE rechnung SET status = 'freigegeben', lexware_invoice_id = 'attrappe-re-RE-2026-9001', lexware_status = 'open', lexware_abweichung = $2 WHERE id = $1", [diese, KONFLIKT]);
 });
 after(() => server.close());
 
 test('nummernKonflikt: Nummer und die andere Rechnung aus der Abweichung; andere Abweichungen sind kein Konflikt', async () => {
-  assert.deepEqual(await nummernKonflikt(db, diese), { nummer: 'RE-2026-9001', andere: { id: andere, patientId: pid, patientName: 'Mia Anamnese', datum: new Date().toISOString().slice(0, 10) } });
+  assert.deepEqual(await nummernKonflikt(db, diese), { nummer: 'RE-2026-9001', andere: { id: andere, patientId: pid, patientName: 'Mia Anamnese', datum: '2026-10-30' } });
   assert.equal(await nummernKonflikt(db, andere), null, 'ohne Abweichung kein Konflikt');
   assert.equal(await nummernKonflikt(db, 'x'), null);
 });

@@ -70,6 +70,7 @@ export const RECHNUNGEN: Aktionen = {
   async rechnung_versenden(k) {
     const { db, t, q, id, g, wer, nach } = k;
     const e = await rechnungSenden(db, t, q.graph, id, g('rechnung_id') ?? '', { art: g('versand_art') }, wer);
-    return nach(rechnungSeite(k), e.meldung);
+    // Entwurf in Outlook (W122): die Seite zeigt das Hinweisfenster mit dem Sprung in den Entwurf
+    return nach(e.entwurf ? `${rechnungSeite(k)}?entwurf=1` : rechnungSeite(k), e.meldung);
   },
 };

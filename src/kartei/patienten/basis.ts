@@ -214,6 +214,8 @@ export interface RechnungKurz {
   /** Status, wie Lexware ihn zuletzt gemeldet hat (open, paid, voided …) */
   lexwareStatus: string | null;
   lexwareInvoiceId: string | null;
+  /** Rechnungs-Mail wartet als Entwurf in Outlook (W122) */
+  versandEntwurf: boolean;
   /** Zahlungsposten aus Lexware (A29) */
   zahlungen: { datum: string | null; betrag: number; art: string }[];
   pdf: boolean;

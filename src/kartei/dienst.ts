@@ -17,7 +17,7 @@ import { einstellungen, textbausteine, type Textbaustein } from './konfiguration
 import { rechnungLesen, rechnungPdf, type Rechnung } from './rechnungen.ts';
 import { listen as preislistenListen, type Preisliste } from '../preise/preislisten.ts';
 import { steuerfreieUmsaetze, type SteuerListe } from './steuer.ts';
-import { dokumente, whatsappAngebote, whatsappEingang, type DokumentKurz, type WhatsAppAngebot } from './nachrichten.ts';
+import { dokumente, whatsappAngebote, whatsappEingang, type DokumentKurz, type WhatsAppAngebot, rechnungsversandPruefen } from './nachrichten.ts';
 import { akteExport } from './akte-export.ts';
 import { terminarten, type Terminart } from './terminarten.ts';
 import { kundenAbgleich, kundenAbweichungen, type Abweichung, type LexwareKundeStand } from './lexware-kunden.ts';
@@ -274,7 +274,12 @@ export function karteiDienst(q: DienstQuellen): KarteiDienst {
     wellness: () => wellnessLeistungen(db, { alle: true }),
     async rechnung(patientId, rechnungId) {
       const patient = await patientLesen(db, t, patientId);
-      const rechnung = patient ? await rechnungLesen(db, patientId, rechnungId) : undefined;
+      let rechnung = patient ? await rechnungLesen(db, patientId, rechnungId) : undefined;
+      // Entwurf in Outlook (W122): beim Öffnen nachsehen, ob Lilli ihn inzwischen gesendet hat
+      if (rechnung?.versandEntwurf && q.graph) {
+        await rechnungsversandPruefen(db, t, q.graph, 'system', { rechnungId });
+        rechnung = await rechnungLesen(db, patientId, rechnungId);
+      }
       if (!patient || !rechnung) return undefined;
       const positionen = rechnung.preisliste
         ? (await db.query<{ id: string; nummer: string; bezeichnung: string; preis: string | null }>('SELECT id::text, nummer, bezeichnung, coalesce(eigener_preis, gkv_preis)::text AS preis FROM preisliste_position WHERE preisliste_id = $1 AND uebernehmen ORDER BY reihenfolge', [rechnung.preisliste.id])).rows

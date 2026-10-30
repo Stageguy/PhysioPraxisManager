@@ -5,6 +5,8 @@
  * Inhalte liegen verschlüsselt (Tresor), nie Gesundheitsdaten im Text (Vorlagen + Begriffsprüfung).
  */
 import type { Db } from '../db/index.ts';
+import { datumBerlin } from '../zeit.ts';
+import { datumText } from '../format.ts';
 import { protokolliere } from '../db/index.ts';
 import { GraphError, type GraphClient } from '../graph.ts';
 import { anhangKoerper, entwurfAnlegen, entwurfKoerper, pruefeMail, type Anhang, type NeueMail } from '../mail/entwurf.ts';
@@ -40,17 +42,25 @@ export async function dokumente(db: Db, t: Tresor, patientId: string): Promise<D
  * Klick 2 (W100/A28): die Rechnung versenden – per Mail sofort aus dem Praxispostfach mit dem PDF aus Lexware
  * (die bewusste Ausnahme von Leitplanke 3, E30a), per Post als Vermerk mit Druckhinweis. Schranke 2: Test nur an Testadressen.
  */
+/** Kopfzeile, mit der Graph Kennungen vergibt, die ein Verschieben (Entwürfe → Gesendete Elemente) überleben */
+export const UNVERAENDERLICHE_KENNUNG = { Prefer: 'IdType="ImmutableId"' };
+
+/**
+ * Klick 2 „Versenden“ (W100, E37/W122): per Mail legt der PPM die Rechnungs-Mail mit PDF und GiroCode als **Entwurf** ins
+ * Praxispostfach – Lilli passt sie in Outlook ggf. an und sendet dort; „versendet“ steht an der Rechnung erst, wenn Outlook
+ * den Versand bestätigt (rechnungsversandPruefen). Per Post wird der Versand vermerkt, Lilli druckt das PDF.
+ */
 export async function rechnungSenden(
-  db: Db, t: Tresor, graph: Pick<GraphClient, 'postOhneAntwort'> | undefined, patientId: string, rechnungId: string, d: { art?: string }, wer: string,
-): Promise<{ meldung: string; art: string }> {
+  db: Db, t: Tresor, graph: Pick<GraphClient, 'post'> | undefined, patientId: string, rechnungId: string, d: { art?: string }, wer: string,
+): Promise<{ meldung: string; art: string; entwurf: { id: string; link: string | null } | null }> {
   const patient = await patientLesen(db, t, patientId);
   if (!patient) throw new KarteiFehler('Unbekannter Patient');
   const r = await rechnungLesen(db, patientId, rechnungId);
   if (!r) throw new KarteiFehler('Diese Rechnung gibt es nicht');
   if (r.status !== 'in_lexware') throw new KarteiFehler(r.status === 'gesendet' || r.status === 'bezahlt' ? 'Die Rechnung ist schon versendet' : 'Versenden erst, wenn die Rechnung in Lexware ist (Nummer und PDF)');
+  if (r.versandEntwurf) throw new KarteiFehler('Die Rechnungs-Mail liegt schon als Entwurf in Outlook – dort senden; „Versendet“ kommt dann von selbst');
   const art = ['email', 'post', 'beides'].includes(d.art ?? '') ? d.art! : patient.rechnungsversand;
   const kurz = (await rechnungen(db, patientId)).find((x) => x.id === rechnungId)!;
-  const wege: string[] = [];
   if (art === 'email' || art === 'beides') {
     if (!graph) throw new KarteiFehler('Kein Postfach verbunden – Versand per Mail nicht möglich');
     if (!patient.email) throw new KarteiFehler('Keine Mailadresse hinterlegt – bitte Versand per Post wählen');
@@ -60,27 +70,90 @@ export async function rechnungSenden(
     const mail: NeueMail = { an: [patient.email.normiert], betreff, text, anhaenge: [{ name: pdf.name, mime: 'application/pdf', daten: pdf.daten }] };
     // GiroCode (W102): Banking-App liest IBAN, Betrag und Rechnungsnummer – nur mit hinterlegter Bankverbindung
     const bank = await bankverbindung(db);
+    let girocode = false;
     if (bank && kurz.nummer && (kurz.betrag ?? 0) > 0) {
       mail.anhaenge!.push({ name: `GiroCode-${kurz.nummer}.png`, mime: 'image/png', daten: await girocodePng(epcText({ bank, betrag: kurz.betrag!, verwendungszweck: kurz.nummer })) });
       mail.text += '\n\nPS: Mit dem beigefügten GiroCode überweisen Sie per Banking-App – scannen, prüfen, bestätigen; Betrag und Rechnungsnummer sind vorbelegt.';
+      girocode = true;
     }
+    let e: { id?: string; webLink?: string; conversationId?: string };
     try {
-      pruefeMail(mail);
-      pruefeEmpfaenger(mail.an);
-      await graph.postOhneAntwort('/me/sendMail', { message: { ...entwurfKoerper(mail), attachments: (mail.anhaenge ?? []).map(anhangKoerper) }, saveToSentItems: true });
+      e = await entwurfAnlegen(graph, mail, { ausfuehren: true, kopfzeilen: UNVERAENDERLICHE_KENNUNG });
     } catch (err) {
       if (err instanceof SchrankeVerletzt) throw new KarteiFehler(err.message);
-      if (err instanceof GraphError) throw new KarteiFehler(`Postfach nicht erreichbar (${err.status}) – die Rechnung wurde nicht gesendet`);
+      if (err instanceof GraphError) throw new KarteiFehler(`Postfach nicht erreichbar (${err.status}) – der Entwurf wurde nicht angelegt`);
       if (err instanceof Error && !(err instanceof KarteiFehler) && /Anhang|Mailadresse|Empfänger/.test(err.message)) throw new KarteiFehler(err.message);
       throw err;
     }
-    await verlauf(db, t, patientId, { art: 'email', kontaktId: patient.email.id, terminId: null, notiz: `Rechnung ${kurz.nummer ?? rechnungId} per Mail gesendet (${pdf.name})`, quelleRef: null, wer });
-    wege.push(`per Mail an ${patient.email.wert}`);
+    await db.query(
+      'UPDATE rechnung SET versand_entwurf_id = $2, versand_entwurf_link = $3, versand_entwurf_am = now(), versand_conversation_id = $4, versand_art = $5, geaendert_am = now() WHERE id = $1',
+      [rechnungId, e.id ?? null, e.webLink ?? null, e.conversationId ?? null, art],
+    );
+    await verlauf(db, t, patientId, { art: 'email', kontaktId: patient.email.id, terminId: null, notiz: `Rechnung ${kurz.nummer ?? rechnungId} als Entwurf im Postfach (${pdf.name}) – Versand in Outlook`, quelleRef: e.webLink ?? null, wer });
+    await protokolliere(db, { actor: wer, action: 'rechnung_entwurf', objectType: 'patient', objectId: patientId, details: { rechnung: Number(rechnungId), art, girocode } });
+    return {
+      meldung: `Rechnungs-Mail an ${patient.email.wert} liegt als Entwurf in Outlook – mit PDF${girocode ? ' und GiroCode' : ''}. „Versendet“ steht hier, sobald Outlook den Versand bestätigt.${art === 'beides' ? ' Dazu per Post: bitte das PDF drucken.' : ''}`,
+      art, entwurf: { id: e.id ?? '', link: e.webLink ?? null },
+    };
   }
-  if (art === 'post' || art === 'beides') wege.push('per Post – bitte das PDF drucken');
   await rechnungStatus(db, patientId, rechnungId, 'versendet', { versandArt: art }, wer);
   await protokolliere(db, { actor: wer, action: 'rechnung_gesendet', objectType: 'patient', objectId: patientId, details: { rechnung: Number(rechnungId), art } });
-  return { meldung: `Rechnung ${kurz.nummer ?? ''} versendet ${wege.join(' und ')}.`, art };
+  return { meldung: `Rechnung ${kurz.nummer ?? ''} als versendet vermerkt – per Post, bitte das PDF drucken.`, art, entwurf: null };
+}
+
+export interface VersandPruefung { geprueft: number; bestaetigt: number; verworfen: number; fehler: number }
+
+/**
+ * Entwürfe der Rechnungs-Mails im Postfach nachsehen (W122): gesendet → Rechnung „versendet“ mit dem Datum aus Outlook;
+ * Entwurf weg (von Lilli verworfen) → Rechnung bleibt „in Lexware“, „Versenden“ legt ihn neu an. Läuft im Takt des
+ * Dienstes und beim Öffnen der Rechnungsseite.
+ */
+export async function rechnungsversandPruefen(
+  db: Db, t: Tresor, graph: Pick<GraphClient, 'get'> | undefined, wer: string, o: { rechnungId?: string } = {},
+): Promise<VersandPruefung> {
+  const e: VersandPruefung = { geprueft: 0, bestaetigt: 0, verworfen: 0, fehler: 0 };
+  if (!graph) return e;
+  const { rows } = await db.query<{ id: string; patient_id: string; entwurf: string; conversation: string | null; nummer: string | null; art: string | null; alt: boolean }>(
+    `SELECT id::text, patient_id::text, versand_entwurf_id AS entwurf, versand_conversation_id AS conversation, nummer, versand_art AS art,
+       (versand_entwurf_am < now() - interval '10 minutes') AS alt FROM rechnung
+     WHERE versand_entwurf_id IS NOT NULL AND status = 'in_lexware'${o.rechnungId ? ' AND id = $1' : ''} ORDER BY id`, o.rechnungId ? [o.rechnungId] : [],
+  );
+  type Nachricht = { id: string; isDraft?: boolean; sentDateTime?: string | null };
+  const holen = async (pfad: string): Promise<Nachricht | undefined> => {
+    try { return await graph.get<Nachricht>(pfad, UNVERAENDERLICHE_KENNUNG); } catch (err) { if (err instanceof GraphError && err.status === 404) return undefined; throw err; }
+  };
+  for (const r of rows) {
+    e.geprueft++;
+    try {
+      let m = await holen(`/me/messages/${encodeURIComponent(r.entwurf)}?$select=id,isDraft,sentDateTime`);
+      if (!m && r.conversation) {
+        // Ohne unveränderliche Kennung wechselt die Kennung beim Senden – dann über den Faden in „Gesendete Elemente“ suchen
+        const s = await graph.get<{ value?: { id: string; sentDateTime?: string }[] }>(`/me/mailFolders/sentitems/messages?$filter=conversationId eq '${r.conversation.replace(/'/g, "''")}'&$select=id,sentDateTime&$top=1`);
+        const g = s.value?.[0];
+        if (g) m = { id: g.id, isDraft: false, sentDateTime: g.sentDateTime ?? null };
+      }
+      if (m && m.isDraft === false) {
+        const tagG = m.sentDateTime ? datumBerlin(m.sentDateTime) : null;
+        await db.query(
+          `UPDATE rechnung SET status = 'gesendet', versendet_am = COALESCE($2::date, CURRENT_DATE), gesendet_am = COALESCE($2::date, CURRENT_DATE), faellig_am = COALESCE(faellig_am, COALESCE($2::date, CURRENT_DATE) + 14),
+             versand_entwurf_id = NULL, versand_entwurf_link = NULL, geaendert_am = now() WHERE id = $1`, [r.id, tagG],
+        );
+        await verlauf(db, t, r.patient_id, { art: 'email', notiz: `Rechnung ${r.nummer ?? r.id} per Mail gesendet – von Outlook bestätigt${tagG ? ` (${datumText(tagG)})` : ''}`, quelleRef: null, wer });
+        await protokolliere(db, { actor: wer, action: 'rechnung_gesendet', objectType: 'patient', objectId: r.patient_id, details: { rechnung: Number(r.id), art: r.art ?? 'email', bestaetigt: 'outlook' } });
+        e.bestaetigt++;
+      } else if (!m && r.alt) {
+        // Nicht gefunden und älter als zehn Minuten: Lilli hat den Entwurf verworfen (ein frischer Entwurf bekommt erst Zeit, im Postfach anzukommen)
+        await db.query('UPDATE rechnung SET versand_entwurf_id = NULL, versand_entwurf_link = NULL, versand_entwurf_am = NULL, geaendert_am = now() WHERE id = $1', [r.id]);
+        await verlauf(db, t, r.patient_id, { art: 'email', notiz: `Entwurf der Rechnungs-Mail ${r.nummer ?? r.id} ist in Outlook nicht mehr da – nicht gesendet; „Versenden“ legt ihn neu an`, quelleRef: null, wer });
+        await protokolliere(db, { actor: wer, action: 'rechnung_entwurf_weg', objectType: 'patient', objectId: r.patient_id, details: { rechnung: Number(r.id) } });
+        e.verworfen++;
+      }
+    } catch (err) {
+      e.fehler++;
+      console.warn(`Rechnungsversand ${r.id}: ${(err as Error).message.slice(0, 160)}`);
+    }
+  }
+  return e;
 }
 
 /** Gültige Einwilligung in WhatsApp (patient_erklaerung, nicht widerrufen, nicht abgelaufen) */
