@@ -53,8 +53,8 @@ export function dreiZeiten(tage: { datum: string; zeiten: string[] }[], anzahl =
   return wahl.sort();
 }
 
-/** Link auf die Buchungsseite mit Dauer und Zeit – die Seite wählt Behandlung, Tag und Uhrzeit vor */
-export const buchungsLink = (url: string, dauer: number, beginn: string): string => `${url.replace(/\/$/, '')}/?dauer=${dauer}&zeit=${encodeURIComponent(beginn)}`;
+/** Link auf die Buchungsseite mit Dauer und Zeit – die Seite wählt Behandlung, Tag und Uhrzeit vor; kurz gehalten („2026-11-02T10:30Z“), damit er in WhatsApp lesbar bleibt */
+export const buchungsLink = (url: string, dauer: number, beginn: string): string => `${url.replace(/\/$/, '')}/?dauer=${dauer}&zeit=${beginn.replace(/:\d{2}(\.\d{3})?Z$/, 'Z')}`;
 
 export function vorlageText(dauer: number, zeiten: SchnellZeit[], praxis: string): string {
   const liste = zeiten.map((z, i) => `${i + 1}. ${z.text}${z.link ? `\n   ${z.link}` : ''}`).join('\n');

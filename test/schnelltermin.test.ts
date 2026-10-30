@@ -20,7 +20,8 @@ test('dreiZeiten: möglichst drei verschiedene Tage, sonst zweite Zeiten; Link u
   assert.deepEqual(dreiZeiten([t('2026-11-09', ['07', '08', '09']), t('2026-11-10', ['07']), t('2026-11-11', ['07', '08'])]), ['2026-11-09T07:00:00Z', '2026-11-10T07:00:00Z', '2026-11-11T07:00:00Z']);
   assert.deepEqual(dreiZeiten([t('2026-11-09', ['07', '08', '09']), t('2026-11-10', ['07'])]), ['2026-11-09T07:00:00Z', '2026-11-09T08:00:00Z', '2026-11-10T07:00:00Z'], 'zwei Tage → die zweite Zeit des ersten Tages dazu');
   assert.deepEqual(dreiZeiten([t('2026-11-09', ['07'])]), ['2026-11-09T07:00:00Z'], 'mehr gibt es nicht');
-  assert.equal(buchungsLink('https://buchung.example.org/', 30, '2026-11-09T07:00:00Z'), 'https://buchung.example.org/?dauer=30&zeit=2026-11-09T07%3A00%3A00Z');
+  assert.equal(buchungsLink('https://buchung.example.org/', 30, '2026-11-09T07:00:00.000Z'), 'https://buchung.example.org/?dauer=30&zeit=2026-11-09T07:00Z', 'kurz, ohne Sekunden – Date versteht es');
+  assert.equal(new Date('2026-11-09T07:00Z').toISOString(), '2026-11-09T07:00:00.000Z');
   const v = vorlageText(30, [{ beginn: '2026-11-09T07:00:00Z', ende: '2026-11-09T07:30:00Z', text: 'Mo., 09.11., 08:00 Uhr', link: 'https://b/?dauer=30&zeit=x', direkt: '/kalender/termin' }], 'Praxis Test');
   assert.match(v, /^Guten Tag,\n\nfür einen Termin \(30 Minuten\) kann ich Ihnen anbieten:\n1\. Mo\., 09\.11\., 08:00 Uhr\n   https:\/\/b\/\?dauer=30&zeit=x\n\nBitte tippen Sie auf den Link/);
   assert.match(v, /Viele Grüße\nPraxis Test$/);
@@ -56,7 +57,7 @@ test('schnelltermin: drei Zeiten an drei Tagen aus dem Angebot, Raster 15, Pause
   const s = await schnelltermin(db, undefined, { dauer: 30, buchungUrl: 'https://buchung.example.org/' });
   assert.equal(s.dauer, 30);
   assert.deepEqual(s.zeiten.map((z) => [datumBerlin(z.beginn), zeitBerlin(z.beginn)]), [[MONTAG, '08:45'], [tagPlus(MONTAG, 1), '08:00'], [tagPlus(MONTAG, 2), '08:00']], 'Montag erst nach Termin + Pause im 15-Minuten-Raster, dann je Tag die erste Zeit');
-  assert.equal(s.zeiten[0]!.link, `https://buchung.example.org/?dauer=30&zeit=${encodeURIComponent(s.zeiten[0]!.beginn)}`);
+  assert.equal(s.zeiten[0]!.link, `https://buchung.example.org/?dauer=30&zeit=${s.zeiten[0]!.beginn.replace(/:00(\.000)?Z$/, 'Z')}`);
   assert.equal(s.zeiten[0]!.direkt, `/kalender/termin?datum=${MONTAG}&zeit=08:45&dauer_min=30`);
   assert.match(s.vorlage, /1\. .*08:45 Uhr\n   https:\/\/buchung\.example\.org\/\?dauer=30/);
   assert.ok(s.buchung);
