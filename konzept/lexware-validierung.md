@@ -1,7 +1,12 @@
 # W121 – Validierungen zu Lexware: zwei Lösungen im Vergleich
 
-Stand 30.10.2026. Anlass: Testrechnungen 167 (Nora) und 174 (Mia), Befund in requirements N41.
+Stand 31.10.2026. Anlass: Testrechnungen 167 (Nora) und 174 (Mia), Befund in requirements N41.
 Entscheidung durch Christian; Umsetzung danach Schritt für Schritt.
+
+**Maßstab (Christian, 31.10.2026, §4d):** Lexware führt die Buchhaltung – Rechnungen, Nummern, Zahlungsstand. Der PPM
+führt Patienten, Organisation und Ablauf, auch die Rechnung als Vorgang, und ist die Drehscheibe zu Lexware und
+Exchange. Hauptprämisse: für Lilli mit jeder Funktion so einfach und so schnell wie möglich ans Ergebnis; mobil
+dürfen Detailfunktionen fehlen. Die Zahl der Klicks ist keine Vorgabe (E30 war in diesem Punkt ein Missverständnis).
 
 ## 1. Ausgangslage
 
@@ -22,7 +27,7 @@ werden gezählt statt gemeldet, „versendet“ geht ohne Nummer.
 | Klicks und Verständnis je Störfall | Begriffe wie „Lexware-Kennung“ oder „Nummernkonflikt“ sollte Lilli nie lesen müssen |
 | Doppelrechnung in Lexware möglich? | Der teuerste Fehler: eine zweite rechtsgültige Rechnung |
 | Falsche Nummer beim Patienten möglich? | Zweitteuerster Fehler |
-| Leitplanken | E30 (Rechnung nur per Klick), Leitplanke 3 (nichts automatisch an Patienten), N28 (Test ohne echtes Lexware) |
+| Leitplanken | Leitplanke 3 (Versand an Patienten nur mit Lillis Freigabe), §4d (Lexware führt Buchhaltung, PPM führt Ablauf, Drehscheibe), N28 (Test ohne echtes Lexware) |
 | Abhängigkeit von der Lexware-API | Was muss die API können: Rechnung per Kennung lesen, Webhooks |
 | Aufwand und Risiko der Umsetzung | Was wird angefasst, was kann dabei kaputtgehen |
 | Testbarkeit mit der Attrappe | Jeder Weg muss ohne echtes Lexware prüfbar sein |
@@ -47,8 +52,8 @@ eine Entscheidung für Lilli, mit eigenem Begriff und eigenem Knopf.
 
 Grundidee: **Die Kartei hat zu Lexware keine eigene Meinung mehr.** Alles, was Lexware führt (Kennung,
 Nummer, PDF, Lexware-Status, Zahlungen), ist in der Kartei nur ein Spiegel, den ein Abgleich laufend
-nachzieht – in beide Richtungen, über die Lexware-Kennung, ohne dass Lilli etwas sieht. Lilli hat
-weiterhin genau zwei Klicks (E30), und beide sind **beliebig wiederholbar, ohne Schaden**.
+nachzieht – in beide Richtungen, über die Lexware-Kennung, ohne dass Lilli etwas sieht. Lilli hat im Normalfall
+**einen** Klick („Rechnung stellen“), und jeder Schritt ist **beliebig wiederholbar, ohne Schaden**.
 
 ### 4.1 Die vier Regeln
 
@@ -90,13 +95,13 @@ weiterhin genau zwei Klicks (E30), und beide sind **beliebig wiederholbar, ohne 
 | Normalfall | Klicks |
 |---|---|
 | Rezept abgearbeitet, Rechnung ist voll | 0 (Positionen kommen aus den Behandlungen) |
-| Klick 1 „Nach Lexware“ | 1 |
-| Klick 2 „Versenden“ | 1 |
+| „Rechnung stellen“ = nach Lexware, Nummer und PDF holen, über den Standardweg versenden | 1 |
 | Zahlung, Mahnung, Storno aus Lexware | 0 (Abgleich, Webhook) |
 
-Optional B+ (verändert E30, Christians Entscheidung): **ein** Knopf „Rechnung stellen“ = Klick 1 und
-Klick 2 hintereinander, Versand nur, wenn Lexware Nummer und PDF geliefert hat. Dann ein Klick je
-Rechnung. Nie ohne Klick, nie im Hintergrund – aber nicht mehr zwei.
+„Rechnung stellen“ ist der Standardweg (E35, erledigt durch die Klarstellung zu E30): Versand nur, wenn Lexware
+Nummer und PDF geliefert hat – sonst bleibt die Rechnung „in Lexware“ und erscheint unter „Zu klären“. Am Desktop
+bleiben die Einzelschritte (erst nach Lexware, PDF ansehen, dann versenden) für den Blick dazwischen; mobil gibt es
+nur „Rechnung stellen“ und „Zu klären“.
 
 ## 5. Die Störfälle durchgespielt
 
@@ -115,12 +120,12 @@ Rechnung. Nie ohne Klick, nie im Hintergrund – aber nicht mehr zwei.
 
 | Kriterium | A | B |
 |---|---|---|
-| Klicks Normalfall | 2 | 2 (B+: 1) |
+| Klicks Normalfall | 2 | 1 („Rechnung stellen“) |
 | Klicks je Störfall | 1–2, plus Lesen von Abweichungstexten | 0–1, nur echte Entscheidungen |
 | Begriffe, die Lilli kennen muss | Abweichung, Lexware-Kennung, Nummernkonflikt, Stand holen, Verknüpfung lösen | „Zu klären“, „noch einmal nach Lexware“ |
 | Doppelrechnung | möglich, wenn die Kennung fehlt oder gelöst wurde | ausgeschlossen durch Suche vor dem Anlegen |
 | Falsche Nummer beim Patienten | ausgeschlossen (c, g) | ausgeschlossen (Regel 1) |
-| E30 / Leitplanke 3 | eingehalten | eingehalten; B+ braucht Christians Ja (E35) |
+| Leitplanke 3 / §4d | eingehalten | eingehalten; Lexware führt Belege, PPM führt den Ablauf, der Abgleich hält beides zusammen |
 | Lexware-API | `GET /v1/invoices/{id}` | dazu `voucherlist`-Suche nach Kontakt und Datum, Webhooks `invoice.*` und `payment.changed` (A27) |
 | Umsetzung | sieben kleine Änderungen, 2–3 Blöcke | Abgleich-Modul in beide Richtungen, abgeleiteter Status (berührt Kachel, Rechnungsseite, Dashboard, Steuerliste), „Zu klären“-Liste, idempotenter Klick 1, Webhook: 4–5 Blöcke |
 | Risiko der Umsetzung | gering | mittel: der abgeleitete Status ersetzt die Zustandsmaschine; braucht einen Schnappschuss-Vergleich wie bei A32 |
@@ -135,17 +140,19 @@ idempotenten Klick 1 überflüssig. Deshalb: **B, in Stufen, und jede Stufe nimm
 
 | Stufe | Inhalt | Was Lilli davon merkt |
 |---|---|---|
-| B1 | Abgleich je Kennung in beide Richtungen, alle 15 Minuten im Dienst; Konflikte lösen sich über die Kennung; keine Nummer von Hand bei Anbindung; „versendet“ nur mit Nummer; Klick 1 idempotent mit Suche vor dem Anlegen; „Zurück“ bei Kennung weg | Abweichungen verschwinden fast alle von selbst; Klick 1 kann sie wiederholen |
+| B1 | „Rechnung stellen“ als ein Knopf (nach Lexware, Nummer und PDF, Versand über den Standardweg); Abgleich je Kennung in beide Richtungen, alle 15 Minuten im Dienst; Konflikte lösen sich über die Kennung; keine Nummer von Hand bei Anbindung; „versendet“ nur mit Nummer; Anlegen in Lexware idempotent mit Suche vor dem Anlegen; „Zurück“ bei Kennung weg | Ein Klick je Rechnung; Abweichungen verschwinden fast alle von selbst; der Knopf lässt sich gefahrlos wiederholen |
 | B2 | Abgeleiteter Status statt Zustandsmaschine; „Zu klären“ im Cockpit mit je einem Knopf; Abweichungs-Chips weg | Ein Ort für alles, was Lexware betrifft; meist leer |
 | B3 | Webhook `invoice.*` und `payment.changed` über den Funnel (A27); Attrappe mit Ereignissen | Zahlungen und Stornos sofort statt in 15 Minuten |
-| B+ | „Rechnung stellen“ als ein Klick (E35) | Ein Klick je Rechnung |
+| B+ | „Rechnung stellen“ als ein Klick – gehört nach der Klarstellung zu E30 in **B1** | Ein Klick je Rechnung |
 
 Für die Testdaten heißt das nach B1: 174 bekommt beim nächsten Abgleich ihren Stand per Kennung (die
 neustartfeste Attrappe kennt sie nicht → Klick 1 noch einmal legt sie sauber an), 167 bleibt versendet und
 wandert mit „Lexware kennt diese Rechnung nicht“ in „Zu klären“ – was in der Produktion der richtige Alarm
 wäre und in der Testumgebung mit einem Klick erledigt ist.
 
-## 8. Offene Entscheidungen
+## 8. Entscheidungen
 
-- **E35:** Darf Klick 1 und Klick 2 zu einem Knopf „Rechnung stellen“ werden (B+)? Ändert E30 von „zwei Klicks“ auf „ein Klick, nie ohne Klick“.
-- **E36:** Soll der Abgleich eine Rechnung, die Lexware nicht kennt und die noch nie versendet war, **ohne Klick** neu anlegen? Vorschlag: nein – Anlegen in Lexware bleibt Klick 1 (E30).
+- **E35 (erledigt 31.10.2026):** „Rechnung stellen“ als ein Knopf ist der Standardweg; die Zahl der Klicks war nie Vorgabe.
+- **E36 (Vorschlag ja):** Der Abgleich darf eine Rechnung, die Lexware nicht kennt und die noch nie versendet war, ohne Klick
+  neu anlegen – Lillis Entscheidung „Rechnung stellen“ ist gefallen, der PPM als Drehscheibe führt sie aus. Nur der Versand
+  an den Patienten bleibt an die Freigabe gebunden (Leitplanke 3).

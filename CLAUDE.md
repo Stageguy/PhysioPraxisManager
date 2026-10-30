@@ -39,14 +39,18 @@ Der Manager hält **alle** Daten und ist die Übersichtsplattform; Lexware ist n
 Lexware gehen nur die Felder, die die Rechnung braucht; aus Lexware wird gelesen und im Manager
 angereichert. Ein Abgleich berührt nur Felder, die es in Lexware gibt – Daten, die nur der Manager
 kennt, werden nie gelöscht oder überschrieben. Jobs (z. B. Rechnung zusammenstellen) startet der Manager.
+**Hauptprämisse (31.10.2026):** Für Lilli mit jeder Funktion so einfach und so schnell wie möglich ans Ergebnis –
+weniger Klicks, weniger Begriffe, weniger Entscheidungen, die das System selbst treffen kann. Die Mobilversion darf
+weniger Detailfunktionen haben als der Desktop. Lexware führt die Buchhaltung (Rechnungen, Nummern, Zahlungsstand),
+der PPM führt Patienten, Organisation und Ablauf (auch Rechnungen als Vorgang) und ist die Drehscheibe.
 
 ## Harte Regeln (Leitplanken, requirements §3 und N28)
 
-- **Nichts geht automatisch an Patienten.** Mails nur als Entwurf im Postfach (Leitplanke 3); WhatsApp nur
+- **Nichts geht ohne Lillis Freigabe an Patienten.** Mails nur als Entwurf im Postfach (Leitplanke 3); WhatsApp nur
   per Click-to-Chat vom Handy oder – mit Einwilligung – über die Cloud API, nie automatisch.
-  **Einzige Ausnahme (E30, 27.10.2026): Rechnungen.** Zwei Klicks im PPM – Klick 1 erstellt die Rechnung in
-  Lexware (Datei zurück → Rechnungskachel), Klick 2 in der Kachel versendet sie über den Standardweg des
-  Patienten (Mail; Druck bei Postweg). Nie ohne Klick, nie im Hintergrund.
+  **Rechnungen (E30, klargestellt 31.10.2026):** der Versand aus dem PPM ist gewollt und braucht Lillis Freigabe –
+  aber keine bestimmte Zahl von Klicks. Lexware führt die Buchhaltung (Rechnungen, Nummern, Zahlungsstand), der
+  PPM führt den Ablauf und ist die Drehscheibe; so wenig Klicks wie möglich (§4d).
 - **Keine Gesundheitsdaten außerhalb der Kartei:** nicht im Kalendertitel (nur Initialen + Patientennummer),
   nicht in Mails oder WhatsApp, nicht in Protokollen (Leitplanke 9). Gesundheitsbezogenes in der Datenbank
   nur verschlüsselt (`src/tresor.ts`, Kontext = Spaltenname).
