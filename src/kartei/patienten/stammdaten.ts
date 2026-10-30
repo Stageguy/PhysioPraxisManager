@@ -113,8 +113,8 @@ export async function patientAnlegen(
   d: Stammdaten & {
     kontakte?: { art: Kontaktart; wert: string; bezeichnung?: string }[];
     adresse?: Omit<Adresse, 'id' | 'rechnungsadresse' | 'land' | 'typ'> & { land?: string; typ?: AdresseTyp };
-    /** Hausbesuchadresse gleich beim Anlegen (W115b) – wird Behandlungsort für Hausbesuche (W113) */
-    hausbesuchAdresse?: Omit<Adresse, 'id' | 'rechnungsadresse' | 'land' | 'typ'> & { land?: string };
+    /** Mehrere Adressen gleich beim Anlegen (W115b): Rechnung, Hausbesuch, Betreuer – die mit `rechnungsadresse` zuerst */
+    adressen?: (Omit<Adresse, 'id' | 'land'> & { land?: string })[];
   },
   wer: string,
 ): Promise<string> {
@@ -140,8 +140,8 @@ export async function patientAnlegen(
   if (d.adresse && (d.adresse.strasse || d.adresse.ort || d.adresse.plz)) {
     await adresseSpeichern(db, id, { ...d.adresse, rechnungsadresse: true }, wer, { ohneProtokoll: true });
   }
-  if (d.hausbesuchAdresse && (d.hausbesuchAdresse.strasse || d.hausbesuchAdresse.ort || d.hausbesuchAdresse.plz)) {
-    await adresseSpeichern(db, id, { ...d.hausbesuchAdresse, rechnungsadresse: false, typ: 'hausbesuch' }, wer, { ohneProtokoll: true });
+  for (const a of [...(d.adressen ?? [])].sort((x, y) => Number(y.rechnungsadresse) - Number(x.rechnungsadresse))) {
+    if (a.strasse || a.ort || a.plz) await adresseSpeichern(db, id, a, wer, { ohneProtokoll: true });
   }
   // Rechnungsversand gleich beim Anlegen (W115b); ohne Angabe gilt „per Mail“ (Standard der Tabelle)
   if (['email', 'post', 'beides'].includes(d.rechnungsversand ?? '')) await db.query('UPDATE patient SET rechnungsversand = $2 WHERE id = $1', [id, d.rechnungsversand]);

@@ -416,24 +416,49 @@ export const PRAXIS_SKRIPT = String.raw`
     if (offen && !e.target.closest('.plus-popup') && !e.target.closest('details.plus-kachel>summary')) offen.open = false;
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.querySelectorAll('details.plus-kachel[open]').forEach(function (d) { d.open = false; }); });
-  // Adresskacheln im Stammdatenformular (W115b): die Kachel zeigt live, was im Popup steht; „wie die Rechnungsadresse“ kopiert die Felder
-  document.querySelectorAll('details[data-adresse-kachel]').forEach(function (d) {
-    var art = d.getAttribute('data-adresse-kachel'), text = d.querySelector('.adr-text');
-    var wert = function (k) { var e = d.querySelector('[name="' + art + '_' + k + '"]'); return e ? e.value.trim() : ''; };
-    var sicher = function (s) { return s.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); };
+  // Adresskacheln im Stammdatenformular (W115b): die Kachel zeigt live, was im Popup steht; aus einer ausgefüllten „+“-Kachel
+  // wird eine Adresskachel, und eine neue „+“ rückt davor; „Felder der Rechnungsadresse übernehmen“ kopiert aus der gewählten
+  var TYP_TEXT = { rechnung: 'Rechnungs-/Wohnadresse', hausbesuch: 'Hausbesuchadresse', betreuer: 'Vormund / Betreuer' };
+  var sicher = function (s) { return s.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); };
+  function adrKachel(d) {
+    var n = d.getAttribute('data-adresse-kachel');
+    var feld = function (k) { return d.querySelector('[name="adr_' + n + '_' + k + '"]'); };
+    var wert = function (k) { var e = feld(k); return e ? e.value.trim() : ''; };
+    var voll = function () { return !!(wert('strasse') || wert('ort') || wert('plz')); };
     var zeige = function () {
+      var text = d.querySelector('.adr-text'), titel = d.querySelector('.adr-titel b'), marken = d.querySelector('.adr-marken');
       var z = [wert('zusatz'), [wert('strasse'), wert('hausnummer')].filter(Boolean).join(' '), [wert('plz'), wert('ort')].filter(Boolean).join(' ')].filter(Boolean);
-      if (text) text.innerHTML = z.length ? z.map(sicher).join('<br>') : '<span class="hint">noch nicht angegeben – antippen</span>';
+      if (text) text.innerHTML = z.length ? z.map(sicher).join('<br>') : '<span class="hint">noch nicht angegeben</span>';
+      var typ = wert('typ') || 'rechnung';
+      if (titel) titel.textContent = wert('bezeichnung') || TYP_TEXT[typ] || 'Adresse';
+      var radio = d.querySelector('[name="rechnungsadresse_wahl"]'), weg = feld('loeschen');
+      if (marken) marken.innerHTML = (typ !== 'rechnung' ? '<span class="marke hausbesuch">' + TYP_TEXT[typ] + '</span>' : '') + (radio && radio.checked ? '<span class="marke jetzt">Rechnungsadresse</span>' : '') + (weg && weg.checked ? '<span class="marke">wird entfernt</span>' : '');
     };
     d.addEventListener('input', zeige);
+    d.addEventListener('change', zeige);
     var kopie = d.querySelector('[data-adresse-kopie]');
     if (kopie) kopie.addEventListener('change', function () {
       if (!kopie.checked) return;
-      var von = kopie.getAttribute('data-adresse-kopie');
-      ['zusatz', 'strasse', 'hausnummer', 'plz', 'ort'].forEach(function (k) { var q = document.querySelector('[name="' + von + '_' + k + '"]'), z = d.querySelector('[name="' + art + '_' + k + '"]'); if (q && z) z.value = q.value; });
+      var gewaehlt = document.querySelector('[name="rechnungsadresse_wahl"]:checked');
+      var von = gewaehlt ? gewaehlt.closest('details[data-adresse-kachel]') : document.querySelector('details[data-adresse-kachel]:not([data-adresse-neu])');
+      if (!von || von === d) return;
+      var m = von.getAttribute('data-adresse-kachel');
+      ['zusatz', 'strasse', 'hausnummer', 'plz', 'ort'].forEach(function (k) { var q = von.querySelector('[name="adr_' + m + '_' + k + '"]'), z = feld(k); if (q && z) z.value = q.value; });
       zeige();
     });
-  });
+    if (d.hasAttribute('data-adresse-neu')) d.addEventListener('toggle', function () {
+      if (d.open || !voll()) return;
+      d.removeAttribute('data-adresse-neu'); d.classList.remove('adr-neu');
+      var s = d.querySelector('summary'); if (s) s.setAttribute('data-hilfe', 'patient.formular.adresse');
+      var vorlage = document.getElementById('adr-vorlage');
+      if (vorlage) { d.insertAdjacentHTML('beforebegin', vorlage.innerHTML.replace(/__N__/g, String(Number(n) + 1))); adrKachel(d.previousElementSibling); }
+      zeige();
+    });
+    // Alle anderen Kacheln zeigen die Marke „Rechnungsadresse“ erst, wenn die Wahl sich ändert
+    var radio = d.querySelector('[name="rechnungsadresse_wahl"]');
+    if (radio) radio.addEventListener('change', function () { document.querySelectorAll('details[data-adresse-kachel]').forEach(function (x) { x.dispatchEvent(new Event('change')); }); });
+  }
+  document.querySelectorAll('details[data-adresse-kachel]').forEach(adrKachel);
   // Text in die Zwischenablage (Schnelltermin W117): Knopf mit data-kopieren="<id des Textfelds>"
   document.querySelectorAll('[data-kopieren]').forEach(function (b) {
     b.addEventListener('click', function () {

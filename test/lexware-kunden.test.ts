@@ -152,7 +152,7 @@ test('„Als Patient anlegen“: Formular aus der Kundenkarte vorbelegt; Anlegen
   assert.match(f, /Aus <a href="\/patienten\/lexware#lx-1002">Lexware-Kunde 1002<\/a> „Bernd Neu“/);
   assert.match(f, /name="lexware_kundennummer" value="1002"><input type="hidden" name="lexware_kontakt_id" value="lx-2">/);
   assert.match(f, /name="zurueck" value="\/patienten\/neu\?lexware=1002"/);
-  for (const [feld, wert] of [['anrede', 'Herr'], ['vorname', 'Bernd'], ['nachname', 'Neu'], ['mobil', ''], ['telefon', '08247 4711'], ['email', 'bernd@example.org'], ['ra_strasse', 'Hauptstraße'], ['ra_hausnummer', '12'], ['ra_plz', '86825'], ['ra_ort', 'Bad Wörishofen']]) {
+  for (const [feld, wert] of [['anrede', 'Herr'], ['vorname', 'Bernd'], ['nachname', 'Neu'], ['mobil', ''], ['telefon', '08247 4711'], ['email', 'bernd@example.org'], ['adr_0_strasse', 'Hauptstraße'], ['adr_0_hausnummer', '12'], ['adr_0_plz', '86825'], ['adr_0_ort', 'Bad Wörishofen']]) {
     assert.match(f, new RegExp(`name="${feld}"[^>]*value="${wert}"`), feld);
   }
   assert.match(await seite('/patienten/neu?lexware=1001'), /name="mobil"[^>]*value="0151 1234567"/, 'Mobilnummer an der Vorwahl erkannt');

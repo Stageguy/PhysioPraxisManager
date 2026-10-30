@@ -210,23 +210,33 @@ function personFelder(v: Partial<Pick<Patient, 'anrede' | 'titel' | 'vorname' | 
 }
 
 /**
- * Adresse als Kachel im Stammdatenformular (W115b): Rechnungsadresse und Hausbesuchadresse. Die Felder stehen im Popup
- * (Feldnamen ra_* bzw. ha_*), die Kachel zeigt die Zusammenfassung – ohne Skript den gespeicherten Stand, mit Skript live.
+ * Adresskachel im Stammdatenformular (W115b): dasselbe Raster wie auf der Patientenseite – zuerst die „+“-Kachel, dann je
+ * Adresse eine Kachel mit Stift, Art und Marke „Rechnungsadresse“. Die Felder stehen im Popup (adr_<n>_…), die Kachel zeigt
+ * die Zusammenfassung; gespeichert wird alles mit dem Formular. Mit Skript wird aus einer ausgefüllten „+“-Kachel eine
+ * Adresskachel, und eine neue „+“ rückt davor; ohne Skript kommt je Speichern eine Adresse dazu.
  */
-function adresseKachelFeld(art: 'ra' | 'ha', titel: string, a: Partial<Adresse> | undefined, o: { hilfe: string; wieRechnung?: boolean }): string {
+function adresseKachelFeld(n: number | '__N__', a: Partial<Adresse> | undefined, o: { rechnungsadresse: boolean; neu: boolean }): string {
   const w = (k: keyof Adresse) => esc(String(a?.[k] ?? ''));
   const zeilen = a ? [a.zusatz, [a.strasse, a.hausnummer].filter(Boolean).join(' '), [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean) : [];
-  return `<details class="plus-kachel adr-feld" data-adresse-kachel="${art}"><summary data-hilfe="${o.hilfe}"><span class="adr-titel"><b>${esc(titel)}</b>${a?.id ? stiftZeichen() : ''}</span><span class="adr-text">${zeilen.length ? zeilen.map((z) => esc(String(z))).join('<br>') : '<span class="hint">noch nicht angegeben – antippen</span>'}</span></summary>
-    <div class="plus-popup" role="dialog" aria-label="${esc(titel)}"><header><b>${esc(titel)}</b><button type="button" class="knopf klein plus-schliessen" data-hilfe="kachel.popup-schliessen">Fertig</button></header>
-      ${a?.id ? `<input type="hidden" name="${art}_id" value="${esc(a.id)}">` : ''}
-      <div class="zwei"><label>Bezeichnung<input name="${art}_bezeichnung" value="${w('bezeichnung')}" maxlength="40" placeholder="${art === 'ra' ? 'Zuhause' : 'Pflegeheim, Eltern …'}"></label><label>Zusatz (c/o …)<input name="${art}_zusatz" value="${w('zusatz')}"></label></div>
-      <div class="zwei"><label>Straße<input name="${art}_strasse" value="${w('strasse')}"></label><label>Nr.<input name="${art}_hausnummer" class="kurz" value="${w('hausnummer')}"></label></div>
-      <div class="zwei"><label>PLZ<input name="${art}_plz" class="kurz" inputmode="numeric" value="${w('plz')}"></label><label>Ort<input name="${art}_ort" value="${w('ort')}"></label></div>
-      ${o.wieRechnung ? `<label class="haken"><input type="checkbox" name="ha_wie_rechnung" value="1" data-adresse-kopie="ra" data-hilfe="patient.hausbesuch-wie-rechnung"> wie die Rechnungsadresse</label>` : ''}
+  const typ = a?.typ ?? 'rechnung';
+  const titel = a?.bezeichnung || ADRESSE_TYP_TEXT[typ];
+  const f = (k: string) => `adr_${n}_${k}`;
+  return `<details class="plus-kachel adr-feld${o.neu ? ' adr-neu' : ''}" data-adresse-kachel="${n}"${o.neu ? ' data-adresse-neu' : ''}><summary data-hilfe="${o.neu ? 'patient.formular.adresse-neu' : 'patient.formular.adresse'}">
+      <span class="adr-plus"><span class="plus-zeichen" aria-hidden="true">${PLUS_ZEICHEN}</span><span class="plus-text">Neue Adresse</span></span>
+      <span class="adr-voll"><span class="adr-titel"><b>${esc(titel)}</b><span class="adr-stift" aria-hidden="true">${symbol('stift', { groesse: 14 })}</span></span><span class="adr-marken rz-marken">${typ !== 'rechnung' ? `<span class="marke hausbesuch">${esc(ADRESSE_TYP_TEXT[typ])}</span>` : ''}${o.rechnungsadresse ? '<span class="marke jetzt">Rechnungsadresse</span>' : ''}</span><span class="adr-text">${zeilen.length ? zeilen.map((z) => esc(String(z))).join('<br>') : '<span class="hint">noch nicht angegeben</span>'}</span></span></summary>
+    <div class="plus-popup" role="dialog" aria-label="Adresse"><header><b>${o.neu ? 'Neue Adresse' : 'Adresse'}</b><button type="button" class="knopf klein plus-schliessen" data-hilfe="kachel.popup-schliessen">Fertig</button></header>
+      ${a?.id ? `<input type="hidden" name="${f('id')}" value="${esc(a.id)}">` : ''}
+      <div class="zwei"><label>Bezeichnung<input name="${f('bezeichnung')}" value="${w('bezeichnung')}" maxlength="40" placeholder="Zuhause, Pflegeheim, Eltern …"></label>
+        <label>Art der Adresse<select name="${f('typ')}" data-hilfe="adresse.typ">${ADRESSE_TYPEN.map((x) => `<option value="${x}"${typ === x ? ' selected' : ''}>${esc(ADRESSE_TYP_TEXT[x])}</option>`).join('')}</select></label></div>
+      <label>Zusatz (c/o …)<input name="${f('zusatz')}" value="${w('zusatz')}"></label>
+      <div class="zwei"><label>Straße<input name="${f('strasse')}" value="${w('strasse')}"></label><label>Nr.<input name="${f('hausnummer')}" class="kurz" value="${w('hausnummer')}"></label></div>
+      <div class="zwei"><label>PLZ<input name="${f('plz')}" class="kurz" inputmode="numeric" value="${w('plz')}"></label><label>Ort<input name="${f('ort')}" value="${w('ort')}"></label></div>
+      <label class="haken"><input type="radio" name="rechnungsadresse_wahl" value="${n}"${o.rechnungsadresse ? ' checked' : ''} data-hilfe="patient.formular.rechnungsadresse"> Rechnungsadresse</label>
+      <label class="haken"><input type="checkbox" name="${f('wie_rechnung')}" value="1" data-adresse-kopie data-hilfe="patient.formular.adresse-kopie"> Felder der Rechnungsadresse übernehmen</label>
+      ${a?.id ? `<label class="haken"><input type="checkbox" name="${f('loeschen')}" value="1" data-hilfe="patient.formular.adresse-entfernen"> entfernen</label>` : ''}
     </div>
   </details>`;
 }
-const stiftZeichen = () => `<span class="adr-stift" aria-hidden="true">${symbol('stift', { groesse: 14 })}</span>`;
 
 /**
  * Die vier Blöcke, die „Neuer Patient“ und „Stammdaten bearbeiten“ gemeinsam haben (W115b): Person, Kontaktwege,
@@ -242,8 +252,8 @@ function stammdatenFelder(o: { p?: Patient; v?: Vorbelegung; preislisten: Patien
   const email = primaer('email');
   const whatsapp = primaer('whatsapp');
   const whatsappWieMobil = p ? Boolean(mobil && whatsapp && mobil.normiert === whatsapp.normiert) || (!whatsapp && !mobil) : true;
-  const ra = p ? (p.adressen.find((a) => a.rechnungsadresse) ?? p.adressen.find((a) => a.typ === 'rechnung')) : (v.strasse || v.ort || v.plz ? { strasse: v.strasse ?? null, hausnummer: v.hausnummer ?? null, plz: v.plz ?? null, ort: v.ort ?? null } : undefined);
-  const ha = p?.adressen.find((a) => a.typ === 'hausbesuch');
+  // Adressen: beim Bearbeiten die vorhandenen, beim Anlegen höchstens die Vorbelegung (Lexware, Anfrage) als erste Kachel
+  const adressen: Partial<Adresse>[] = p ? p.adressen : (v.strasse || v.ort || v.plz ? [{ strasse: v.strasse ?? null, hausnummer: v.hausnummer ?? null, plz: v.plz ?? null, ort: v.ort ?? null, rechnungsadresse: true, typ: 'rechnung' }] : []);
   const standard = o.preislisten.find((l) => l.standard);
   const versand = p?.rechnungsversand ?? 'email';
   const kontaktId = (k: Kontakt | undefined, name: string) => (k ? `<input type="hidden" name="${name}" value="${esc(k.id)}">` : '');
@@ -257,8 +267,9 @@ function stammdatenFelder(o: { p?: Patient; v?: Vorbelegung; preislisten: Patien
     ${p ? `<p class="hint">Die primären Einträge; leer lassen ändert nichts. Weitere Kontaktwege: <a href="/patienten/${p.id}#kontakte">auf der Patientenseite</a>.</p>` : ''}
   </fieldset>
   <fieldset><legend>Adressen</legend>
-    <div class="adr-raster">${adresseKachelFeld('ra', 'Rechnungsadresse', ra, { hilfe: 'patient.formular.rechnungsadresse' })}${adresseKachelFeld('ha', 'Hausbesuchadresse', ha, { hilfe: 'patient.formular.hausbesuchadresse', wieRechnung: true })}</div>
-    ${p ? `<p class="hint">Weitere Adressen (Betreuer, Arbeit …): <a href="/patienten/${p.id}#adressen">auf der Patientenseite</a>.</p>` : '<p class="hint">Die Rechnungsadresse steht auf der Rechnung; die Hausbesuchadresse ist am Termin als Behandlungsort wählbar. Beides lässt sich später ergänzen.</p>'}
+    <div class="adr-raster">${adresseKachelFeld(adressen.length, undefined, { rechnungsadresse: false, neu: true })}${adressen.map((a, i) => adresseKachelFeld(i, a, { rechnungsadresse: Boolean(a.rechnungsadresse), neu: false })).join('')}</div>
+    <template id="adr-vorlage">${adresseKachelFeld('__N__', undefined, { rechnungsadresse: false, neu: true })}</template>
+    <p class="hint">Je Adresse eine Kachel wie auf der Patientenseite – antippen öffnet die Felder. Die Rechnungsadresse steht auf der Rechnung, eine Hausbesuchadresse ist am Termin als Behandlungsort wählbar.${p ? '' : ' Ohne Adresse geht es auch, nachtragen jederzeit.'}</p>
   </fieldset>
   <fieldset><legend>Abrechnung</legend>
     <div class="zwei"><label>Preisliste<select name="preisliste_id" data-hilfe="patient.preisliste"><option value=""${!p?.preisliste ? ' selected' : ''}>Standard${standard ? ` (zurzeit „${esc(standard.name)}“)` : ''}</option>${o.preislisten.map((l) => `<option value="${l.id}"${p?.preisliste?.id === l.id ? ' selected' : ''}>${esc(l.name)}${l.standard ? ' – Standard' : ''}</option>`).join('')}${p?.preisliste && !o.preislisten.some((l) => l.id === p.preisliste!.id) ? `<option value="${p.preisliste.id}" selected>${esc(p.preisliste.name)} (nicht mehr aktiv – es gilt der Standard)</option>` : ''}</select>${p ? `<span class="hint">${p.preislisteGilt ? `Es gilt: ${esc(p.preislisteGilt.name)}${p.preislisteGilt.standard && !p.preisliste ? ' (Standard)' : ''}` : 'Keine Standard-Preisliste – bitte unter Preislisten eine setzen'}</span>` : ''}</label>
