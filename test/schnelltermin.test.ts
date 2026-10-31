@@ -80,7 +80,8 @@ test('schnelltermin mit Patient (W117b): Einladung in der Kartei und beim Buchun
   const patient = (await patientLesen(db, t, pid))!;
   const geschoben: Einladung[] = [];
   const s = await schnelltermin(db, undefined, { dauer: 30, buchungUrl: 'https://buchung.example.org', patient, wer: 'lilli', einladen: async (e) => { geschoben.push(e); } });
-  assert.deepEqual(s.patient, { id: pid, name: 'Hanna Müller', patientennummer: patient.patientennummer });
+  assert.deepEqual(s.patient, { id: pid, name: 'Hanna Müller', patientennummer: patient.patientennummer, email: { id: patient.email!.id, adresse: 'hanna@example.org' }, whatsapp: null }, 'Kontaktwege für die Knöpfe Mail und WhatsApp (W117c)');
+  assert.equal(s.betreff, 'Terminvorschläge (30 Minuten) – Praxis Lilli Nebel');
   assert.equal(geschoben.length, 1, 'eine Einladung zum Buchungsdienst');
   const e = geschoben[0]!;
   assert.match(e.kennung, /^[A-Za-z0-9_-]{12}$/);
@@ -133,6 +134,11 @@ test('Cockpit: vier Kreise, nach ?schnell=30 der gewählte gefüllt, Direkt-buch
   assert.match(fuer, new RegExp(`href="/patienten/${hanna.id}/neu/termin\\?datum=${MONTAG}&amp;zeit=08:45&amp;dauer_min=20"`));
   assert.match(fuer, /readonly data-hilfe="schnell.vorlage">Guten Tag Frau Müller,/);
   assert.match(fuer, /&amp;e=[A-Za-z0-9_-]{12}/, 'Links mit Einladungskennung');
+  // Mail- und WhatsApp-Knopf (W117c): Hanna hat eine Mailadresse, aber keine WhatsApp-Nummer
+  assert.match(fuer, new RegExp(`<a class="knopf" href="mailto:hanna@example\\.org\\?subject=Terminvorschl%C3%A4ge%20\\(20%20Minuten\\)[^"]*&amp;body=Guten%20Tag%20Frau%20M%C3%BCller%2C%0A[^"]*" data-anruf="${hanna.id}" data-kontakt="\\d+" data-hilfe="schnell.mail">`), 'Mail mit Adresse, Betreff und Vorlage');
+  assert.match(fuer, /<span class="knopf aus" aria-disabled="true" data-hilfe="schnell.whatsapp" title="Keine WhatsApp-Nummer hinterlegt">/);
+  assert.match(mit, /<span class="knopf aus" aria-disabled="true" data-hilfe="schnell.mail" title="Erst einen Patienten wählen">/, 'ohne Patient beide aus');
+  assert.match(mit, /<span class="knopf aus" aria-disabled="true" data-hilfe="schnell.whatsapp" title="Erst einen Patienten wählen">/);
   const niemand = await seite('/?schnell=20&patient=Niemand');
   assert.match(niemand, /Niemand passt eindeutig/);
   assert.match(niemand, /<a class="kreis aktiv" href="\/\?schnell=20#t-sc"/);

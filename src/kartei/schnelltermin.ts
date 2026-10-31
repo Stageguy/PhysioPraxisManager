@@ -41,6 +41,10 @@ export interface SchnellPatient {
   id: string;
   name: string;
   patientennummer: string;
+  /** primäre Mailadresse – für den Mail-Knopf (W117c); null = Knopf aus */
+  email: { id: string; adresse: string } | null;
+  /** WhatsApp-Nummer (E.164) – für den WhatsApp-Knopf; null = Knopf aus */
+  whatsapp: { id: string; nummer: string } | null;
 }
 
 export interface Schnelltermin {
@@ -48,6 +52,8 @@ export interface Schnelltermin {
   zeiten: SchnellZeit[];
   /** Fertiger Text für Mail oder WhatsApp */
   vorlage: string;
+  /** Betreff für die Mail (W117c) */
+  betreff: string;
   /** Es gibt eine öffentliche Buchungsseite – die Vorlage trägt Links */
   buchung: boolean;
   /** Der Patient, für den die Vorlage ist (W117b) – null ohne */
@@ -159,8 +165,11 @@ export async function schnelltermin(
       : `/kalender/termin?datum=${datumBerlin(beginn)}&zeit=${zeitBerlin(beginn)}&dauer_min=${dauer}`,
   }));
   return {
-    dauer, zeiten, vorlage: vorlageText(dauer, zeiten, praxisName(), p ? anredeText(p) : undefined), buchung: Boolean(o.buchungUrl),
-    patient: p ? { id: p.id, name: `${p.vorname} ${p.nachname}`, patientennummer: p.patientennummer } : null,
+    dauer, zeiten, vorlage: vorlageText(dauer, zeiten, praxisName(), p ? anredeText(p) : undefined), betreff: `Terminvorschläge (${dauer} Minuten) – ${praxisName()}`, buchung: Boolean(o.buchungUrl),
+    patient: p ? {
+      id: p.id, name: `${p.vorname} ${p.nachname}`, patientennummer: p.patientennummer,
+      email: p.email ? { id: p.email.id, adresse: p.email.normiert } : null, whatsapp: p.whatsapp ? { id: p.whatsapp.id, nummer: p.whatsapp.normiert } : null,
+    } : null,
     ...(einladungFehler ? { einladungFehler } : {}),
   };
 }

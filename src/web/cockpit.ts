@@ -10,7 +10,27 @@ import type { CockpitDaten, Quelle, RechnungZeile, Rechnungsstand, Termin } from
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText, zeitText } from '../format.ts';
 import { routenLinks } from '../kartei/hausbesuche.ts';
-import { SCHNELL_DAUERN } from '../kartei/schnelltermin.ts';
+import { SCHNELL_DAUERN, type Schnelltermin } from '../kartei/schnelltermin.ts';
+import { waLink } from '../whatsapp/schnittstelle.ts';
+
+/**
+ * Mail- und WhatsApp-Knopf unter der Schnelltermin-Vorlage (W117c): öffnen das Mailprogramm (Adresse, Betreff, Text) bzw. WhatsApp
+ * (Nummer, Text) – Lilli liest und sendet selbst (Leitplanke 3); der Tipp vermerkt den Kontakt im Verlauf (data-anruf). Ohne
+ * Patienten oder ohne den Kontaktweg ist der Knopf aus.
+ */
+function kontaktKnopf(s: Schnelltermin, art: 'email' | 'whatsapp'): string {
+  const p = s.patient;
+  const text = art === 'email' ? 'Mail' : 'WhatsApp';
+  const hilfe = `schnell.${art === 'email' ? 'mail' : 'whatsapp'}`;
+  const kontakt = p && (art === 'email' ? p.email : p.whatsapp);
+  if (!p || !kontakt) {
+    return `<span class="knopf aus" aria-disabled="true" data-hilfe="${hilfe}" title="${!p ? 'Erst einen Patienten wählen' : art === 'email' ? 'Keine Mailadresse hinterlegt' : 'Keine WhatsApp-Nummer hinterlegt'}">${symbol(art, { groesse: 18 })} ${text}</span>`;
+  }
+  const href = art === 'email'
+    ? `mailto:${p.email!.adresse}?subject=${encodeURIComponent(s.betreff)}&body=${encodeURIComponent(s.vorlage)}`
+    : waLink(p.whatsapp!.nummer, s.vorlage);
+  return `<a class="knopf" href="${esc(href)}"${art === 'whatsapp' ? ' target="_blank" rel="noopener"' : ''} data-anruf="${p.id}" data-kontakt="${kontakt.id}" data-hilfe="${hilfe}">${symbol(art, { groesse: 18 })} ${text}</a>`;
+}
 
 /** Wegbeschreibung (W113c): Apple Karten und Google Maps mit dem Ziel – als Knöpfe oder als kleine Textlinks */
 export function routeHtml(ziel: string, hilfe: string, o: { klein?: boolean } = {}): string {
@@ -216,7 +236,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
       ? `${s.einladungFehler ? '<p class="meldung fehler">Die Buchungsseite kennt die Einladung nicht – die Links gehen, nur ohne vorbelegte Angaben.</p>' : ''}<details class="schnell-direkt"><summary class="knopf primaer" data-hilfe="schnell.direkt">${symbol('kalender', { groesse: 18 })} Direkt buchen${s.patient ? ` für ${esc(s.patient.name)}` : ''}</summary>
       <div class="knopfreihe">${s.zeiten.map((z) => `<a class="knopf" href="${esc(z.direkt)}" data-fenster="Neuer Termin" data-hilfe="schnell.direkt-zeit">${esc(z.text)}</a>`).join('')}</div></details>
       <label class="schnell-vorlage">Vorlage für Mail oder WhatsApp${s.patient ? ` an ${esc(s.patient.name)}` : ''}${s.buchung ? '' : ' <span class="hint">(ohne Buchungsseite ohne Links)</span>'}<textarea id="schnell-text" class="ta-baustein" rows="${8 + s.zeiten.length * 2}" readonly data-hilfe="schnell.vorlage">${esc(s.vorlage)}</textarea></label>
-      <div class="knopfreihe"><button type="button" class="knopf" data-kopieren="schnell-text" data-hilfe="schnell.kopieren">${symbol('brief', { groesse: 18 })} Text kopieren</button></div>`
+      <div class="knopfreihe">${kontaktKnopf(s, 'email')}${kontaktKnopf(s, 'whatsapp')}<button type="button" class="knopf" data-kopieren="schnell-text" data-hilfe="schnell.kopieren">${symbol('brief', { groesse: 18 })} Text kopieren</button></div>`
       : `<p class="leer">In den nächsten Wochen ist keine Zeit mit ${s.dauer} Minuten frei – Öffnungszeiten und Kalender prüfen.</p>`) : ''}
   </section>`;
   // Nächste Fahrt (W113c): steht sie unmittelbar bevor, fragt die Zeile nach der Karten-App – Start ist der Standort des Handys

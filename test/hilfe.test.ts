@@ -130,7 +130,7 @@ const DATEN: CockpitDaten = {
   fahrt: { art: 'hin', beginn: '2026-11-02T11:45:00Z', bis: '2026-11-02T12:00:00Z', ziel: 'Bahnhofstraße 3, 86842 Türkheim', zielText: 'Hausbesuch H. H. · Türkheim', patientId: '1', jetzt: true },
   patienten: [{ id: '1', name: 'Anna Test', patientennummer: 'P-1001' }],
   entwuerfe: { stand: 'ok' as const, daten: { gesamt: 2, rechnungen: 1, link: 'https://outlook.office.com/mail/drafts' } },
-  schnell: { dauer: 30, buchung: true, patient: { id: '1', name: 'Anna Test', patientennummer: 'P-1001' }, vorlage: 'Guten Tag', zeiten: [{ beginn: '2026-11-02T08:45:00Z', ende: '2026-11-02T09:15:00Z', text: 'Mo., 02.11., 09:45 Uhr', link: 'https://b/?dauer=30&zeit=x', direkt: '/kalender/termin?datum=2026-11-02&zeit=09:45&dauer_min=30' }] },
+  schnell: { dauer: 30, buchung: true, patient: { id: '1', name: 'Anna Test', patientennummer: 'P-1001', email: { id: '3', adresse: 'a@example.org' }, whatsapp: null }, vorlage: 'Guten Tag', betreff: 'Terminvorschläge', zeiten: [{ beginn: '2026-11-02T08:45:00Z', ende: '2026-11-02T09:15:00Z', text: 'Mo., 02.11., 09:45 Uhr', link: 'https://b/?dauer=30&zeit=x', direkt: '/kalender/termin?datum=2026-11-02&zeit=09:45&dauer_min=30' }] },
   heute: '2026-10-20', namenZeigen: false, rechnungen: STAND,
   termine: { stand: 'ok', daten: [{ beginn: '09:00', ende: '09:30', ganztags: false, titel: 'M. K.', frei: false, link: '/patienten/1#termine', leistung: 'MT', rezept: true, sektion: 'rezept' as const }, { beginn: '11:00', ende: '12:00', ganztags: false, titel: 'Z. L.', frei: false, hausbesuch: true }] },
   anfragen: { stand: 'ok' as const, daten: { neu: 1, vorgeschlagen: 1, neueste: [ANFRAGE, ANFRAGE_MIT] } },
