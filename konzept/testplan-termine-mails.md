@@ -12,7 +12,7 @@ Drei Prüfebenen, jede mit eigenem Werkzeug:
 |---|---|---|
 | **Automatisch** | `test/prozess-termine-mails.test.ts` (ganze Kette gegen PGlite, Graph-Attrappe, echter Buchungsdienst im Prozess) plus die Fachtests (`schnelltermin`, `buchung`, `anfragen`, `kalender-abgleich`, `hausbesuche`, `nachrichten`, `rechnung-zwei-klicks`) | `npm test`, bei jedem Schritt |
 | **Sicht** | Prüfbrowser (WebKit am Server, 393 px Handy mit Touch und 1440 px Rechner): `pruefung/browser/auftrag-prozess-termine.json`, `auftrag-mail-links.json`, `auftrag-link-pruefung.json`, `auftrag-direkt-buchen.json`, `auftrag-hausbesuch.json` | nach jedem Deploy in die Testumgebung |
-| **Live** | Testumgebung mit echtem Postfach: Mails an `shopping+<name>@2late.de` (gleiche Anmeldung wie hartmann@mondre.net) über Graph auslesen, Links daraus öffnen; Kalendereinträge im Postfach „Praxis-Test“ über ein Prüfskript im Pod lesen (nur Kennzahlen) | vor jeder Abnahme, von Hand |
+| **Live** | Testumgebung mit echtem Postfach: **alle Testpatienten tragen shopping@2late.de** (W132, Christians Postfach, landet in hartmann@mondre.net) – alles, was an Patienten geht, dort über Graph auslesen und die Links öffnen; was der PPM anlegt (Entwürfe, Kalender „Praxis-Test“), über ein Prüfskript im Pod lesen (nur Kennzahlen). So ist beides prüfbar: richtig versendet vom PPM, richtig angekommen beim Patienten | vor jeder Abnahme, von Hand |
 
 Regeln, die jeder Fall mitprüft: nichts geht ohne Lillis Freigabe an Patienten (Entwürfe, Click-to-Chat – Leitplanke 3);
 keine Namen oder Gesundheitsangaben im Kalendertitel, in Links oder im öffentlichen Angebot (Leitplanke 9); die
@@ -109,6 +109,7 @@ Gelesen über die Graph-Anbindung (Konto hartmann@mondre.net, Alias shopping@2la
 | T5 | Testtermine 553/554 (3./4.11.) aus der Zeit vor W129 liegen mit Fahrt in Pause bzw. Nachbartermin. | niedrig | Testdaten, verschieben oder stehen lassen |
 | T6 | Bestätigungs- und Vorschlags-Entwürfe an einen **zugeordneten Patienten** nahmen den Namen aus der Anfrage statt der Stammdaten: „Guten Tag Hanna Prozess“ statt „Sehr geehrte Frau Prozess“ (Anrede und Titel fehlten). | niedrig | behoben (W131): Stammdaten des Patienten, P1 prüft die Anrede |
 | T7 | Prüfbrowser-Lauf mit 7 Ansichten × 2 Breiten brach die SSH-Verbindung ab (Connection reset) – Aufträge besser kurz halten (≤ 5 Ansichten) oder getrennt laufen lassen. | niedrig | Auftrag in zwei Teile geteilt |
+| T8 | Mit der gemeinsamen Testadresse (W132) hätte `patientFinden` eine Mail-Anfrage oder Buchung ohne Kennung dem **zufällig ersten** Patienten mit dieser Adresse zugeordnet – in der Produktion dasselbe bei Familien mit einem Postfach. | hoch | behoben (W132): nur eindeutige Treffer, Telefon entscheidet, sonst ohne Patient; P5 |
 
 ## 4. Durchführung
 

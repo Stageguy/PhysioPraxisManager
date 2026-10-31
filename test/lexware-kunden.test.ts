@@ -218,7 +218,7 @@ test('Feldabgleich (W99b, E30b): Lexware-Werte erscheinen als Abweichungen, komm
   html = await seite(`/patienten/${annaId}`);
   assert.match(html, /2 Felder weicht ab/);
   // Rückweg: ein Patient ohne Kunde wird in Lexware (Attrappe) angelegt
-  const dora = /\/patienten\/(\d+)/.exec(ziel(await post({ aktion: 'anlegen', vorname: 'Dora', nachname: 'Neukund', email: 'shopping+dora@2late.de', strasse: 'Mühlweg', hausnummer: '4', plz: '86825', ort: 'Bad Wörishofen' })))![1]!;
+  const dora = /\/patienten\/(\d+)/.exec(ziel(await post({ aktion: 'anlegen', vorname: 'Dora', nachname: 'Neukund', email: 'shopping@2late.de', strasse: 'Mühlweg', hausnummer: '4', plz: '86825', ort: 'Bad Wörishofen' })))![1]!;
   html = await seite(`/patienten/${dora}`);
   assert.match(html, /data-hilfe="patient.lexware-kunde"/);
   assert.doesNotMatch(html, /patient\.lexware_rechnungen/);

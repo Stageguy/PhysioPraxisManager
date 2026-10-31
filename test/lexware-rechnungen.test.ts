@@ -82,7 +82,7 @@ after(() => server.close());
 
 let annaId = '';
 test('Übernahme: Kacheln je Jahr, Datei im Tresor, Zahldatum; Probelauf schreibt nichts; zweiter Lauf unverändert; Bezahlung aus Lexware', async () => {
-  annaId = await anlegen('Anna', 'Beispiel', { email: 'shopping+anna@2late.de' });
+  annaId = await anlegen('Anna', 'Beispiel', { email: 'shopping@2late.de' });
   let r = await post({ aktion: 'lexware_rechnungen', id: annaId, zurueck: `/patienten/${annaId}` });
   assert.match(ziel(r), /fehler=Dieser Patient ist mit keinem Lexware-Kunden verknüpft/);
   assert.doesNotMatch(await seite(`/patienten/${annaId}`), /patient\.lexware_rechnungen/, 'Knopf erst nach Verknüpfung');

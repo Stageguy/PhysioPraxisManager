@@ -120,7 +120,7 @@ after(() => server.close());
 
 let id = '';
 test('Patientenseite: WhatsApp-Knöpfe mit fertigem Text, Mail-Formular mit Vorlagen', async () => {
-  const r = await post({ aktion: 'anlegen', vorname: 'Anna', nachname: 'Test', anrede: 'Frau', mobil: '0151 1234567', whatsapp_wie_mobil: '1', email: 'shopping+anna@2late.de' });
+  const r = await post({ aktion: 'anlegen', vorname: 'Anna', nachname: 'Test', anrede: 'Frau', mobil: '0151 1234567', whatsapp_wie_mobil: '1', email: 'shopping@2late.de' });
   id = /\/patienten\/(\d+)/.exec(ziel(r))![1]!;
   await post({ aktion: 'termin_anlegen', id, datum: '2026-11-02', zeit: '09:00', dauer_min: '30' });
   const html = await seite(`/patienten/${id}`);
@@ -143,7 +143,7 @@ test('Mail-Entwurf: Graph legt Nachricht an, Verlauf zeigt „in Outlook öffnen
   assert.match(ziel(r), /meldung=Entwurf liegt im Postfach/);
   const nachricht = graph.schreibende().find((a) => a.pfad === '/me/messages')!.body as { subject: string; toRecipients: { emailAddress: { address: string } }[]; body: { content: string } };
   assert.equal(nachricht.subject, 'Ihr Termin am 02.11.2026');
-  assert.equal(nachricht.toRecipients[0]!.emailAddress.address, 'shopping+anna@2late.de');
+  assert.equal(nachricht.toRecipients[0]!.emailAddress.address, 'shopping@2late.de');
   assert.match(nachricht.body.content, /Sehr geehrte Frau Test,/);
   const html = await seite(`/patienten/${id}`);
   assert.match(html, /Entwurf „Ihr Termin am 02\.11\.2026“ im Postfach – noch nicht gesendet/);

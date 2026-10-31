@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
-import { anfragenListe } from '../src/anfragen/anfragen.ts';
+import { anfrageAnlegen, anfragenListe, patientFinden } from '../src/anfragen/anfragen.ts';
 import { anfragenDienst } from '../src/anfragen/dienst.ts';
 import { buchungAbgleich } from '../src/buchung/abgleich.ts';
 import { anfangszeiten, type Angebot } from '../src/buchung/angebot.ts';
@@ -97,11 +97,11 @@ after(() => {
 let hanna = '';
 
 test('P1 Rechner: Schnelltermin → Mail-Knopf · Handy: Patientin wählt über den Link · PPM: Anfrage mit Patientin und Reservierung · Handy: Lilli bestätigt · Kalender und Bestätigungs-Entwurf', async () => {
-  hanna = await patientAnlegen(db, t, { anrede: 'Frau', vorname: 'Hanna', nachname: 'Prozess', kontakte: [{ art: 'email', wert: 'shopping+prozess@2late.de' }, { art: 'mobil', wert: '0151 3333333' }] }, 'x');
+  hanna = await patientAnlegen(db, t, { anrede: 'Frau', vorname: 'Hanna', nachname: 'Prozess', kontakte: [{ art: 'email', wert: 'shopping@2late.de' }, { art: 'mobil', wert: '0151 3333333' }] }, 'x');
   // 1 Rechner – Cockpit, Schnelltermin 30 Minuten für Hanna: der Mail-Knopf trägt Adresse, Betreff und drei Links mit Einladungskennung
   const cockpit = await seite(`/?schnell=30&patient=${hanna}`);
   const mail = mailAusCockpit(cockpit);
-  assert.equal(mail.an, 'shopping+prozess@2late.de');
+  assert.equal(mail.an, 'shopping@2late.de');
   assert.equal(mail.betreff, 'Terminvorschläge (30 Minuten) – Praxis Lilli Nebel');
   assert.match(mail.text, /^Guten Tag Frau Prozess,\r\n\r\nfür einen Termin \(30 Minuten\)/, 'Anrede, CRLF-Zeilen (W117d)');
   assert.equal(mail.links.length, 3);
@@ -113,7 +113,7 @@ test('P1 Rechner: Schnelltermin → Mail-Knopf · Handy: Patientin wählt über 
   assert.ok(!mail.text.includes('Prozess,') || !link.toString().includes('Prozess'), 'der Name steht im Text, nie im Link');
   // 2 Buchungsdienst: die Einladung gibt es nur mit der Kennung
   const e = await (await fetch(`${buchung}/api/einladung/${kennung}`)).json() as { name: string; telefon: string; email: string };
-  assert.deepEqual(e, { name: 'Hanna Prozess', telefon: '0151 3333333', email: 'shopping+prozess@2late.de' });
+  assert.deepEqual(e, { name: 'Hanna Prozess', telefon: '0151 3333333', email: 'shopping@2late.de' });
   assert.equal((await fetch(`${buchung}/api/einladung/falschfalsch`)).status, 404);
   // 3 Handy der Patientin: Link öffnen, Wunsch absenden – mit den vorbelegten Angaben und der Kennung
   const zeit = await patientinBucht(link, 'P4', e);
@@ -144,7 +144,7 @@ test('P1 Rechner: Schnelltermin → Mail-Knopf · Handy: Patientin wählt über 
   const neu = schreibende().slice(vorher);
   const entwurf = neu.find((x) => x.pfad === '/me/messages')!.body as Entwurf;
   assert.match(entwurf.subject, /^Ihr Termin am /);
-  assert.equal(entwurf.toRecipients[0]!.emailAddress.address, 'shopping+prozess@2late.de');
+  assert.equal(entwurf.toRecipients[0]!.emailAddress.address, 'shopping@2late.de');
   assert.match(entwurf.body.content, /^Sehr geehrte Frau Prozess,/);
   assert.deepEqual(entwurf.categories, ['PPM'], 'zählt im Cockpit unter „Entwürfe“ (W123)');
   assert.ok(!neu.some((x) => x.pfad === '/me/sendMail'), 'nichts automatisch gesendet');
@@ -238,4 +238,16 @@ test('P4 Übergaben Rechner ↔ Handy: eine Adresse je Schritt, Seitenfenster nu
   const ohne = await seite('/?schnell=30');
   const wahl = /href="(\/kalender\/termin[^"]+)" data-fenster="Neuer Termin"/.exec(ohne)![1]!.replace(/&amp;/g, '&');
   assert.match(await seite(wahl), /<select name="id" required data-hilfe="termin.wahl.patient">[\s\S]*name="dauer_min" value="30"/);
+});
+
+test('P5 Geteilte Testadresse (W132): alle Testpatienten haben shopping@2late.de – ohne Kennung entscheidet nur ein eindeutiges Telefon, nie der zufällig erste Patient; eine Mail-Anfrage von der Adresse bleibt ohne Patient', async () => {
+  // Karl teilt sich die Adresse mit Hanna (P1) – wie alle Testpatienten im Testpostfach
+  const karl = await patientAnlegen(db, t, { vorname: 'Karl', nachname: 'Geteilt', kontakte: [{ art: 'email', wert: 'shopping@2late.de' }, { art: 'mobil', wert: '0151 5555555' }] }, 'x');
+  assert.equal(await patientFinden(db, { email: 'shopping@2late.de' }), undefined, 'Hanna und Karl teilen die Adresse → kein Patient');
+  assert.equal(await patientFinden(db, { email: 'shopping@2late.de', telefon: '0151 3333333' }), hanna, 'das Telefon entscheidet');
+  assert.equal(await patientFinden(db, { telefon: '+49 151 5555555' }), karl, 'Telefon allein, normiert');
+  assert.equal(await patientFinden(db, { email: 'shopping@2late.de', telefon: '0151 9999999' }), undefined, 'Telefon unbekannt, Adresse mehrdeutig → niemand');
+  assert.equal(await patientFinden(db, { email: 'niemand@example.org' }), undefined);
+  const { id } = await anfrageAnlegen(db, t, { quelle: 'mail', anliegen: 'termin', absenderName: 'Jemand Unbekannt', absenderAdresse: 'shopping@2late.de', betreff: 'Termin', text: 'Bitte einen Termin', erkannt: {} }, 'x');
+  assert.equal((await anfragenListe(db, t, { filter: 'offen' })).find((a) => a.id === id)!.patient, null, 'Lilli ordnet von Hand zu');
 });

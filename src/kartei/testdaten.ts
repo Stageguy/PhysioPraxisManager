@@ -1,7 +1,7 @@
 /**
  * Erfundene Patienten für die Testumgebung (A09e). Nutzt dieselben Funktionen wie die Oberfläche,
  * damit die Testdaten genau so aussehen wie echte Eingaben. Niemand hier existiert; Mailadressen
- * sind Plus-Varianten der Testadresse, Telefonnummern aus dem Fernsehblock (030) 23125 xxx.
+ * tragen alle die eine Testadresse (shopping@2late.de – Christians Postfach, W132), Telefonnummern aus dem Fernsehblock (030) 23125 xxx.
  */
 import type { Db } from '../db/index.ts';
 import type { Tresor } from '../tresor.ts';
@@ -118,7 +118,6 @@ function werktag(versatz: number): string {
  */
 export async function testtermineAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; termine: number }> {
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1011'")).rows.length) return { uebersprungen: true, patienten: 0, termine: 0 };
-  const [lokal, domain] = o.adresse.split('@');
   const wer = o.wer;
   // Je Patient: Wochentage (1 = Mo … 5 = Fr) und Uhrzeiten – zusammen ergeben sie mehrere Termine pro Tag mit Lücken
   const PLAN: { vorname: string; nachname: string; geboren: string; ort: string; plz: string; strasse: string; massnahme: string; nummer: string; tage: number[]; zeit: string; dauer: number; start: number }[] = [
@@ -131,7 +130,7 @@ export async function testtermineAnlegen(db: Db, t: Tresor, o: { adresse: string
     const nr = String(11 + i).padStart(3, '0');
     const id = await patientAnlegen(db, t, {
       patientennummer: `T-${1011 + i}`, anrede: i === 1 ? 'Herr' : 'Frau', vorname: p.vorname, nachname: p.nachname, geburtsdatum: p.geboren, patientSeit: werktag(-7),
-      kontakte: [{ art: 'mobil', wert: `030 23125 ${nr}` }, { art: 'whatsapp', wert: `030 23125 ${nr}` }, { art: 'email', wert: `${lokal}+${p.vorname.toLowerCase()}@${domain}` }],
+      kontakte: [{ art: 'mobil', wert: `030 23125 ${nr}` }, { art: 'whatsapp', wert: `030 23125 ${nr}` }, { art: 'email', wert: o.adresse }],
       adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: p.strasse.replace(/\s\d+\w?$/, ''), hausnummer: /\s(\d+\w?)$/.exec(p.strasse)?.[1] ?? null, plz: p.plz, ort: p.ort },
     }, wer);
     await erklaerungErfassen(db, t, id, { art: 'datenschutzinformation', form: 'schriftlich', fassung: 'Datenschutzinformation 2026-01' }, wer);
@@ -166,7 +165,6 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
   if (!(await db.query('SELECT 1 FROM preisliste WHERE standard')).rows.length) {
     await db.query("UPDATE preisliste SET status = 'freigegeben', aktiv = true, standard = true, freigegeben_am = COALESCE(freigegeben_am, now()), freigegeben_von = COALESCE(freigegeben_von, $1) WHERE id = (SELECT min(id) FROM preisliste WHERE status <> 'archiviert')", [o.wer]);
   }
-  const [lokal, domain] = o.adresse.split('@');
   // Wellness-Katalog (W74) – erfundene Beispiele, Lilli ersetzt sie (Frage 10)
   const wellness: string[] = [];
   for (const w of [['WM30', 'Wellnessmassage 30 Minuten', 30, '42,00'], ['WM60', 'Wellnessmassage 60 Minuten', 60, '75,00'], ['HOT', 'Hot-Stone-Massage 50 Minuten', 50, '79,00']] as const) {
@@ -181,7 +179,7 @@ export async function testdatenAnlegen(db: Db, t: Tresor, o: { adresse: string; 
     const nr = String(i + 1).padStart(3, '0');
     const telefon = `030 23125 ${nr}`;
     const kontakte: { art: Kontaktart; wert: string; bezeichnung?: string }[] = [
-      { art: 'mobil', wert: telefon }, { art: 'whatsapp', wert: telefon }, { art: 'email', wert: `${lokal}+${p.vorname.toLowerCase()}@${domain}` },
+      { art: 'mobil', wert: telefon }, { art: 'whatsapp', wert: telefon }, { art: 'email', wert: o.adresse },
     ];
     if (i % 3 === 0) kontakte.push({ art: 'telefon', wert: `030 23125 9${nr.slice(1)}`, bezeichnung: 'Festnetz' });
     const id = await patientAnlegen(db, t, {
@@ -318,7 +316,6 @@ async function termineVerteilen(db: Db, patientId: string, rezept: string, fallI
  */
 export async function testkalenderAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; termine: number; montag: string }> {
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1041'")).rows.length) return { uebersprungen: true, patienten: 0, termine: 0, montag: '' };
-  const [lokal, domain] = o.adresse.split('@');
   const wer = o.wer;
   // Standard-Pause 10 Minuten, wenn keine (oder 0) eingetragen ist – die Kalender-Testdaten sind darauf gerechnet
   const pause = (await db.query<{ wert: string }>("SELECT wert FROM praxis_einstellung WHERE schluessel = 'termin_puffer_min'")).rows[0]?.wert;
@@ -339,7 +336,7 @@ export async function testkalenderAnlegen(db: Db, t: Tresor, o: { adresse: strin
     const nr = String(41 + i).padStart(3, '0');
     const id = await patientAnlegen(db, t, {
       patientennummer: `T-${1041 + i}`, anrede: i === 1 ? 'Herr' : 'Frau', vorname: p.vorname, nachname: p.nachname, geburtsdatum: p.geboren, patientSeit: werktag(-14),
-      kontakte: [{ art: 'mobil', wert: `030 23125 ${nr}` }, { art: 'email', wert: `${lokal}+${p.vorname.toLowerCase()}@${domain}` }],
+      kontakte: [{ art: 'mobil', wert: `030 23125 ${nr}` }, { art: 'email', wert: o.adresse }],
       adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kneippstraße', hausnummer: String(20 + i), plz: '86825', ort: 'Bad Wörishofen' },
     }, wer);
     for (const x of p.termine) {
@@ -364,7 +361,6 @@ const tagPlusKalender = (datum: string, n: number): string => {
  */
 export async function testhausbesuchAnlegen(db: Db, t: Tresor, o: { adresse: string; wer: string }): Promise<{ uebersprungen: boolean; patienten: number; termine: number }> {
   if ((await db.query("SELECT 1 FROM patient WHERE patientennummer = 'T-1051'")).rows.length) return { uebersprungen: true, patienten: 0, termine: 0 };
-  const [lokal, domain] = o.adresse.split('@');
   const wer = o.wer;
   const orte = (await db.query<{ wert: string }>("SELECT wert FROM praxis_einstellung WHERE schluessel = 'fahrtzeit_orte'")).rows[0]?.wert ?? '';
   if (!/türkheim/i.test(orte)) await einstellungSetzen(db, 'fahrtzeit_orte', [orte.trim(), 'Türkheim = 15'].filter(Boolean).join('\n'), wer);
@@ -372,20 +368,20 @@ export async function testhausbesuchAnlegen(db: Db, t: Tresor, o: { adresse: str
   while (new Date(`${montag}T12:00:00Z`).getUTCDay() !== 1) montag = tagPlusKalender(montag, 1);
   const hanna = await patientAnlegen(db, t, {
     patientennummer: 'T-1051', anrede: 'Frau', vorname: 'Hanna', nachname: 'Hausbesuch', geburtsdatum: '1948-03-12', patientSeit: werktag(-30),
-    kontakte: [{ art: 'telefon', wert: '030 23125 051' }, { art: 'email', wert: `${lokal}+hanna@${domain}` }],
+    kontakte: [{ art: 'telefon', wert: '030 23125 051' }, { art: 'email', wert: o.adresse }],
     adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kneippstraße', hausnummer: '5', plz: '86825', ort: 'Bad Wörishofen' },
   }, wer);
   await adresseSpeichern(db, hanna, { bezeichnung: 'Pflegeheim Sonnenhof', zusatz: 'Zimmer 12', strasse: 'Bahnhofstraße', hausnummer: '3', plz: '86842', ort: 'Türkheim', typ: 'hausbesuch' }, wer, { ohneProtokoll: true });
   await adresseSpeichern(db, hanna, { bezeichnung: 'Tochter (Betreuerin)', zusatz: 'Heike Hausbesuch', strasse: 'Am Anger', hausnummer: '9', plz: '86825', ort: 'Bad Wörishofen', typ: 'betreuer' }, wer, { ohneProtokoll: true });
   const hugo = await patientAnlegen(db, t, {
     patientennummer: 'T-1052', anrede: 'Herr', vorname: 'Hugo', nachname: 'Heimweg', geburtsdatum: '1951-07-24', patientSeit: werktag(-30),
-    kontakte: [{ art: 'mobil', wert: '030 23125 052' }, { art: 'email', wert: `${lokal}+hugo@${domain}` }],
+    kontakte: [{ art: 'mobil', wert: '030 23125 052' }, { art: 'email', wert: o.adresse }],
     adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Hauptstraße', hausnummer: '44', plz: '86825', ort: 'Bad Wörishofen' },
   }, wer);
   // Ilse kommt in die Praxis – ihre Termine sind die echten Folgetermine nach den Hausbesuchen (Rückfahrt zur Praxis)
   const ilse = await patientAnlegen(db, t, {
     patientennummer: 'T-1053', anrede: 'Frau', vorname: 'Ilse', nachname: 'Innerorts', geburtsdatum: '1969-02-02', patientSeit: werktag(-30),
-    kontakte: [{ art: 'mobil', wert: '030 23125 053' }, { art: 'email', wert: `${lokal}+ilse@${domain}` }],
+    kontakte: [{ art: 'mobil', wert: '030 23125 053' }, { art: 'email', wert: o.adresse }],
     adresse: { bezeichnung: 'Zuhause', zusatz: null, strasse: 'Kurpromenade', hausnummer: '8', plz: '86825', ort: 'Bad Wörishofen' },
   }, wer);
   // Dienstag: Hausbesuch in Türkheim (Fahrt 15 hin, 15 zurück), danach Ilse in der Praxis.

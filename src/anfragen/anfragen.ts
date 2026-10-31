@@ -80,15 +80,25 @@ export interface NeueAnfrage {
 }
 
 /** Patient über Mailadresse oder Telefonnummer finden (aktive vor archivierten) */
+/**
+ * Patient zu Mailadresse und Telefon: nur ein eindeutiger Treffer zählt (W132). Teilen sich mehrere Patienten eine
+ * Adresse (Familie, geteiltes Postfach, alle Testpatienten mit shopping@2late.de), entscheidet das Telefon – passt
+ * auch das nicht eindeutig, bleibt die Anfrage ohne Patient, und Lilli ordnet zu. Nie der zufällig erste.
+ */
 export async function patientFinden(db: Db, o: { email?: string | null; telefon?: string | null }): Promise<string | undefined> {
-  const werte: string[] = [];
-  if (o.email?.trim()) werte.push(o.email.trim().toLowerCase());
-  if (o.telefon?.trim()) werte.push(telefonNormieren(o.telefon));
-  if (!werte.length) return undefined;
-  const { rows } = await db.query<{ id: string }>(
-    "SELECT p.id::text FROM patient_kontakt k JOIN patient p ON p.id = k.patient_id WHERE k.normiert = ANY($1) ORDER BY (p.status = 'aktiv') DESC, k.primaer DESC LIMIT 1", [werte],
-  );
-  return rows[0]?.id;
+  const email = o.email?.trim().toLowerCase() || null;
+  const telefon = o.telefon?.trim() ? telefonNormieren(o.telefon) : null;
+  if (!email && !telefon) return undefined;
+  const treffer = async (wert: string): Promise<string[]> => [...new Set((await db.query<{ id: string }>(
+    "SELECT p.id::text FROM patient_kontakt k JOIN patient p ON p.id = k.patient_id WHERE k.normiert = $1 ORDER BY (p.status = 'aktiv') DESC, k.primaer DESC", [wert],
+  )).rows.map((r) => r.id))];
+  const perMail = email ? await treffer(email) : [];
+  const perTelefon = telefon ? await treffer(telefon) : [];
+  if (perMail.length === 1 && (!perTelefon.length || perTelefon.includes(perMail[0]!))) return perMail[0];
+  if (perTelefon.length === 1 && (!perMail.length || perMail.includes(perTelefon[0]!))) return perTelefon[0];
+  // Beide mehrdeutig oder widersprüchlich: nur, wenn genau ein Patient in beiden Listen steht
+  const beide = perMail.filter((id) => perTelefon.includes(id));
+  return beide.length === 1 ? beide[0] : undefined;
 }
 
 export async function anfrageAnlegen(db: Db, t: Tresor, d: NeueAnfrage, wer = ACTOR): Promise<{ id: string; neu: boolean }> {

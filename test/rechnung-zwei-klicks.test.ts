@@ -76,7 +76,7 @@ after(() => server.close());
 let pid = '';
 let rid = '';
 test('Klick 1 „Nach Lexware“: Entwurf wird fertig, Kunde in Lexware angelegt und am Patienten vermerkt, Nummer und PDF kommen zurück', async () => {
-  pid = /\/patienten\/(\d+)/.exec(ziel(await post({ aktion: 'anlegen', vorname: 'Bernd', nachname: 'Mustermann', email: 'shopping+bernd@2late.de', strasse: 'Hauptstraße', hausnummer: '12', plz: '86825', ort: 'Bad Wörishofen' })))![1]!;
+  pid = /\/patienten\/(\d+)/.exec(ziel(await post({ aktion: 'anlegen', vorname: 'Bernd', nachname: 'Mustermann', email: 'shopping@2late.de', strasse: 'Hauptstraße', hausnummer: '12', plz: '86825', ort: 'Bad Wörishofen' })))![1]!;
   await verordnungAnlegen(db, t, pid, { ausgestelltAm: '2026-10-01', massnahme: 'Manuelle Therapie', leistungNummer: '21201', anzahl: 2 }, 'x');
   rid = (await db.query<{ id: string }>('SELECT id::text FROM rechnung WHERE patient_id = $1', [pid])).rows[0]!.id;
   let html = await seite(`/patienten/${pid}/rechnungen/${rid}`);
@@ -108,13 +108,13 @@ test('Klick 2 „Versenden“ per Mail (W122): Entwurf in Outlook mit PDF und Gi
   // Der Web-Link braucht die normale Kennung; zum Wiederfinden nach dem Senden holt der PPM die unveränderliche dazu
   GET['/me/messages/neu-1?$select=id'] = { id: 'neu-1-unveraenderlich' };
   const r = await post({ aktion: 'rechnung_versenden', id: pid, rechnung_id: rid, versand_art: 'email', zurueck: `/patienten/${pid}` });
-  assert.match(ziel(r), new RegExp(`^/patienten/${pid}/rechnungen/${rid}\\?entwurf=1&meldung=Rechnungs-Mail an shopping\\+bernd@2late\\.de liegt als Entwurf in Outlook – mit PDF und GiroCode\\. „Versendet“ steht hier, sobald Outlook den Versand bestätigt\\.$`));
+  assert.match(ziel(r), new RegExp(`^/patienten/${pid}/rechnungen/${rid}\\?entwurf=1&meldung=Rechnungs-Mail an shopping@2late\\.de liegt als Entwurf in Outlook – mit PDF und GiroCode\\. „Versendet“ steht hier, sobald Outlook den Versand bestätigt\\.$`));
   assert.ok(!graph.schreibende().some((a) => a.pfad === '/me/sendMail'), 'nichts direkt gesendet – E37');
   const entwurf = graph.schreibende().find((a) => a.pfad === '/me/messages');
   assert.ok(entwurf, 'Entwurf im Postfach angelegt');
   const m = entwurf!.body as { subject: string; toRecipients: { emailAddress: { address: string } }[]; body: { content: string } };
   assert.match(m.subject, /^Ihre Rechnung RE-\d{4}-9001$/);
-  assert.equal(m.toRecipients[0]!.emailAddress.address, 'shopping+bernd@2late.de');
+  assert.equal(m.toRecipients[0]!.emailAddress.address, 'shopping@2late.de');
   assert.match(m.body.content, /Verwendungszweck nur die Rechnungsnummer RE-\d{4}-9001/);
   assert.match(m.body.content, /PS: Mit dem beigefügten GiroCode/);
   const anhaenge = graph.schreibende().filter((a) => /\/me\/messages\/[^/]+\/attachments$/.test(a.pfad)).map((a) => a.body as { name: string; contentType: string; contentBytes: string });
@@ -189,6 +189,6 @@ test('Scheitert ein Anhang beim Anlegen des Entwurfs, wird der Entwurf wieder ge
     async post<T>(pfad: string): Promise<T> { aufrufe.push(`POST ${pfad}`); if (pfad.endsWith('/attachments')) throw new Error('The operation was aborted due to timeout'); return { id: 'e1', webLink: 'https://outlook.example/e1' } as T; },
     async delete(pfad: string): Promise<void> { aufrufe.push(`DELETE ${pfad}`); },
   };
-  await assert.rejects(entwurfAnlegen(kaputt, { an: ['shopping+bernd@2late.de'], betreff: 'x', text: 'y', anhaenge: [{ name: 'a.pdf', mime: 'application/pdf', daten: new Uint8Array([1]) }] }, { ausfuehren: true }), /timeout/);
+  await assert.rejects(entwurfAnlegen(kaputt, { an: ['shopping@2late.de'], betreff: 'x', text: 'y', anhaenge: [{ name: 'a.pdf', mime: 'application/pdf', daten: new Uint8Array([1]) }] }, { ausfuehren: true }), /timeout/);
   assert.deepEqual(aufrufe, ['POST /me/messages', 'POST /me/messages/e1/attachments', 'DELETE /me/messages/e1']);
 });
