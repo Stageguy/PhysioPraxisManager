@@ -191,6 +191,9 @@ ${fahrtzeitenAbschnitt(d.einstellungen, d.freieTage.jahr)}
   ${form('einstellung', `<input type="hidden" name="schluessel" value="termin_puffer_min">
     <label>Pause nach jedem Termin in Minuten <span class="hint">(Standard – je Terminart änderbar; wird im Termin mitgeblockt)</span><input name="wert" value="${esc(d.einstellungen.termin_puffer_min ?? '0')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.puffer"></label>
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}
+  ${form('einstellung', `<input type="hidden" name="schluessel" value="mittagspause_min">
+    <label>Mittagspause in Minuten <span class="hint">(Standard 60; liegt um 12 Uhr zwischen den Terminen, je Tag im Kalender änderbar, 0 = keine)</span><input name="wert" value="${esc(d.einstellungen.mittagspause_min ?? '60')}" inputmode="numeric" class="kurz" data-hilfe="konfiguration.mittagspause"></label>
+    <button class="knopf klein">Speichern</button>`, 'formular zeile')}
   ${form('einstellung', `<input type="hidden" name="schluessel" value="anfragen_mailordner">
     <label>Outlook-Ordner mit Terminanfragen<input name="wert" value="${esc(d.einstellungen.anfragen_mailordner ?? 'Posteingang/Terminanfragen')}" data-hilfe="konfiguration.anfragen-ordner"></label>
     <button class="knopf klein">Speichern</button>`, 'formular zeile')}

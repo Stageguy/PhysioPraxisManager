@@ -7,6 +7,7 @@ import { einstellungSetzen, textbausteinAktiv, textbausteinSpeichern } from '../
 import { KarteiFehler, wellnessAktiv, wellnessSpeichern } from '../patienten.ts';
 import { regelzeitenUebernehmen, regelzeitSetzen } from '../regelzeiten.ts';
 import { terminartAktiv, terminartSpeichern } from '../terminarten.ts';
+import { mittagspauseTagSetzen } from '../mittagspause.ts';
 import type { Aktionen } from './kontext.ts';
 
 export const KONFIGURATION: Aktionen = {
@@ -50,6 +51,19 @@ export const KONFIGURATION: Aktionen = {
     if (!text) throw new KarteiFehler('Mindestens ein Tag muss geöffnet sein');
     await einstellungSetzen(db, 'oeffnungszeiten', text, wer);
     return nach('/konfiguration#oeffnungszeiten', `Öffnungszeiten gespeichert: ${text}`);
+  },
+  // Mittagspause eines Tages (W126): Minuten für den Tag, „Standard“ nimmt die Ausnahme zurück
+  async mittagspause_tag({ db, g, f, wer, nach }) {
+    const datum = g('datum') ?? '';
+    const zurueck = g('zurueck')?.startsWith('/kalender') ? g('zurueck')! : `/kalender?ansicht=tag&tag=${datum}`;
+    if (f.has('standard')) {
+      await mittagspauseTagSetzen(db, datum, null, wer);
+      return nach(zurueck, 'Mittagspause: an diesem Tag gilt wieder der Standard.');
+    }
+    const text = (g('minuten') ?? '').trim();
+    if (!/^\d{1,3}$/.test(text)) throw new KarteiFehler('Mittagspause: ganze Minuten von 0 bis 240, keine negativen Zahlen');
+    await mittagspauseTagSetzen(db, datum, Number(text), wer);
+    return nach(zurueck, Number(text) ? `Mittagspause an diesem Tag: ${Number(text)} Minuten.` : 'An diesem Tag keine Mittagspause.');
   },
   // Fahrtzeiten für Hausbesuche (W113)
   async fahrtzeiten_setzen({ db, g, wer, nach }) {

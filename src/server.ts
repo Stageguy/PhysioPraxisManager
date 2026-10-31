@@ -423,7 +423,7 @@ export function praxisDienst(opt: DienstOptionen): Server {
     if (pfad === '/patienten/aktion') {
       if (fremdeHerkunft(req, res)) return;
       const f = await formular(req);
-      const zurueck = /^\/(patienten|rezepte|pinnwand|konfiguration|kalender)(\/[\w/-]*)?(\?[\w=&]+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
+      const zurueck = /^\/(patienten|rezepte|pinnwand|konfiguration|kalender)(\/[\w/-]*)?(\?[\w=&:%-]+)?$/.test(f.get('zurueck') ?? '') ? f.get('zurueck')! : '/patienten';
       // Drag & Drop auf der Pinnwand fragt per fetch und will eine Antwort als JSON statt einer Umleitung
       const alsJson = (req.headers.accept ?? '').includes('application/json');
       try {
@@ -482,7 +482,8 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const freieTage = await d.freieTage(tage[0]!, tage[tage.length - 1]!);
       const umfeld = await d.kalenderUmfeld(berlinMitternachtUtc(tage[0]!), berlinMitternachtUtc(tagPlus(tage[tage.length - 1]!, 1)));
       const plan = ansicht === 'tag' ? await d.tagesplan(tag) : undefined;
-      return senden(res, 200, 'text/html', kalenderSeite({ tag, ansicht, termine, namenZeigen, heute: heuteTag, freieTage, ...umfeld, luecken: plan?.luecken, dauerMin: plan?.dauerMin, patient }, r));
+      const pausen = await d.mittagspausen(berlinMitternachtUtc(tage[0]!), berlinMitternachtUtc(tagPlus(tage[tage.length - 1]!, 1)));
+      return senden(res, 200, 'text/html', kalenderSeite({ tag, ansicht, termine, namenZeigen, heute: heuteTag, freieTage, ...umfeld, luecken: plan?.luecken, dauerMin: plan?.dauerMin, patient, pausen }, r));
     }
     if (pfad === '/kalender/termin') {
       const q = (name: string) => adresse.searchParams.get(name) ?? undefined;

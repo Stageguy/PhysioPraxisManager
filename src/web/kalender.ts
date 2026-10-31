@@ -7,10 +7,11 @@
 import type { TerminKalender } from '../kartei/patienten.ts';
 import type { KalenderBlock } from '../kartei/outlook-termine.ts';
 import { DAUERN, type Luecke } from '../kartei/terminplan.ts';
+import type { MittagspauseTag } from '../kartei/mittagspause.ts';
 import { wochentag, type Oeffnungszeit } from '../anfragen/slots.ts';
-import { zeitText } from '../format.ts';
+import { datumText, zeitText } from '../format.ts';
 import { datumBerlin, tagPlus, wocheUm, zeitBerlin, ZONE } from '../zeit.ts';
-import { sektionLegende, sektionMarke } from './bausteine.ts';
+import { karteiFormular as form, sektionLegende, sektionMarke } from './bausteine.ts';
 import { esc, seite } from './layout.ts';
 import { symbol } from './symbole.ts';
 import { routeHtml } from './cockpit.ts';
@@ -40,6 +41,8 @@ export interface KalenderSeiteDaten {
   patient?: Kontext | null;
   /** Ziel der Rückfahrt nach einem Hausbesuch (W113c) */
   praxisAdresse?: string;
+  /** Mittagspause je Tag (W126): blauer Block, antippen ändert die Dauer für den Tag */
+  pausen?: MittagspauseTag[];
 }
 
 const blockHtml = (b: KalenderBlock): string => {
@@ -84,6 +87,15 @@ export function kalenderSeite(d: KalenderSeiteDaten, o: { wer: string; fassung: 
         ${marken(t)}
       </a>`;
   const lueckeHtml = (l: Luecke) => `<a class="kal-termin luecke" href="${terminZiel(d.patient ?? null, datumBerlin(l.beginn), zeitBerlin(l.beginn), Math.min(l.minuten, d.dauerMin ?? 30))}"${d.patient ? ' data-fenster="Neuer Termin"' : ''} data-hilfe="kalender.luecke"><b>${zeitText(l.beginn)}–${zeitText(l.ende)}</b><span>frei · ${l.minuten} Min.${d.patient ? ` – Termin für ${esc(d.patient.name)}` : ''}</span></a>`;
+  // Mittagspause (W126): blauer Block an der Stelle im Tag; antippen öffnet das Mini-Popup mit der Dauer für diesen Tag
+  const pauseHtml = (p: MittagspauseTag, tag: string) => `<details class="plus-kachel pause-feld"><summary class="kal-termin pause" data-hilfe="kalender.mittagspause">
+        <b>${p.pause ? `${zeitText(p.pause.beginn)}–${zeitText(p.pause.ende)}` : 'Mittagspause'}</b><span>${p.pause ? `Mittagspause · ${p.pause.minuten} Min.` : p.minuten ? `keine Mittagspause möglich (${p.minuten} Min. eingestellt, kein Platz)` : 'heute keine Mittagspause'}${p.eigen ? ' <span class="hint">· für diesen Tag gesetzt</span>' : ''} <span class="hint">· antippen zum Ändern</span></span>
+      </summary>
+      <div class="plus-popup" role="dialog" aria-label="Mittagspause"><header><b>Mittagspause am ${datumText(tag)}</b><button type="button" class="knopf klein plus-schliessen" data-hilfe="kachel.popup-schliessen">Fertig</button></header>
+      ${form('mittagspause_tag', `<input type="hidden" name="datum" value="${tag}">
+        <label>Dauer in Minuten <span class="hint">(0 = keine)</span><input type="number" name="minuten" value="${p.minuten}" min="0" max="240" step="5" inputmode="numeric" class="kurz" required data-hilfe="kalender.mittagspause-minuten"></label>
+        <div class="knopfreihe"><button class="knopf primaer" data-hilfe="kalender.mittagspause-speichern">Für diesen Tag speichern</button>${p.eigen ? `<button class="knopf" name="standard" value="1" data-hilfe="kalender.mittagspause-standard">Zurück auf Standard</button>` : ''}</div>`, { zurueck: link(tag), klasse: 'formular' })}
+      </div></details>`;
   const spalten = tage.map((tag) => {
     const des = d.termine.filter((t) => datumBerlin(t.beginn) === tag);
     const bloecke = (d.bloecke ?? []).filter((b) => datumBerlin(b.beginn) === tag);
@@ -96,6 +108,12 @@ export function kalenderSeite(d: KalenderSeiteDaten, o: { wer: string; fassung: 
       ...luecken.map((l) => ({ beginn: l.beginn, html: lueckeHtml(l) })),
     ].sort((a, b) => a.beginn.localeCompare(b.beginn));
     const oeff = d.oeffnungszeiten?.filter((f) => f.tag === wochentag(tag));
+    // Die Pause an ihrer Stelle im Ablauf; ohne Platz oder mit 0 Minuten als Zeile oben, damit sie sich setzen lässt
+    const pt = (d.pausen ?? []).find((x) => x.datum === tag);
+    if (pt && (oeff === undefined || oeff.length)) {
+      if (pt.pause) eintraege.splice(eintraege.findIndex((e) => e.beginn > pt.pause!.beginn) === -1 ? eintraege.length : eintraege.findIndex((e) => e.beginn > pt.pause!.beginn), 0, { beginn: pt.pause.beginn, html: pauseHtml(pt, tag) });
+      else eintraege.unshift({ beginn: '', html: pauseHtml(pt, tag) });
+    }
     return `<section class="kal-tag${tag === d.heute ? ' heute' : ''}${oeff && !oeff.length ? ' zu' : ''}" data-hilfe="kalender.tag"><h2><a href="${link(tag, 'tag')}">${esc(tagText(tag, d.ansicht === 'tag'))}</a> <span class="pw-zahl">${des.length}</span>${d.freieTage?.[tag] ? ` <span class="chip preset12" data-hilfe="kalender.frei" tabindex="0">${esc(d.freieTage[tag])}</span>` : ''}</h2>
       ${oeff ? `<p class="kal-oeff" data-hilfe="kalender.oeffnung">${oeff.length ? oeff.map((f) => `${f.von}–${f.bis}`).join(', ') : 'geschlossen'}</p>` : ''}
       ${eintraege.length ? eintraege.map((e) => e.html).join('') : '<p class="pw-leer">frei</p>'}

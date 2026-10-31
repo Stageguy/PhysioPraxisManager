@@ -11,7 +11,8 @@ import { einstellungSetzen } from '../src/kartei/konfiguration.ts';
 import { patientAnlegen, terminAnlegen, terminLesen } from '../src/kartei/patienten.ts';
 import { terminartSpeichern } from '../src/kartei/terminarten.ts';
 import { testkalenderAnlegen } from '../src/kartei/testdaten.ts';
-import { anfaenge, freieWoche, monatsPlan, naechsteFreie, passen, tagesLuecken } from '../src/kartei/terminplan.ts';
+import { anfaenge, freieWoche, mittagspausenZeitraum, monatsPlan, naechsteFreie, passen, tagesLuecken } from '../src/kartei/terminplan.ts';
+import { mittagspauseLegen, mittagspauseTagSetzen } from '../src/kartei/mittagspause.ts';
 import { praxisDienst } from '../src/server.ts';
 import { neuerHauptschluessel, tresor } from '../src/tresor.ts';
 import { berlinMitternachtUtc, berlinZeitUtc, datumBerlin, heuteBerlin, tagPlus, zeitBerlin } from '../src/zeit.ts';
@@ -49,6 +50,58 @@ const post = (felder: Record<string, string>) => fetch(`${basis}/patienten/aktio
 const ziel = (r: Response) => decodeURIComponent(r.headers.get('location') ?? '');
 const seite = async (pfad: string) => (await fetch(`${basis}${pfad}`, { headers: wer })).text();
 const status = async (pfad: string) => (await fetch(`${basis}${pfad}`, { headers: wer })).status;
+
+test('Mittagspause (W126): um 12 Uhr, richtet sich nach den Terminen, weder frei noch gebucht; blau in Monat und Tag; je Tag änderbar, nie negativ', async () => {
+  const T = (z: string) => berlinZeitUtc(MONTAG, z);
+  const fenster = [{ beginn: T('08:00'), ende: T('18:00') }];
+  const p = (belegt: { beginn: string; ende: string }[], min = 60) => { const x = mittagspauseLegen(MONTAG, fenster, belegt, min); return x ? [zeitBerlin(x.beginn), zeitBerlin(x.ende), x.minuten] : null; };
+  assert.deepEqual(p([]), ['12:00', '13:00', 60], 'frei → ab 12:00');
+  assert.deepEqual(p([{ beginn: T('11:30'), ende: T('12:30') }]), ['12:30', '13:30', 60], 'Termin über 12 Uhr → gleich danach');
+  assert.deepEqual(p([{ beginn: T('11:30'), ende: T('12:30') }, { beginn: T('13:00'), ende: T('14:00') }]), ['14:00', '15:00', 60], 'die erste Lücke nach 12 Uhr, in die die volle Pause passt');
+  assert.deepEqual(p([{ beginn: T('12:15'), ende: T('13:00') }]), ['11:15', '12:15', 60], 'passt vor 12 Uhr noch vor den Termin – Beginn rückt an den Termin');
+  assert.deepEqual(p([{ beginn: T('11:00'), ende: T('12:30') }, { beginn: T('13:00'), ende: T('18:00') }]), ['12:30', '13:00', 30], 'nirgends Platz für 60 → die längste Lücke, verkürzt – Ende am nächsten Termin');
+  assert.equal(p([], 0), null, '0 Minuten = keine Pause');
+  assert.deepEqual(p([], 45), ['12:00', '12:45', 45]);
+  assert.equal(mittagspauseLegen(MONTAG, [{ beginn: T('08:00'), ende: T('10:00') }], [], 60), null, 'Öffnung endet vor dem Mittagsfenster');
+  // Im Monatsplan: Mittwoch (08–12 geöffnet, nichts gebucht) bekommt 11:00–12:00; Lücken und Bilanz ohne die Pause
+  const MITTWOCH = tagPlus(MONTAG, 2);
+  await einstellungSetzen(db, 'mittagspause_min', '60', 'x');
+  try {
+    const plan = await monatsPlan(db, undefined, Number(MONAT.slice(0, 4)), Number(MONAT.slice(5, 7)));
+    const mi = plan.tage.find((x) => x.datum === MITTWOCH)!;
+    assert.deepEqual([zeitBerlin(mi.mittagspause!.beginn), zeitBerlin(mi.mittagspause!.ende), mi.mittagspause!.minuten, mi.mittagspause!.eigen], ['11:00', '12:00', 60, false]);
+    assert.deepEqual(mi.luecken.map((l) => [zeitBerlin(l.beginn), zeitBerlin(l.ende)]), [['08:00', '11:00']], 'die Pause ist keine Lücke');
+    assert.equal(mi.stand, 'frei');
+    const monat = await seite(`/kalender?ansicht=monat&monat=${MONAT}`);
+    assert.match(monat, /<span class="mk-e pause"><small>11:00–12:00 \(60\)<\/small> Mittagspause<\/span>/, 'blau im Hover');
+    assert.match(monat, /<span class="mk-l pause">Mittagspause<\/span>/, 'Legende');
+    assert.match(monat, /<b class="frei">180 Min\. frei<\/b> · <b>0 Min\. gebucht<\/b>/, 'Bilanz des Mittwochs ohne die Pause: 240 − 60');
+    // Tagesansicht: blauer Block mit Mini-Popup
+    let tagHtml = await seite(`/kalender?ansicht=tag&tag=${MITTWOCH}`);
+    assert.match(tagHtml, /<details class="plus-kachel pause-feld"><summary class="kal-termin pause" data-hilfe="kalender.mittagspause">\s*<b>11:00–12:00<\/b><span>Mittagspause · 60 Min\./);
+    assert.match(tagHtml, new RegExp(`<input type="hidden" name="datum" value="${MITTWOCH}">`));
+    assert.match(tagHtml, /<input type="number" name="minuten" value="60" min="0" max="240"/);
+    assert.ok(!tagHtml.includes('kalender.mittagspause-standard'), 'ohne Ausnahme kein „Zurück auf Standard“');
+    // Tagesausnahme per Formular: 30 Minuten, negativ nie, 0 = keine, zurück auf Standard
+    assert.match(ziel(await post({ aktion: 'mittagspause_tag', datum: MITTWOCH, minuten: '30', zurueck: `/kalender?ansicht=tag&tag=${MITTWOCH}` })), new RegExp(`^/kalender\\?ansicht=tag&tag=${MITTWOCH}&meldung=Mittagspause an diesem Tag: 30 Minuten\\.`));
+    const zeitraum = () => mittagspausenZeitraum(db, undefined, berlinMitternachtUtc(MITTWOCH), berlinMitternachtUtc(tagPlus(MITTWOCH, 1)));
+    let pt = (await zeitraum())[0]!;
+    assert.deepEqual([pt.minuten, pt.eigen, zeitBerlin(pt.pause!.beginn), zeitBerlin(pt.pause!.ende)], [30, true, '11:30', '12:00']);
+    tagHtml = await seite(`/kalender?ansicht=tag&tag=${MITTWOCH}`);
+    assert.match(tagHtml, /für diesen Tag gesetzt/);
+    assert.match(tagHtml, /kalender.mittagspause-standard/);
+    assert.match(ziel(await post({ aktion: 'mittagspause_tag', datum: MITTWOCH, minuten: '-5', zurueck: '/kalender' })), /fehler=Mittagspause: ganze Minuten von 0 bis 240, keine negativen Zahlen/);
+    assert.match(ziel(await post({ aktion: 'mittagspause_tag', datum: MITTWOCH, minuten: '0', zurueck: '/kalender' })), /meldung=An diesem Tag keine Mittagspause\./);
+    pt = (await zeitraum())[0]!;
+    assert.deepEqual([pt.minuten, pt.pause], [0, null]);
+    assert.match(await seite(`/kalender?ansicht=tag&tag=${MITTWOCH}`), /heute keine Mittagspause/);
+    assert.match(ziel(await post({ aktion: 'mittagspause_tag', datum: MITTWOCH, standard: '1', zurueck: '/kalender' })), /meldung=Mittagspause: an diesem Tag gilt wieder der Standard\./);
+    assert.equal((await zeitraum())[0]!.eigen, false);
+  } finally {
+    await mittagspauseTagSetzen(db, MITTWOCH, null, 'x');
+    await einstellungSetzen(db, 'mittagspause_min', '0', 'x');
+  }
+});
 
 before(async () => {
   db = await testDb();

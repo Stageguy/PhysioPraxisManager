@@ -82,7 +82,7 @@ export function ibanNormieren(eingabe: string): string | null {
 }
 
 export async function einstellungSetzen(db: Db, schluessel: string, wert: string, wer: string): Promise<void> {
-  if (!['kleinunternehmer', 'ust_satz_wellness', 'oeffnungszeiten', 'termin_dauer_min', 'termin_puffer_min', 'anfragen_mailordner', 'buchung_vorlauf_stunden', 'buchung_tage', 'buchung_hinweis', 'buchung_letzte_nr', 'bank_inhaber', 'bank_iban', 'bank_bic', 'kalender_wochenende', 'fahrtzeit_standard_min', 'fahrtzeit_innerorts_min', 'fahrtzeit_orte', 'praxis_adresse'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
+  if (!['kleinunternehmer', 'ust_satz_wellness', 'oeffnungszeiten', 'termin_dauer_min', 'termin_puffer_min', 'mittagspause_min', 'anfragen_mailordner', 'buchung_vorlauf_stunden', 'buchung_tage', 'buchung_hinweis', 'buchung_letzte_nr', 'bank_inhaber', 'bank_iban', 'bank_bic', 'kalender_wochenende', 'fahrtzeit_standard_min', 'fahrtzeit_innerorts_min', 'fahrtzeit_orte', 'praxis_adresse'].includes(schluessel)) throw new KarteiFehler('Unbekannte Einstellung');
   // Fahrtzeiten für Hausbesuche (W113): ganze Minuten bis 240
   if ((schluessel === 'fahrtzeit_standard_min' || schluessel === 'fahrtzeit_innerorts_min') && (!/^\d{1,3}$/.test(wert) || Number(wert) > 240)) throw new KarteiFehler('Fahrtzeit: 0 bis 240 Minuten');
   if (schluessel === 'kalender_wochenende' && !['gesperrt', 'offen'].includes(wert)) throw new KarteiFehler('Wochenende: gesperrt oder offen');
@@ -106,6 +106,7 @@ export async function einstellungSetzen(db: Db, schluessel: string, wert: string
     }
   }
   if ((schluessel === 'termin_dauer_min' || schluessel === 'termin_puffer_min') && !/^\d{1,3}$/.test(wert)) throw new KarteiFehler('Minuten als ganze Zahl');
+  if (schluessel === 'mittagspause_min' && (!/^\d{1,3}$/.test(wert) || Number(wert) > 240)) throw new KarteiFehler('Mittagspause: ganze Minuten von 0 bis 240, keine negativen Zahlen');
   if (schluessel === 'termin_dauer_min' && !(Number(wert) > 0)) throw new KarteiFehler('Die Dauer muss größer 0 sein');
   if ((schluessel === 'buchung_vorlauf_stunden' || schluessel === 'buchung_tage' || schluessel === 'buchung_letzte_nr') && !/^\d{1,6}$/.test(wert)) throw new KarteiFehler('Bitte eine ganze Zahl');
   if (schluessel === 'buchung_tage' && !(Number(wert) >= 1 && Number(wert) <= 90)) throw new KarteiFehler('Zeitraum 1 bis 90 Tage');

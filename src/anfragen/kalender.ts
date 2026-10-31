@@ -6,6 +6,7 @@
 import type { Db } from '../db/index.ts';
 import type { GraphClient } from '../graph.ts';
 import { ortszeit } from '../kartei/kalender.ts';
+import { mittagspausenBelegt } from '../kartei/mittagspause.ts';
 import { KATEGORIEN } from '../mail/kategorien.ts';
 import { entwurfKategorien, kalenderBasis } from '../umgebung.ts';
 import { OUTLOOK_ZONE } from '../zeit.ts';
@@ -28,7 +29,7 @@ interface Ereignis {
  * wenn der Kalender gerade nicht antwortet), Hauptkalender und (falls getrennt) Praxiskalender.
  * `ohneAnfrage`: die eigenen alten Reservierungen zählen nicht, wenn eine Anfrage neu vorschlägt.
  */
-export async function belegteZeiten(graph: LeseGraph | undefined, db: Db, von: string, bis: string, o: { ohneAnfrage?: string; pufferMin?: number } = {}): Promise<Belegt[]> {
+export async function belegteZeiten(graph: LeseGraph | undefined, db: Db, von: string, bis: string, o: { ohneAnfrage?: string; pufferMin?: number; /** ohne die Mittagspausen (W126) – etwa, um sie selbst zu berechnen */ ohneMittagspause?: boolean } = {}): Promise<Belegt[]> {
   const liste: Belegt[] = [];
   // Kartei-Termine samt Pause danach (W116a): Pause der Terminart, sonst der Standard aus der Konfiguration;
   // bei Hausbesuchen (W113) dazu die Fahrt davor und danach
@@ -45,18 +46,21 @@ export async function belegteZeiten(graph: LeseGraph | undefined, db: Db, von: s
     const v = (typeof r.vorschlaege === 'string' ? JSON.parse(r.vorschlaege) : r.vorschlaege) as Vorschlag[];
     for (const s of v) if (s.beginn < bis && s.ende > von) liste.push({ beginn: s.beginn, ende: s.ende });
   }
-  if (!graph) return liste;
-  const basis = await kalenderBasis(graph);
-  const kalender = ['/me/calendar', ...(basis === '/me/calendar' ? [] : [basis])];
-  for (const k of kalender) {
-    for await (const e of graph.paginate<Ereignis>(
-      `${k}/calendarView?startDateTime=${von}&endDateTime=${bis}&$select=id,start,end,isAllDay,showAs,isCancelled&$top=100`,
-      { Prefer: 'outlook.timezone="UTC"' },
-    )) {
-      if (e.isCancelled || e.showAs === 'free') continue;
-      liste.push({ beginn: alsUtc(e.start.dateTime), ende: alsUtc(e.end.dateTime) });
+  if (graph) {
+    const basis = await kalenderBasis(graph);
+    const kalender = ['/me/calendar', ...(basis === '/me/calendar' ? [] : [basis])];
+    for (const k of kalender) {
+      for await (const e of graph.paginate<Ereignis>(
+        `${k}/calendarView?startDateTime=${von}&endDateTime=${bis}&$select=id,start,end,isAllDay,showAs,isCancelled&$top=100`,
+        { Prefer: 'outlook.timezone="UTC"' },
+      )) {
+        if (e.isCancelled || e.showAs === 'free') continue;
+        liste.push({ beginn: alsUtc(e.start.dateTime), ende: alsUtc(e.end.dateTime) });
+      }
     }
   }
+  // Mittagspause (W126): liegt zwischen den Terminen des Tages und ist für Buchungen, Vorschläge und Lücken belegt
+  if (!o.ohneMittagspause) liste.push(...(await mittagspausenBelegt(db, von, bis, liste)));
   return liste;
 }
 

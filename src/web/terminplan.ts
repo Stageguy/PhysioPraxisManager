@@ -50,13 +50,15 @@ export function monatSeite(d: MonatSeiteDaten, o: Rahmen): string {
   ];
   const blockEintrag = (b: KalenderBlock) => `<span class="mk-e block"><small>${zeitText(b.beginn)}–${zeitText(b.ende)} (${dauerVon(b.beginn, b.ende)})</small> ${b.reserviert ? 'reserviert' : b.art === 'patient' ? esc(b.patientennummer ?? 'Patient') : 'geblockt'}</span>`;
   const lueckeEintrag = (l: Luecke) => `<span class="mk-e luecke"><small>${zeitText(l.beginn)}–${zeitText(l.ende)} (${l.minuten})</small> frei</span>`;
+  const pauseEintrag = (p: { beginn: string; ende: string; minuten: number }) => `<span class="mk-e pause"><small>${zeitText(p.beginn)}–${zeitText(p.ende)} (${p.minuten})</small> Mittagspause</span>`;
   // Tageskasten (W125): sichtbar nur Termine und Blöcke (bis sechs, sonst fünf plus „Mehr ›“). Beim Überfahren immer der ganze
   // Tag: die Öffnungszeit als Rahmen, dazwischen Termine, Blöcke, Fahrten und die freien Zeiten (grün) vom Tagesbeginn bis zum Tagesende
   const zelle = (tp: TagesPlan) => {
     const alle = [...tp.termine.map((t) => ({ beginn: t.beginn, html: eintrag(t) })), ...tp.bloecke.map((b) => ({ beginn: b.beginn, html: blockEintrag(b) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
     const ueberlauf = alle.length > 6;
     const sichtbar = ueberlauf ? alle.slice(0, 5) : alle;
-    const hover = [...alle, ...tp.termine.flatMap(fahrtEintraege), ...tp.luecken.filter((l) => l.minuten >= DAUERN[0]).map((l) => ({ beginn: l.beginn, html: lueckeEintrag(l) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
+    const hover = [...alle, ...tp.termine.flatMap(fahrtEintraege), ...tp.luecken.filter((l) => l.minuten >= DAUERN[0]).map((l) => ({ beginn: l.beginn, html: lueckeEintrag(l) })),
+      ...(tp.mittagspause ? [{ beginn: tp.mittagspause.beginn, html: pauseEintrag(tp.mittagspause) }] : [])].sort((a, b) => a.beginn.localeCompare(b.beginn));
     // Erste Zeile: Bilanz des Tages – freie Minuten (Lücken in der Öffnungszeit, heute ab jetzt) und gebuchte Minuten (Termine ohne Fahrten)
     const freiMin = tp.luecken.reduce((n, l) => n + l.minuten, 0);
     const gebuchtMin = tp.termine.reduce((n, t) => n + dauerVon(t.beginn, t.ende), 0);
@@ -97,7 +99,7 @@ export function monatSeite(d: MonatSeiteDaten, o: Rahmen): string {
 ${d.patient ? `<p class="meldung ok" data-hilfe="kalender.patient-kontext">${symbol('patient', { groesse: 18 })}<span>Termin für <b>${esc(d.patient.name)}</b>: eine freie Zeit anklicken – im Suchfenster oder in der Tagesansicht. <a href="/patienten/${d.patient.id}#termine">Abbrechen</a></span></p>` : ''}
 ${plan.fehler ? `<p class="warn">${esc(plan.fehler)}</p>` : ''}
 <div class="mk-kopfzeile"><span class="hint">Frei bis Monatsende:</span><span class="mk-zaehler-reihe" data-hilfe="kalender.frei-zaehler" tabindex="0">${zaehler}</span>
-  <span class="mk-legende" data-hilfe="kalender.legende" tabindex="0">${sektionLegende()}<span class="mk-l frei">frei</span><span class="mk-l teilweise">noch Platz</span><span class="mk-l voll">voll</span><span class="mk-l luecke">Lücke</span><span class="mk-l block">geblockt</span></span>
+  <span class="mk-legende" data-hilfe="kalender.legende" tabindex="0">${sektionLegende()}<span class="mk-l frei">frei</span><span class="mk-l teilweise">noch Platz</span><span class="mk-l voll">voll</span><span class="mk-l luecke">Lücke</span><span class="mk-l pause">Mittagspause</span><span class="mk-l block">geblockt</span></span>
   <a class="knopf klein mk-namen" href="${kalenderLink({ ...basis, monat: monatParam, namen: d.namenZeigen ? undefined : '1', ...sucheParam })}" data-hilfe="kalender.namen">${symbol(d.namenZeigen ? 'schloss' : 'auge', { groesse: 16 })} ${d.namenZeigen ? 'Nur Kürzel' : 'Namen einblenden'}</a></div>
 <form method="get" action="/kalender" class="filter mk-suche" data-hilfe="kalender.suche"><input type="hidden" name="ansicht" value="monat"><input type="hidden" name="monat" value="${monatParam}">${d.patient ? `<input type="hidden" name="patient" value="${d.patient.id}">` : ''}${d.namenZeigen ? '<input type="hidden" name="namen" value="1">' : ''}<input type="hidden" name="woche" value="${d.woche}">
   <label>Nächster freier Termin mit<select name="suche" data-hilfe="kalender.suche.dauer" data-auto-senden><option value="">– Dauer wählen –</option>${DAUERN.map((x) => `<option value="${x}"${d.suche?.dauer === x ? ' selected' : ''}>${x} Minuten</option>`).join('')}</select></label>

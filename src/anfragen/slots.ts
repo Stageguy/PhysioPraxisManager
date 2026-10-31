@@ -18,6 +18,9 @@ const TAGE: Record<string, number> = { mo: 1, di: 2, mi: 3, do: 4, fr: 5, sa: 6,
 const TAG_NAMEN = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
 /** „Mo 08:00-12:00,14:00-18:00; Di 08:00-18:00“ → Fenster; Fehler bei unlesbaren Angaben */
+/** Öffnungszeiten, solange in der Konfiguration nichts steht */
+export const OEFFNUNGSZEITEN_STANDARD = 'Mo 08:00-18:00; Di 08:00-18:00; Mi 08:00-18:00; Do 08:00-18:00; Fr 08:00-14:00';
+
 export function oeffnungszeitenLesen(text: string): Oeffnungszeit[] {
   const liste: Oeffnungszeit[] = [];
   for (const teil of text.split(';').map((s) => s.trim()).filter(Boolean)) {
@@ -80,6 +83,10 @@ export function oeffnungszeitenAusTagen(zeilen: OeffnungsTag[]): Oeffnungszeit[]
 export interface Belegt {
   beginn: string;
   ende: string;
+  /** Mittagspause (W126): belegt, aber kein Termin – zählt weder frei noch gebucht */
+  art?: 'pause';
+  /** Dauer für den Tag eigens gesetzt */
+  eigen?: boolean;
 }
 
 export interface SlotRegeln {

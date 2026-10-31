@@ -27,9 +27,10 @@ import { freieTageDaten, freieTageZeitraum, type FreieTageDaten } from './freie-
 import { regelzeiten, type Regelzeit } from './regelzeiten.ts';
 import { rezeptTermineDaten, type RezeptTermineDaten } from './rezept-termine.ts';
 import { outlookBloecke, type KalenderBlock } from './outlook-termine.ts';
-import { freieWoche, monatsPlan, type MonatsPlan, type TagesPlan, type WochenSuche } from './terminplan.ts';
+import { freieWoche, monatsPlan, type MonatsPlan, type TagesPlan, type WochenSuche, mittagspausenZeitraum } from './terminplan.ts';
 import { schnelltermin, schnellPatientFinden, type Schnelltermin } from './schnelltermin.ts';
 import { nummernKonflikt, type NummernKonflikt } from './lexware-rechnungen.ts';
+import type { MittagspauseTag } from './mittagspause.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
 import type { Oeffnungszeit } from '../anfragen/slots.ts';
 import type { EingehendeNachricht } from '../whatsapp/schnittstelle.ts';
@@ -153,6 +154,8 @@ export interface KarteiDienst {
   kalenderUmfeld(vonIso: string, bisIso: string): Promise<KalenderUmfeld>;
   /** Monatsansicht zum Buchen (W116): Tage mit Stand, Lücken, Zähler je Dauer */
   monatsplan(jahr: number, monat: number): Promise<MonatsPlan>;
+  /** Mittagspausen eines Zeitraums (W126) für Tages- und Wochenansicht */
+  mittagspausen(von: string, bis: string): Promise<MittagspauseTag[]>;
   /** Freie Anfangszeiten einer Woche für eine Dauer – das Suchfenster */
   freieWoche(o: { dauer: number; wochenstart: string }): Promise<WochenSuche>;
   /** Schnelltermin (W117): die nächsten drei freien Zeiten einer Dauer samt Vorlage und Links; mit Patient (W117b: Kennung, Nummer oder eindeutiger Name) Einladung und Anrede */
@@ -298,6 +301,7 @@ export function karteiDienst(q: DienstQuellen): KarteiDienst {
     freieTage: (von, bis) => freieTageZeitraum(db, von, bis),
     kalender: (von, bis) => termineZeitraum(db, von, bis),
     monatsplan: (jahr, monat) => monatsPlan(db, q.graph, jahr, monat),
+    mittagspausen: (von, bis) => mittagspausenZeitraum(db, q.graph, von, bis),
     freieWoche: (o) => freieWoche(db, q.graph, o),
     async schnelltermin(dauer, wer, patientWahl) {
       const patientId = await schnellPatientFinden(db, patientWahl);

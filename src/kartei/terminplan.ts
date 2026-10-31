@@ -4,6 +4,7 @@
  * Reservierungen offener Anfragen und Outlook-Termine; frei ist, was in den Öffnungszeiten übrig bleibt.
  */
 import type { Db } from '../db/index.ts';
+import { mittagspausenTage, type Mittagspause, type MittagspauseTag } from './mittagspause.ts';
 import type { GraphClient } from '../graph.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
 import { belegteZeiten } from '../anfragen/kalender.ts';
@@ -30,6 +31,8 @@ export interface TagesPlan {
   bloecke: KalenderBlock[];
   luecken: Luecke[];
   oeffnung: Oeffnungszeit[];
+  /** Mittagspause des Tages (W126) – blau, weder frei noch gebucht */
+  mittagspause?: (Mittagspause & { eigen: boolean }) | null;
 }
 
 export interface MonatsPlan {
@@ -126,10 +129,25 @@ export async function monatsPlan(db: Db, graph: LeseGraph | undefined, jahr: num
       : !oeffnung.length ? 'zu'
         : !tTermine.length && !tBloecke.length && luecken.length ? 'frei'
           : passen(luecken, 20, regeln.pufferMin) ? 'teilweise' : 'voll';
-    tage.push({ datum: d, stand, freierTag: freieTage[d] ?? null, termine: tTermine, bloecke: tBloecke, luecken, oeffnung });
+    const pause = oeffnung.length ? (belegtJeTag.get(d) ?? leer).find((b) => b.art === 'pause') : undefined;
+    tage.push({ datum: d, stand, freierTag: freieTage[d] ?? null, termine: tTermine, bloecke: tBloecke, luecken, oeffnung,
+      mittagspause: pause ? { beginn: pause.beginn, ende: pause.ende, minuten: Math.round((Date.parse(pause.ende) - Date.parse(pause.beginn)) / 60_000), eigen: Boolean(pause.eigen) } : null });
   }
   const frei = DAUERN.map((dauer) => ({ dauer, anzahl: tage.filter((t) => t.datum >= heute).reduce((n, t) => n + passen(t.luecken, dauer, regeln.pufferMin), 0) }));
   return { jahr, monat, heute, tage, frei, pufferMin: regeln.pufferMin, dauerMin: regeln.dauerMin, postfach: Boolean(graph), fehler };
+}
+
+/** Mittagspausen eines Zeitraums für Tages- und Wochenansicht (W126): je Tag Dauer, ob eigens gesetzt, Lage */
+export async function mittagspausenZeitraum(db: Db, graph: LeseGraph | undefined, von: string, bis: string): Promise<MittagspauseTag[]> {
+  const regeln = await slotRegeln(db);
+  let belegt: Belegt[];
+  try {
+    belegt = await belegteZeiten(graph, db, von, bis, { pufferMin: regeln.pufferMin, ohneMittagspause: true });
+  } catch (err) {
+    console.warn(`Mittagspause: ${(err as Error).message.slice(0, 160)}`);
+    belegt = await belegteZeiten(undefined, db, von, bis, { pufferMin: regeln.pufferMin, ohneMittagspause: true });
+  }
+  return mittagspausenTage(db, von, bis, belegt);
 }
 
 /** Freie Anfangszeiten einer Woche für eine Dauer – das Suchfenster der Monatsansicht */
