@@ -65,10 +65,27 @@ test('Hausbesuch im Kalender (W130): Adresse als Ort, Erinnerung zum Beginn der 
   assert.equal(hb.location.displayName, 'Bahnhofstraße 3, 86842 Türkheim', 'die genaue Adresse als Ort');
   assert.deepEqual([hb.isReminderOn, hb.reminderMinutesBeforeStart], [true, 15], 'Erinnerung, wenn die Anfahrt beginnt');
   assert.match(hb.body.content, /Behandlung · Hausbesuch · Termin Nr\./);
-  assert.match(hb.body.content, /<a href="https:\/\/maps\.apple\.com\/\?daddr=Bahnhofstra[^"]*">Apple Karten<\/a> · <a href="https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=Bahnhofstra[^"]*">Google Maps<\/a>/);
+  assert.match(hb.body.content, /<a href="https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=Bahnhofstra[^"]*">Google Maps<\/a> · <a href="https:\/\/maps\.apple\.com\/\?daddr=Bahnhofstra[^"]*">Apple Karten<\/a>/, 'W130b: Google Maps vor Apple Karten');
+  assert.doesNotMatch(hb.body.content, /Praxis-Assistenz öffnen/, 'ohne PRAXIS_URL kein PPM-Link');
   assert.doesNotMatch(JSON.stringify(posts), /Hanna|Heim/, 'kein Name im Kalender');
   assert.deepEqual([hin.subject, hin.start.dateTime, hin.end.dateTime, hin.location.displayName, hin.categories, hin.showAs, hin.isReminderOn], ['Fahrt zum Hausbesuch H. H. P-1001', '2026-11-05T09:45:00', '2026-11-05T10:00:00', 'Bahnhofstraße 3, 86842 Türkheim', ['Praxis-Fahrt'], 'busy', false]);
-  assert.match(hin.body.content, /15 Min\.[\s\S]*Apple Karten[\s\S]*Google Maps/);
+  assert.match(hin.body.content, /15 Min\.[\s\S]*Google Maps[\s\S]*Apple Karten/);
+  // Mit PRAXIS_URL (W130b): in jedem Eintrag zuerst der Link in die Praxis-Assistenz, dann Google Maps, dann Apple Karten
+  process.env.PRAXIS_URL = 'http://praxis.test:10001/';
+  try {
+    graph.aufrufe.length = 0;
+    await terminSpiegeln(db, graph, tid, 'l');
+    const [mh, mhin, mz] = graph.schreibende().map((a) => (a.body as { body: { content: string } }).body.content);
+    const reihenfolge = (html: string): [number, number, number] => [html.indexOf('In der Praxis-Assistenz öffnen'), html.indexOf('Google Maps'), html.indexOf('Apple Karten')];
+    for (const html of [mh!, mhin!, mz!]) {
+      const [ppm, google, apple] = reihenfolge(html);
+      assert.ok(ppm >= 0 && ppm < google && google < apple, `Reihenfolge PPM → Google Maps → Apple Karten: ${html}`);
+    }
+    assert.match(mh!, new RegExp(`href="http://praxis.test:10001/patienten/${pid}#termine"`), 'Hausbesuch → Patientenseite');
+    assert.match(mhin!, /href="http:\/\/praxis\.test:10001\/kalender\?ansicht=tag&tag=2026-11-05"/, 'Fahrt → Tagesansicht');
+  } finally {
+    delete process.env.PRAXIS_URL;
+  }
   assert.deepEqual([zurueck.subject, zurueck.start.dateTime, zurueck.end.dateTime, zurueck.location.displayName], ['Rückfahrt zur Praxis', '2026-11-05T10:45:00', '2026-11-05T11:00:00', 'Kneippstraße 1, 86825 Bad Wörishofen']);
   assert.match(zurueck.body.content, /daddr=Kneippstra/);
   const ids = async (id = tid) => (await db.query<{ e: string | null; v: string | null; n: string | null }>('SELECT exchange_event_id AS e, fahrt_vor_event_id AS v, fahrt_nach_event_id AS n FROM termin WHERE id = $1', [id])).rows[0]!;

@@ -4,8 +4,8 @@
  * (Leitplanke 9: keine Namen, keine Leistung im Kalendertitel). Testumgebung: Kalender „Praxis-Test“
  * und zusätzlich Kategorie „TEST“ (Schranken 3 und 6).
  *
- * Hausbesuch (W130, E33 entschieden 31.10.2026): das Ereignis trägt die Hausbesuchadresse als Ort, die Wegbeschreibung
- * (Apple Karten, Google Maps) im Text und die Erinnerung zum Beginn der Anfahrt; Fahrt hin und zurück sind eigene
+ * Hausbesuch (W130, E33 entschieden 31.10.2026): das Ereignis trägt die Hausbesuchadresse als Ort, im Text zuerst den Link
+ * in die Praxis-Assistenz, dann die Wegbeschreibung (Google Maps, Apple Karten – W130b), und die Erinnerung zum Beginn der Anfahrt; Fahrt hin und zurück sind eigene
  * Ereignisse mit Kategorie „Praxis-Fahrt“ – so sieht Lilli in Outlook und am iPhone dasselbe wie im Praxiskalender.
  */
 import { protokolliere, type Db } from '../db/index.ts';
@@ -47,11 +47,15 @@ interface TerminZeile {
 
 const WEG_STATUS = ['abgesagt_patient', 'abgesagt_praxis', 'verschoben'];
 
-/** Wegbeschreibung für den Text eines Ereignisses – am iPhone öffnet der Tipp die Karten-App */
+/** Wegbeschreibung für den Text eines Ereignisses – am iPhone öffnet der Tipp die Karten-App; Reihenfolge (Christian, 31.10.2026): Google Maps, dann Apple Karten */
 const wegbeschreibung = (ziel: string): string => {
   const r = routenLinks(ziel);
-  return `<p>Wegbeschreibung: <a href="${r.apple}">Apple Karten</a> · <a href="${r.google}">Google Maps</a></p>`;
+  return `<p>Wegbeschreibung: <a href="${r.google}">Google Maps</a> · <a href="${r.apple}">Apple Karten</a></p>`;
 };
+
+/** Erster Link in jedem Ereignis: die passende Seite der Praxis-Assistenz (nur im Tailnet erreichbar); ohne PRAXIS_URL keiner */
+const ppmLink = (pfad: string): string =>
+  (process.env.PRAXIS_URL ? `<p><a href="${process.env.PRAXIS_URL.replace(/\/$/, '')}${pfad}">In der Praxis-Assistenz öffnen</a></p>` : '');
 
 export const initialen = (vorname: string, nachname: string) => `${vorname.trim()[0]?.toUpperCase() ?? ''}. ${nachname.trim()[0]?.toUpperCase() ?? ''}.`;
 
@@ -76,12 +80,12 @@ export function ereignisKoerper(t: TerminZeile) {
     showAs: t.status === 'vorgeschlagen' ? 'tentative' : 'busy',
     // Hausbesuch (W130): die genaue Adresse als Ort – ein Tipp darauf navigiert; die Praxis bleibt nur „Praxis“
     location: { displayName: hausbesuch ? (t.adresse ?? 'Hausbesuch') : 'Praxis' },
-    // Nur Initialen im Betreff; im Text ein Link, der die Patientenseite in der Praxis-Assistenz öffnet (nur im Tailnet erreichbar)
+    // Nur Initialen im Betreff; im Text zuerst der Link auf die Patientenseite in der Praxis-Assistenz, dann die Wegbeschreibung (Google Maps, Apple Karten)
     body: {
       contentType: 'HTML',
       content: `<p>Praxis-Assistenz · ${art}${hausbesuch ? ' · Hausbesuch' : ''} · Termin Nr. ${t.id}${t.verordnung_id ? ' · Rezept' : ''}</p>`
+        + ppmLink(`/patienten/${t.patient_id}#termine`)
         + (hausbesuch && t.adresse ? wegbeschreibung(t.adresse) : '')
-        + (process.env.PRAXIS_URL ? `<p><a href="${process.env.PRAXIS_URL.replace(/\/$/, '')}/patienten/${t.patient_id}#termine">In der Praxis-Assistenz öffnen</a></p>` : '')
         + '<p>Details nur in der Praxis-Assistenz – keine Gesundheitsdaten im Kalender.</p>',
     },
     // Hausbesuch: die Erinnerung kommt, wenn die Anfahrt beginnt (W130)
@@ -105,7 +109,8 @@ export function fahrtKoerper(t: TerminZeile, art: 'vor' | 'nach', praxisAdresse:
     categories: [KATEGORIEN.fahrt.name, ...entwurfKategorien()],
     showAs: 'busy',
     location: { displayName: ziel },
-    body: { contentType: 'HTML', content: `<p>Praxis-Assistenz · ${titel} · ${minuten} Min. · Termin Nr. ${t.id}</p>${wegbeschreibung(ziel)}` },
+    // Zuerst der Link auf den Tag im Praxiskalender, dann die Wegbeschreibung (Google Maps, Apple Karten)
+    body: { contentType: 'HTML', content: `<p>Praxis-Assistenz · ${titel} · ${minuten} Min. · Termin Nr. ${t.id}</p>${ppmLink(`/kalender?ansicht=tag&tag=${datumBerlin(beginn.toISOString())}`)}${wegbeschreibung(ziel)}` },
     isReminderOn: false,
     attendees: [],
   };
