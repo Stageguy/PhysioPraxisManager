@@ -1,0 +1,12 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 900,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "tag", "pfad": "/kalender?ansicht=tag&tag=2026-11-05" },
+    { "name": "woche", "pfad": "/kalender?ansicht=woche&tag=2026-11-02" },
+    { "name": "konfiguration", "pfad": "/konfiguration" }
+  ]
+}
