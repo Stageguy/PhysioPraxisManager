@@ -1,0 +1,9 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [1440],
+  "hoehe": 1000,
+  "ansichten": [
+    { "name": "monat", "pfad": "/kalender?ansicht=monat&monat=2026-11" }
+  ]
+}

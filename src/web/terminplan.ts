@@ -50,20 +50,18 @@ export function monatSeite(d: MonatSeiteDaten, o: Rahmen): string {
   ];
   const blockEintrag = (b: KalenderBlock) => `<span class="mk-e block"><small>${zeitText(b.beginn)}–${zeitText(b.ende)} (${dauerVon(b.beginn, b.ende)})</small> ${b.reserviert ? 'reserviert' : b.art === 'patient' ? esc(b.patientennummer ?? 'Patient') : 'geblockt'}</span>`;
   const lueckeEintrag = (l: Luecke) => `<span class="mk-e luecke"><small>${zeitText(l.beginn)}–${zeitText(l.ende)} (${l.minuten})</small> frei</span>`;
-  // Tageskasten (W125): Termine, Blöcke und freie Zeiten (grün) stehen sichtbar im Kasten; passt nicht alles hinein, zeigt
-  // „Mehr ›“ es an, und nur dann gibt es beim Überfahren die ganze Liste (samt Fahrten) als Popup
+  // Tageskasten (W125): sichtbar nur Termine und Blöcke (bis sechs, sonst fünf plus „Mehr ›“). Beim Überfahren immer der ganze
+  // Tag: die Öffnungszeit als Rahmen, dazwischen Termine, Blöcke, Fahrten und die freien Zeiten (grün) vom Tagesbeginn bis zum Tagesende
   const zelle = (tp: TagesPlan) => {
-    const alle = [
-      ...tp.termine.map((t) => ({ beginn: t.beginn, html: eintrag(t) })), ...tp.bloecke.map((b) => ({ beginn: b.beginn, html: blockEintrag(b) })),
-      ...tp.luecken.filter((l) => l.minuten >= DAUERN[0]).map((l) => ({ beginn: l.beginn, html: lueckeEintrag(l) })),
-    ].sort((a, b) => a.beginn.localeCompare(b.beginn));
+    const alle = [...tp.termine.map((t) => ({ beginn: t.beginn, html: eintrag(t) })), ...tp.bloecke.map((b) => ({ beginn: b.beginn, html: blockEintrag(b) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
     const ueberlauf = alle.length > 6;
     const sichtbar = ueberlauf ? alle.slice(0, 5) : alle;
-    const hover = ueberlauf ? [...alle, ...tp.termine.flatMap(fahrtEintraege)].sort((a, b) => a.beginn.localeCompare(b.beginn)) : [];
+    const hover = [...alle, ...tp.termine.flatMap(fahrtEintraege), ...tp.luecken.filter((l) => l.minuten >= DAUERN[0]).map((l) => ({ beginn: l.beginn, html: lueckeEintrag(l) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
+    const rahmen = tp.oeffnung.length ? `<span class="mk-e rahmen"><small>${tp.oeffnung.map((f) => `${esc(f.von)}–${esc(f.bis)}`).join(' · ')}</small> Öffnung</span>` : '<span class="mk-e rahmen">geschlossen</span>';
     return `<a class="mk-tag stand-${tp.stand}${tp.datum === plan.heute ? ' heute' : ''}" href="${kalenderLink({ ...basis, ansicht: 'tag', tag: tp.datum })}" data-hilfe="kalender.monat-tag">
       <span class="mk-kopf"><b>${Number(tp.datum.slice(8))}</b>${tp.freierTag ? `<small class="mk-frei">${esc(tp.freierTag)}</small>` : ''}${tp.termine.length ? `<small class="mk-zahl">${tp.termine.length}</small>` : ''}</span>
       ${sichtbar.map((x) => x.html).join('')}${ueberlauf ? '<span class="mk-e mehr">Mehr ›</span>' : ''}
-      ${hover.length ? `<span class="mk-mehr">${hover.map((x) => x.html).join('')}</span>` : ''}
+      <span class="mk-mehr">${rahmen}${hover.map((x) => x.html).join('')}</span>
     </a>`;
   };
   // Raster: vom Montag vor dem 1. bis zum Sonntag nach dem Monatsende
