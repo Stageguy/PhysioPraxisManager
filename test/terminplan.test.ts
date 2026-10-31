@@ -95,7 +95,7 @@ test('Suche je Woche und die nächsten freien Zeiten', async () => {
   assert.match(c.freie![0]!.text, /08:00/);
 });
 
-test('Monatsansicht: Kästen mit Stand, „Mehr ›“, Zähler, Lücken im Hover; Suche mit Wochenblättern; Patient als Kontext', async () => {
+test('Monatsansicht: Kästen mit Stand, „Mehr ›“, Zähler, Lücken sichtbar im Kasten (W125); Suche mit Wochenblättern; Patient als Kontext', async () => {
   const html = await seite(`/kalender?ansicht=monat&monat=${MONAT}`);
   assert.match(html, new RegExp(`<a class="mk-tag stand-teilweise" href="/kalender\\?ansicht=tag&tag=${MONTAG}" data-hilfe="kalender.monat-tag">`));
   assert.match(html, new RegExp(`<a class="mk-tag stand-voll" href="/kalender\\?ansicht=tag&tag=${DIENSTAG}"`));
