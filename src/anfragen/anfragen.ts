@@ -5,6 +5,7 @@
  */
 import { protokolliere, type Db } from '../db/index.ts';
 import { iso, istId, text as textWert } from '../db/werte.ts';
+import { hausbesuchVorgabe } from '../kartei/hausbesuche.ts';
 import { KarteiFehler, terminAnlegen } from '../kartei/patienten.ts';
 import { telefonNormieren } from '../telefon.ts';
 import type { Tresor } from '../tresor.ts';
@@ -200,18 +201,22 @@ export async function notizSetzen(db: Db, t: Tresor, id: string, notiz: string |
   await protokolliere(db, { actor: wer, action: 'anfrage_notiz', objectType: 'terminanfrage', objectId: id });
 }
 
-/** Gewählten Vorschlag fest eintragen: Termin in der Kartei; die übrigen Reservierungen gibt es zurück zum Löschen */
-export async function anfrageBestaetigen(db: Db, t: Tresor, id: string, wahl: number, wer: string): Promise<{ terminId: string; gewaehlt: Vorschlag; andere: Vorschlag[] }> {
+/**
+ * Gewählten Vorschlag fest eintragen: Termin in der Kartei; die übrigen Reservierungen gibt es zurück zum Löschen.
+ * Hausbesuch-Patient (W131): der Termin wird wie sein letzter als Hausbesuch angelegt – mit Fahrt davor und danach.
+ */
+export async function anfrageBestaetigen(db: Db, t: Tresor, id: string, wahl: number, wer: string): Promise<{ terminId: string; gewaehlt: Vorschlag; andere: Vorschlag[]; hausbesuch: boolean }> {
   const a = await anfrageLesen(db, t, id);
   if (!a) throw new KarteiFehler('Unbekannte Anfrage');
   if (!a.patient) throw new KarteiFehler('Bitte zuerst den Patienten zuordnen oder anlegen');
   const gewaehlt = a.vorschlaege[wahl];
   if (!gewaehlt) throw new KarteiFehler('Diesen Vorschlag gibt es nicht');
   const dauer = Math.round((new Date(gewaehlt.ende).getTime() - new Date(gewaehlt.beginn).getTime()) / 60_000);
-  const terminId = await terminAnlegen(db, a.patient.id, { datum: datumBerlin(gewaehlt.beginn), zeit: zeitBerlin(gewaehlt.beginn), dauerMin: dauer, terminartId: a.terminart?.id }, wer);
+  const vorgabe = await hausbesuchVorgabe(db, a.patient.id);
+  const terminId = await terminAnlegen(db, a.patient.id, { datum: datumBerlin(gewaehlt.beginn), zeit: zeitBerlin(gewaehlt.beginn), dauerMin: dauer, terminartId: a.terminart?.id, behandlungsort: vorgabe.wert }, wer);
   await db.query("UPDATE terminanfrage SET status = 'bestaetigt', termin_id = $2, vorschlaege = $3, erledigt_am = now(), erledigt_von = $4, geaendert_am = now() WHERE id = $1", [id, terminId, JSON.stringify([{ ...gewaehlt, exchangeEventId: null }]), wer]);
-  await protokolliere(db, { actor: wer, action: 'anfrage_bestaetigt', objectType: 'terminanfrage', objectId: id, details: { termin: terminId } });
-  return { terminId, gewaehlt, andere: a.vorschlaege.filter((_, i) => i !== wahl) };
+  await protokolliere(db, { actor: wer, action: 'anfrage_bestaetigt', objectType: 'terminanfrage', objectId: id, details: { termin: terminId, hausbesuch: vorgabe.behandlungsort === 'hausbesuch' } });
+  return { terminId, gewaehlt, andere: a.vorschlaege.filter((_, i) => i !== wahl), hausbesuch: vorgabe.behandlungsort === 'hausbesuch' };
 }
 
 /** Vorschläge, die älter als `stunden` sind und noch nicht bestätigt wurden – ihre Reservierungen sollen weg */

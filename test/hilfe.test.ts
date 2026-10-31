@@ -197,7 +197,7 @@ const seiten = () => [
   terminartenSeite({ terminarten: TERMINARTEN.map((x) => ({ ...x, aktiv: false })) }, R),
   anfragenSeite({ anfragen: [], filter: 'alle', stand: { neu: 0, vorgeschlagen: 0 }, terminarten: [] }, R),
   anfrageSeite({ anfrage: ANFRAGE, terminarten: TERMINARTEN, patienten: [PAT], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
-  anfrageSeite({ anfrage: ANFRAGE_MIT, terminarten: TERMINARTEN, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: false }, R),
+  anfrageSeite({ anfrage: ANFRAGE_MIT, terminarten: TERMINARTEN, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: false, hausbesuch: { behandlungsort: 'hausbesuch', adresseId: '5', ort: 'Türkheim', wert: 'adresse:5', fahrtMin: 15 } }, R),
   anfrageSeite({ anfrage: ANFRAGE_BUCHUNG, terminarten: TERMINARTEN, patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
   anfrageSeite({ anfrage: ANFRAGE_FERTIG, terminarten: [], patienten: [], regeln: { dauerMin: 30, pufferMin: 0, oeffnungszeiten: 'Mo 08:00-18:00' }, postfach: true }, R),
   patientSeite({ ...PATIENT_DATEN, patient: { ...PAT, status: 'archiviert', lexwareKundennummer: null }, lexwareRechnungen: false, lexwareAbgleich: null, lexwareKundeAnlegbar: true }, R),

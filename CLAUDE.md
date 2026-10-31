@@ -14,6 +14,7 @@ Kommentare, Oberfläche, Commits.
 | `konzept/fragen-an-lilli.md` | Was nur Lilli entscheiden kann. |
 | `konzept/mandantenfaehigkeit.md` | Prüfung Mehrbenutzer und Mandanten (W89). |
 | `konzept/lexware-validierung.md` | Validierungen zu Lexware (W121): zwei Lösungen im Vergleich, Empfehlung „Lexware-Spiegel“ in Stufen. |
+| `konzept/testplan-termine-mails.md` | Testplan (Testerrolle) für Termine, Mails, Buchungsseite, Kalender und die Übergaben Rechner ↔ Handy: Fälle, Live-Prüfung des Testpostfachs, Befunde. Prozesstest dazu: `test/prozess-termine-mails.test.ts`. |
 | `konzept/hilfe-vorschau.html` | Erzeugt aus `src/web/hilfe.ts` – nie von Hand ändern. |
 | `README.md` | Einrichtung, Befehle, Bereitstellung. |
 

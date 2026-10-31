@@ -1,0 +1,12 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 1300,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "7-kalender-0211", "pfad": "/kalender?ansicht=tag&tag=2026-11-02&namen=1" },
+    { "name": "8-rechnung-172", "pfad": "/patienten/104/rechnungen/172" },
+    { "name": "9-cockpit", "pfad": "/" }
+  ]
+}

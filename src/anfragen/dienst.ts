@@ -7,8 +7,9 @@ import type { Db } from '../db/index.ts';
 import { datumZeitText } from '../format.ts';
 import { GraphError, type GraphClient } from '../graph.ts';
 import { terminSpiegeln } from '../kartei/kalender.ts';
+import { hausbesuchVorgabe, type HausbesuchVorgabe } from '../kartei/hausbesuche.ts';
 import { einstellungen } from '../kartei/konfiguration.ts';
-import { KarteiFehler, patientenListe, type PatientKurz } from '../kartei/patienten.ts';
+import { KarteiFehler, patientenListe, patientLesen, type PatientKurz } from '../kartei/patienten.ts';
 import { antwortEntwurf, entwurfAnlegen } from '../mail/entwurf.ts';
 import { rendern, vorlage, type Person } from '../nachrichten/vorlagen.ts';
 import type { Tresor } from '../tresor.ts';
@@ -37,6 +38,8 @@ export interface AnfrageSeiteDaten {
   regeln: { dauerMin: number; pufferMin: number; oeffnungszeiten: string };
   /** Kalender erreichbar – dann werden Vorschläge reserviert und Entwürfe angelegt */
   postfach: boolean;
+  /** Behandlungsort des zugeordneten Patienten wie bei seinem letzten Termin (W131) – Hausbesuch: Vorschläge lassen die Fahrt frei, der Termin wird Hausbesuch */
+  hausbesuch?: HausbesuchVorgabe;
 }
 
 export interface AnfragenStand {
@@ -72,8 +75,11 @@ export async function slotRegeln(db: Db): Promise<SlotRegeln & { oeffnungszeiten
 export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGraph }): AnfragenDienst {
   const { db, tresor: t } = q;
 
-  const person = (a: Anfrage): Person => {
+  /** Wer angeschrieben wird: beim zugeordneten Patienten seine Stammdaten (Anrede, Titel → „Sehr geehrte Frau …“), sonst der Name aus der Anfrage (Testbefund T6) */
+  const person = async (a: Anfrage): Promise<Person> => {
     if (a.patient) {
+      const p = await patientLesen(db, t, a.patient.id);
+      if (p) return { anrede: p.anrede, titel: p.titel, vorname: p.vorname, nachname: p.nachname };
       const [vorname, ...rest] = a.patient.name.split(' ');
       return { anrede: null, titel: null, vorname: vorname ?? '', nachname: rest.join(' ') };
     }
@@ -81,14 +87,17 @@ export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGrap
     return { anrede: null, titel: null, vorname: rest.length ? vorname! : '', nachname: rest.length ? rest.join(' ') : (vorname ?? '') };
   };
 
-  /** Antwort als Entwurf: im Faden der Mail, sonst neue Mail an die bekannte Adresse; ohne Adresse nichts */
-  const entwurf = async (a: Anfrage, code: string, werte: { termin?: string; freitext?: string }): Promise<string | null> => {
+  /**
+   * Antwort als Entwurf: im Faden der Mail, sonst neue Mail an die bekannte Adresse; ohne Adresse nichts (null).
+   * Der Entwurf zählt, auch wenn Graph keinen Web-Link mitgibt – die Meldung hängt am Entwurf, nicht am Link (Testbefund T2).
+   */
+  const entwurf = async (a: Anfrage, code: string, werte: { termin?: string; freitext?: string }): Promise<{ webLink: string | null } | null> => {
     if (!q.graph) return null;
     const v = vorlage(code)!;
-    const { betreff, text } = rendern(v, 'email', { person: person(a), ...werte });
+    const { betreff, text } = rendern(v, 'email', { person: await person(a), ...werte });
     try {
-      if (a.graphMessageId && a.absenderAdresse) return (await antwortEntwurf(q.graph, a.graphMessageId, text, a.absenderAdresse)).webLink ?? null;
-      if (a.absenderAdresse) return (await entwurfAnlegen(q.graph, { an: [a.absenderAdresse], betreff, text }, { ausfuehren: true })).webLink ?? null;
+      if (a.graphMessageId && a.absenderAdresse) return { webLink: (await antwortEntwurf(q.graph, a.graphMessageId, text, a.absenderAdresse)).webLink ?? null };
+      if (a.absenderAdresse) return { webLink: (await entwurfAnlegen(q.graph, { an: [a.absenderAdresse], betreff, text }, { ausfuehren: true })).webLink ?? null };
       return null;
     } catch (err) {
       if (err instanceof SchrankeVerletzt) throw new KarteiFehler(err.message);
@@ -112,7 +121,10 @@ export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGrap
       const anfrage = await anfrageLesen(db, t, id);
       if (!anfrage) return undefined;
       const r = await slotRegeln(db);
-      return { anfrage, terminarten: await terminarten(db), patienten: await patientenListe(db, t, {}), regeln: { dauerMin: r.dauerMin, pufferMin: r.pufferMin, oeffnungszeiten: r.oeffnungszeitenText }, postfach: Boolean(q.graph) };
+      return {
+        anfrage, terminarten: await terminarten(db), patienten: await patientenListe(db, t, {}), regeln: { dauerMin: r.dauerMin, pufferMin: r.pufferMin, oeffnungszeiten: r.oeffnungszeitenText }, postfach: Boolean(q.graph),
+        hausbesuch: anfrage.patient ? await hausbesuchVorgabe(db, anfrage.patient.id) : undefined,
+      };
     },
     terminarten: () => terminarten(db),
     async stand() {
@@ -155,13 +167,15 @@ export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGrap
           const bis = berlinMitternachtUtc(tagPlus(ab, tage));
           await loeschen(a.vorschlaege);
           const belegt = await belegteZeiten(q.graph, db, berlinMitternachtUtc(ab), bis, { ohneAnfrage: id, pufferMin: r.pufferMin });
-          const slots = vorschlaegeBerechnen({ ab: von, tage, belegt, regeln: { ...r, dauerMin: dauer }, wunsch: f.has('ohne_wunsch') ? undefined : a.erkannt, anzahl: 3 });
+          // Hausbesuch-Patient (W131): Hin- und Rückfahrt bleiben um jeden Vorschlag frei
+          const fahrt = a.patient ? (await hausbesuchVorgabe(db, a.patient.id)).fahrtMin : 0;
+          const slots = vorschlaegeBerechnen({ ab: von, tage, belegt, regeln: { ...r, dauerMin: dauer, fahrtMin: fahrt }, wunsch: f.has('ohne_wunsch') ? undefined : a.erkannt, anzahl: 3 });
           if (!slots.length) throw new KarteiFehler('Keine freie Zeit in diesem Zeitraum – Zeitraum verlängern oder Öffnungszeiten prüfen');
           const vorschlaege: Vorschlag[] = q.graph ? await reservieren(q.graph, id, slots) : slots.map((s) => ({ ...s, exchangeEventId: null }));
           const freitext = slots.map((s) => `– ${datumZeitText(s.beginn, { jahr: true })} Uhr (${dauer} Minuten)`).join('\n');
-          const webLink = await entwurf(a, 'terminvorschlag', { freitext });
-          await vorschlaegeSetzen(db, id, vorschlaege, { dauerMin: dauer, leistungNummer: g('leistung_nummer') ?? null, antwortWeblink: webLink }, wer);
-          return { ziel: `${seite}#vorschlaege`, meldung: `${slots.length} Zeiten vorgeschlagen${q.graph ? ' und im Kalender reserviert' : ''}.${webLink ? ' Die Antwort liegt als Entwurf im Postfach – bitte prüfen und senden.' : a.absenderAdresse ? '' : ' Keine Mailadresse – bitte telefonisch mitteilen.'}` };
+          const antwort = await entwurf(a, 'terminvorschlag', { freitext });
+          await vorschlaegeSetzen(db, id, vorschlaege, { dauerMin: dauer, leistungNummer: g('leistung_nummer') ?? null, antwortWeblink: antwort?.webLink ?? null }, wer);
+          return { ziel: `${seite}#vorschlaege`, meldung: `${slots.length} Zeiten vorgeschlagen${q.graph ? ' und im Kalender reserviert' : ''}.${antwort ? ' Die Antwort liegt als Entwurf im Postfach – bitte prüfen und senden.' : a.absenderAdresse ? '' : ' Keine Mailadresse – bitte telefonisch mitteilen.'}` };
         }
         case 'bestaetigen': {
           const e = await anfrageBestaetigen(db, t, id, Number(g('wahl') ?? -1), wer);
@@ -176,9 +190,9 @@ export function anfragenDienst(q: { db: Db; tresor: Tresor; graph?: AnfragenGrap
               kalender = ' Der Kalender war nicht erreichbar – der Abgleich holt es nach.';
             }
           }
-          const webLink = await entwurf(a, 'terminbestaetigung', { termin: e.gewaehlt.beginn });
-          if (webLink) await db.query('UPDATE terminanfrage SET antwort_weblink = $2 WHERE id = $1', [id, webLink]);
-          return { ziel: `/patienten/${a.patient!.id}#termine`, meldung: `Termin am ${datumZeitText(e.gewaehlt.beginn, { jahr: true })} angelegt.${kalender}${webLink ? ' Die Bestätigung liegt als Entwurf im Postfach.' : ''}` };
+          const bestaetigung = await entwurf(a, 'terminbestaetigung', { termin: e.gewaehlt.beginn });
+          if (bestaetigung?.webLink) await db.query('UPDATE terminanfrage SET antwort_weblink = $2 WHERE id = $1', [id, bestaetigung.webLink]);
+          return { ziel: `/patienten/${a.patient!.id}#termine`, meldung: `Termin am ${datumZeitText(e.gewaehlt.beginn, { jahr: true })} angelegt.${e.hausbesuch ? ' Als Hausbesuch mit Fahrt davor und danach.' : ''}${kalender}${bestaetigung ? ' Die Bestätigung liegt als Entwurf im Postfach.' : ''}` };
         }
         case 'absagen':
         case 'erledigt':

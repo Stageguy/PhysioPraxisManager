@@ -1,0 +1,13 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 1300,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "1-cockpit-schnell", "pfad": "/?schnell=45&patient=T-1051" },
+    { "name": "4-anfragen", "pfad": "/anfragen?filter=alle" },
+    { "name": "5-anfrage-1", "pfad": "/anfragen/1" },
+    { "name": "6-patient-116", "pfad": "/patienten/116" }
+  ]
+}

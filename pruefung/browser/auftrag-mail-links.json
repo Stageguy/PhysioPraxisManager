@@ -1,0 +1,11 @@
+{
+  "basis": "http://127.0.0.1:3311",
+  "beruehrung": true,
+  "breiten": [393],
+  "hoehe": 1700,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "mail-40-kennung", "pfad": "/?dauer=40&zeit=2026-11-02T15:15Z&e=l_hTW5J2IAkm" },
+    { "name": "mail-60-ohne", "pfad": "/?dauer=60&zeit=2026-11-02T15:15Z", "warte": "#s-daten" }
+  ]
+}

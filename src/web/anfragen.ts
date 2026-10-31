@@ -83,6 +83,7 @@ export function anfrageSeite(d: AnfrageSeiteDaten, o: Rahmen): string {
       <label>Ab<input type="date" name="ab" value="${heuteBerlin()}" data-hilfe="anfrage.ab"></label></div>
       <div class="zwei"><label>Zeitraum in Tagen<input name="tage" inputmode="numeric" class="kurz" value="14"></label>
       <label class="haken"><input type="checkbox" name="ohne_wunsch" value="1"> Zeitwünsche nicht beachten</label></div>
+      ${d.hausbesuch?.behandlungsort === 'hausbesuch' ? `<p class="hint" data-hilfe="anfrage.hausbesuch">${symbol('haus', { groesse: 14 })} Hausbesuch-Patient (wie zuletzt${d.hausbesuch.ort ? `, ${esc(d.hausbesuch.ort)}` : ''}): die Vorschläge lassen rund ${d.hausbesuch.fahrtMin} Min. Fahrt davor und danach frei, der bestätigte Termin wird als Hausbesuch angelegt.</p>` : ''}
       <div class="knopfreihe"><button class="knopf primaer" data-hilfe="anfrage.vorschlagen">${symbol('kalender', { groesse: 18 })} Drei Zeiten vorschlagen</button></div>
       <p class="hint">Öffnungszeiten: ${esc(d.regeln.oeffnungszeiten)} (ändern unter Konfiguration). ${d.postfach ? 'Die Zeiten werden im Praxiskalender reserviert, die Antwort liegt danach als Entwurf im Postfach.' : 'Ohne Postfach: nur berechnen, keine Reservierung, kein Entwurf.'}</p>`, { id: a.id, zurueck, klasse: 'formular' }) : '';
   const status = offen
