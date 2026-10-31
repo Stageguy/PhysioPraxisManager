@@ -83,6 +83,8 @@ export async function rechnungSenden(
       if (err instanceof SchrankeVerletzt) throw new KarteiFehler(err.message);
       if (err instanceof GraphError) throw new KarteiFehler(`Postfach nicht erreichbar (${err.status}) – der Entwurf wurde nicht angelegt`);
       if (err instanceof Error && !(err instanceof KarteiFehler) && /Anhang|Mailadresse|Empfänger/.test(err.message)) throw new KarteiFehler(err.message);
+      // Graph antwortet manchmal zu langsam (Zeitüberschreitung): kein 500, sondern eine Meldung – in Outlook unter „Entwürfe“ nachsehen, sonst noch einmal
+      if (err instanceof Error && /timeout|abort/i.test(err.message)) throw new KarteiFehler('Das Postfach hat nicht rechtzeitig geantwortet – bitte in Outlook unter „Entwürfe“ nachsehen; liegt dort nichts, „Versenden“ noch einmal drücken');
       throw err;
     }
     await db.query(
