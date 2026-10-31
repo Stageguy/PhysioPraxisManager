@@ -78,7 +78,7 @@ export const RECHNUNGEN: Record<string, HilfeEintrag> = {
     ergebnis: 'Lexware mit der Rechnung.', rueckweg: 'Tab schließen.' },
   'rechnung.entwurf': { seite: 'Rechnung', titel: 'Entwurf in Outlook',
     loest_aus: AUSKUNFT, bezug: 'Die Rechnungs-Mail wartet als Entwurf im Praxispostfach (W122) – mit PDF, GiroCode und der Mailadresse des Patienten.',
-    aendert: 'Nichts von selbst. Der Dienst sieht alle paar Minuten und bei jedem Öffnen dieser Seite nach: gesendet → „Versendet“ mit dem Datum aus Outlook; Entwurf gelöscht → die Rechnung bleibt „in Lexware“, „Versenden“ legt ihn neu an.',
+    aendert: 'Nichts von selbst. Der Dienst sieht alle paar Minuten und bei jedem Öffnen dieser Seite nach: gesendet → „Versendet“ mit dem Datum aus Outlook; Entwurf in Outlook gelöscht (liegt dann in „Gelöschte Elemente“) → nach zehn Minuten vergisst die Kartei ihn, die Rechnung bleibt „in Lexware“, „Versenden“ legt ihn neu an.',
     ergebnis: 'Solange der Entwurf wartet, gibt es hier kein zweites „Versenden“ und keinen Vermerk von Hand.', rueckweg: 'Den Entwurf in Outlook löschen – beim nächsten Nachsehen ist der Weg wieder frei.' },
   'rechnung.entwurf-outlook': { seite: 'Rechnung', titel: 'In Outlook öffnen',
     loest_aus: 'Öffnet den Entwurf in Outlook im Web – mit allen Daten und der Mailadresse. Ein Sprung ins Outlook-Programm oder in Apple Mail ist nicht möglich: Microsoft bietet dafür keinen Link, und ein unversendeter Entwurf hat für Apple Mail noch keine Message-ID. In Apple Mail liegt derselbe Entwurf unter „Entwürfe“ des Praxiskontos.', bezug: 'Der Entwurf dieser Rechnungs-Mail.', aendert: NICHTS, ergebnis: 'Outlook mit dem Entwurf – anpassen, senden.', rueckweg: 'Tab schließen.' },

@@ -262,7 +262,9 @@ export async function entwuerfeStand(db: Db | undefined, graph: Pick<GraphClient
     const test = umgebung() === 'test';
     // Zählt: Entwürfe mit Kategorie PPM dieser Umgebung – und Rechnungs-Entwürfe, die die Kartei kennt (auch ältere ohne Kategorie)
     const istRechnung = (m: { conversationId?: string }) => Boolean(m.conversationId && bekannt.has(m.conversationId));
-    const entwuerfe = (antwort.value ?? []).filter((m) => istRechnung(m) || ((m.categories ?? []).includes(PPM_KATEGORIE) && (m.categories ?? []).includes(TEST_KATEGORIE) === test));
+    // In der Testumgebung zählt jeder TEST-Entwurf – die Kategorie setzt nur der PPM; in der Produktion nur PPM ohne TEST (Lillis eigene Entwürfe bleiben außen vor)
+    const vomPpm = (k: string[]) => (test ? k.includes(TEST_KATEGORIE) : k.includes(PPM_KATEGORIE) && !k.includes(TEST_KATEGORIE));
+    const entwuerfe = (antwort.value ?? []).filter((m) => istRechnung(m) || vomPpm(m.categories ?? []));
     return { stand: 'ok', daten: { gesamt: entwuerfe.length, rechnungen: entwuerfe.filter(istRechnung).length, link: 'https://outlook.office.com/mail/drafts' } };
   } catch (err) {
     console.warn(`Entwürfe: ${(err as Error).message.slice(0, 160)}`);

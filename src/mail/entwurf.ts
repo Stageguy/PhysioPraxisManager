@@ -74,7 +74,7 @@ export async function antwortEntwurf(graph: Pick<GraphClient, 'post' | 'patch'>,
 }
 
 export async function entwurfAnlegen(
-  graph: Pick<GraphClient, 'post'> & Partial<Pick<GraphClient, 'get'>>,
+  graph: Pick<GraphClient, 'post'> & Partial<Pick<GraphClient, 'get' | 'delete'>>,
   mail: NeueMail,
   optionen: { ausfuehren: boolean; /** zusätzlich die unveränderliche Kennung holen, mit der sich der Entwurf nach dem Senden wiederfinden lässt (W122) */ unveraenderlicheKennung?: boolean },
 ): Promise<{ angelegt: boolean; id?: string; webLink?: string; conversationId?: string; messageId?: string }> {
@@ -84,7 +84,13 @@ export async function entwurfAnlegen(
   if (!optionen.ausfuehren) return { angelegt: false };
   // Ohne Prefer-Kopfzeile: nur mit der normalen Kennung funktioniert der Web-Link in Outlook im Web
   const m = await graph.post<{ id: string; webLink: string; conversationId?: string; internetMessageId?: string }>('/me/messages', entwurfKoerper(mail));
-  for (const a of mail.anhaenge ?? []) await graph.post(`/me/messages/${m.id}/attachments`, anhangKoerper(a));
+  try {
+    for (const a of mail.anhaenge ?? []) await graph.post(`/me/messages/${m.id}/attachments`, anhangKoerper(a));
+  } catch (err) {
+    // Kein Entwurf ohne seine Anhänge im Postfach lassen (Waise) – so gut es geht wieder löschen, dann den Fehler melden
+    if (graph.delete) await graph.delete(`/me/messages/${encodeURIComponent(m.id)}`).catch((e: Error) => console.warn(`Entwurf ${m.id} nicht gelöscht: ${e.message.slice(0, 120)}`));
+    throw err;
+  }
   let id = m.id;
   if (optionen.unveraenderlicheKennung && graph.get) {
     // Die unveränderliche Kennung überlebt das Verschieben nach „Gesendete Elemente“; klappt das nicht, hilft später der Faden

@@ -127,7 +127,7 @@ test('PPM-Mails in „Entwürfe“ (W123): Kategorie PPM zählt, Produktion ohne
   const vorher = process.env.PRAXIS_UMGEBUNG;
   process.env.PRAXIS_UMGEBUNG = 'test';
   try {
-    assert.equal((await entwuerfeStand(undefined, graph) as { daten: { gesamt: number } }).daten.gesamt, 1, 'Testumgebung: nur PPM mit TEST');
+    assert.equal((await entwuerfeStand(undefined, graph) as { daten: { gesamt: number } }).daten.gesamt, 3, 'Testumgebung: jeder Entwurf mit TEST (d2, d4, m1) – die Kategorie setzt nur der PPM');
   } finally {
     if (vorher === undefined) delete process.env.PRAXIS_UMGEBUNG; else process.env.PRAXIS_UMGEBUNG = vorher;
   }

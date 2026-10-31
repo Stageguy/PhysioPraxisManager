@@ -120,14 +120,18 @@ export async function rechnungsversandPruefen(
        (versand_entwurf_am < now() - interval '10 minutes') AS alt FROM rechnung
      WHERE versand_entwurf_id IS NOT NULL AND status = 'in_lexware'${o.rechnungId ? ' AND id = $1' : ''} ORDER BY id`, o.rechnungId ? [o.rechnungId] : [],
   );
-  type Nachricht = { id: string; isDraft?: boolean; sentDateTime?: string | null };
+  type Nachricht = { id: string; isDraft?: boolean; sentDateTime?: string | null; parentFolderId?: string };
   const holen = async (pfad: string): Promise<Nachricht | undefined> => {
     try { return await graph.get<Nachricht>(pfad, UNVERAENDERLICHE_KENNUNG); } catch (err) { if (err instanceof GraphError && err.status === 404) return undefined; throw err; }
   };
+  // Löschen in Outlook heißt verschieben nach „Gelöschte Elemente“: ein Entwurf, der nicht mehr im Entwürfe-Ordner liegt, ist verworfen
+  let entwuerfeOrdner: string | null = null;
+  try { entwuerfeOrdner = (await graph.get<{ id: string }>('/me/mailFolders/drafts?$select=id')).id; } catch (err) { console.warn(`Entwürfe-Ordner: ${(err as Error).message.slice(0, 120)}`); }
   for (const r of rows) {
     e.geprueft++;
     try {
-      let m = await holen(`/me/messages/${encodeURIComponent(r.entwurf)}?$select=id,isDraft,sentDateTime`);
+      let m = await holen(`/me/messages/${encodeURIComponent(r.entwurf)}?$select=id,isDraft,sentDateTime,parentFolderId`);
+      if (m && m.isDraft !== false && entwuerfeOrdner && m.parentFolderId && m.parentFolderId !== entwuerfeOrdner) m = undefined;
       if (!m && r.conversation) {
         // Ohne unveränderliche Kennung wechselt die Kennung beim Senden – dann über den Faden in „Gesendete Elemente“ suchen
         const s = await graph.get<{ value?: { id: string; sentDateTime?: string }[] }>(`/me/mailFolders/sentitems/messages?$filter=conversationId eq '${r.conversation.replace(/'/g, "''")}'&$select=id,sentDateTime&$top=1`);

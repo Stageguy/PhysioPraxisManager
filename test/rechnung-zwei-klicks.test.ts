@@ -139,20 +139,23 @@ test('Klick 2 „Versenden“ per Mail (W122): Entwurf in Outlook mit PDF und Gi
   assert.match(ziel(await post({ aktion: 'rechnung_versenden', id: pid, rechnung_id: rid, versand_art: 'email', zurueck: `/patienten/${pid}` })), /fehler=Die Rechnungs-Mail liegt schon als Entwurf in Outlook/);
   assert.match(await seite(`/patienten/${pid}`), /Entwurf in Outlook/, 'Marke an der Rechnungskachel');
   assert.match(await seite(`/patienten/${pid}`), /als Entwurf im Postfach \(RE-\d{4}-9001\.pdf\) – Versand in Outlook/, 'im Kontaktverlauf');
-  // Outlook: Entwurf noch da → nichts; Entwurf weg (Lilli hat ihn verworfen) → Rechnung wieder frei
-  GET[`/me/messages/${entwurfId}?$select=id,isDraft,sentDateTime`] = { id: entwurfId, isDraft: true, sentDateTime: null };
+  // Outlook: Entwurf noch da → nichts; in „Gelöschte Elemente“ verschoben (so löscht Outlook) → nach zehn Minuten verworfen, Rechnung wieder frei
+  GET['/me/mailFolders/drafts?$select=id'] = { id: 'ordner-entwuerfe' };
+  const nachricht = `/me/messages/${entwurfId}?$select=id,isDraft,sentDateTime,parentFolderId`;
+  GET[nachricht] = { id: entwurfId, isDraft: true, sentDateTime: null, parentFolderId: 'ordner-entwuerfe' };
   assert.deepEqual(await rechnungsversandPruefen(db, t, graph, 'system'), { geprueft: 1, bestaetigt: 0, verworfen: 0, fehler: 0 });
-  delete GET[`/me/messages/${entwurfId}?$select=id,isDraft,sentDateTime`];
-  assert.deepEqual(await rechnungsversandPruefen(db, t, graph, 'system'), { geprueft: 1, bestaetigt: 0, verworfen: 0, fehler: 0 }, 'ein frischer Entwurf, der (noch) nicht gefunden wird, gilt nicht als verworfen');
+  GET[nachricht] = { id: entwurfId, isDraft: true, sentDateTime: null, parentFolderId: 'ordner-geloeschte-elemente' };
+  assert.deepEqual(await rechnungsversandPruefen(db, t, graph, 'system'), { geprueft: 1, bestaetigt: 0, verworfen: 0, fehler: 0 }, 'ein frischer Entwurf bekommt zehn Minuten – auch wenn er gerade nicht im Ordner liegt');
   await db.query("UPDATE rechnung SET versand_entwurf_am = now() - interval '1 hour' WHERE id = $1", [rid]);
-  assert.deepEqual(await rechnungsversandPruefen(db, t, graph, 'system'), { geprueft: 1, bestaetigt: 0, verworfen: 1, fehler: 0 });
+  assert.deepEqual(await rechnungsversandPruefen(db, t, graph, 'system'), { geprueft: 1, bestaetigt: 0, verworfen: 1, fehler: 0 }, 'in „Gelöschte Elemente“ = verworfen');
+  delete GET[nachricht];
   z = await stand();
   assert.deepEqual([z.status, z.versand_entwurf_id], ['in_lexware', null], 'nicht gesendet, Entwurf vergessen');
   assert.match(await seite(`/patienten/${pid}/rechnungen/${rid}`), /data-hilfe="rechnung.versenden"/, '„Versenden“ geht wieder');
   // Noch einmal anlegen, dann in Outlook gesendet → „versendet“ mit dem Datum aus Outlook
   await post({ aktion: 'rechnung_versenden', id: pid, rechnung_id: rid, versand_art: 'email', zurueck: `/patienten/${pid}` });
   const entwurf2 = String((await stand()).versand_entwurf_id);
-  GET[`/me/messages/${entwurf2}?$select=id,isDraft,sentDateTime`] = { id: entwurf2, isDraft: false, sentDateTime: '2026-10-31T09:15:00Z' };
+  GET[`/me/messages/${entwurf2}?$select=id,isDraft,sentDateTime,parentFolderId`] = { id: entwurf2, isDraft: false, sentDateTime: '2026-10-31T09:15:00Z', parentFolderId: 'ordner-gesendet' };
   html = await seite(`/patienten/${pid}/rechnungen/${rid}`);
   assert.ok(!html.includes('rechnung.entwurf"'), 'die Seite sieht beim Öffnen nach – der Hinweis ist weg');
   z = await stand();
@@ -177,4 +180,15 @@ test('Ohne Mailadresse kein Mailversand; Rechnung aus Lexware lässt sich nicht 
   await post({ aktion: 'rechnung_lexware', id: ohne, rechnung_id: r, zurueck: `/patienten/${ohne}` });
   assert.match(ziel(await post({ aktion: 'rechnung_versenden', id: ohne, rechnung_id: r, versand_art: 'email', zurueck: `/patienten/${ohne}` })), /fehler=Keine Mailadresse hinterlegt – bitte Versand per Post wählen/);
   assert.equal((await db.query<{ s: string }>('SELECT status::text AS s FROM rechnung WHERE id = $1', [r])).rows[0]!.s, 'in_lexware', 'nichts versendet');
+});
+
+test('Scheitert ein Anhang beim Anlegen des Entwurfs, wird der Entwurf wieder gelöscht – keine Waise im Postfach', async () => {
+  const { entwurfAnlegen } = await import('../src/mail/entwurf.ts');
+  const aufrufe: string[] = [];
+  const kaputt = {
+    async post<T>(pfad: string): Promise<T> { aufrufe.push(`POST ${pfad}`); if (pfad.endsWith('/attachments')) throw new Error('The operation was aborted due to timeout'); return { id: 'e1', webLink: 'https://outlook.example/e1' } as T; },
+    async delete(pfad: string): Promise<void> { aufrufe.push(`DELETE ${pfad}`); },
+  };
+  await assert.rejects(entwurfAnlegen(kaputt, { an: ['shopping+bernd@2late.de'], betreff: 'x', text: 'y', anhaenge: [{ name: 'a.pdf', mime: 'application/pdf', daten: new Uint8Array([1]) }] }, { ausfuehren: true }), /timeout/);
+  assert.deepEqual(aufrufe, ['POST /me/messages', 'POST /me/messages/e1/attachments', 'DELETE /me/messages/e1']);
 });
