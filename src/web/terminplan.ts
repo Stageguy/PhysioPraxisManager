@@ -57,11 +57,15 @@ export function monatSeite(d: MonatSeiteDaten, o: Rahmen): string {
     const ueberlauf = alle.length > 6;
     const sichtbar = ueberlauf ? alle.slice(0, 5) : alle;
     const hover = [...alle, ...tp.termine.flatMap(fahrtEintraege), ...tp.luecken.filter((l) => l.minuten >= DAUERN[0]).map((l) => ({ beginn: l.beginn, html: lueckeEintrag(l) }))].sort((a, b) => a.beginn.localeCompare(b.beginn));
+    // Erste Zeile: Bilanz des Tages – freie Minuten (Lücken in der Öffnungszeit, heute ab jetzt) und gebuchte Minuten (Termine ohne Fahrten)
+    const freiMin = tp.luecken.reduce((n, l) => n + l.minuten, 0);
+    const gebuchtMin = tp.termine.reduce((n, t) => n + dauerVon(t.beginn, t.ende), 0);
+    const bilanz = `<span class="mk-e bilanz"><b class="frei">${freiMin} Min. frei</b> · <b>${gebuchtMin} Min. gebucht</b></span>`;
     const rahmen = tp.oeffnung.length ? `<span class="mk-e rahmen"><small>${tp.oeffnung.map((f) => `${esc(f.von)}–${esc(f.bis)}`).join(' · ')}</small> Öffnung</span>` : '<span class="mk-e rahmen">geschlossen</span>';
     return `<a class="mk-tag stand-${tp.stand}${tp.datum === plan.heute ? ' heute' : ''}" href="${kalenderLink({ ...basis, ansicht: 'tag', tag: tp.datum })}" data-hilfe="kalender.monat-tag">
       <span class="mk-kopf"><b>${Number(tp.datum.slice(8))}</b>${tp.freierTag ? `<small class="mk-frei">${esc(tp.freierTag)}</small>` : ''}${tp.termine.length ? `<small class="mk-zahl">${tp.termine.length}</small>` : ''}</span>
       ${sichtbar.map((x) => x.html).join('')}${ueberlauf ? '<span class="mk-e mehr">Mehr ›</span>' : ''}
-      <span class="mk-mehr">${rahmen}${hover.map((x) => x.html).join('')}</span>
+      <span class="mk-mehr">${bilanz}${rahmen}${hover.map((x) => x.html).join('')}</span>
     </a>`;
   };
   // Raster: vom Montag vor dem 1. bis zum Sonntag nach dem Monatsende

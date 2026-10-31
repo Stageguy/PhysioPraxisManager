@@ -102,6 +102,7 @@ test('Monatsansicht: Kästen mit Stand, „Mehr ›“, Zähler, Lücken sichtba
   assert.match(html, /<span class="mk-e mehr">Mehr ›<\/span>/, 'acht Termine → fünf plus „Mehr ›“');
   assert.match(html, /<span class="mk-zaehler"><b>\d+<\/b> × 20 Min\.<\/span>/);
   assert.match(html, /<span class="mk-e luecke"><small>10:00–12:00 \(120\)<\/small> frei<\/span>/);
+  assert.match(html, /<span class="mk-mehr"><span class="mk-e bilanz"><b class="frei">180 Min\. frei<\/b> · <b>\d+ Min\. gebucht<\/b><\/span><span class="mk-e rahmen"><small>08:00–12:00<\/small> Öffnung<\/span>/, 'Bilanz und Öffnung als erste Zeilen im Hover (W125b)');
   assert.match(html, /<small>09:00–09:45 \(45\)<\/small> K\. K\./, 'Kürzel, Dauer in Klammern');
   const s = await seite(`/kalender?ansicht=monat&monat=${MONAT}&suche=30&woche=${MONTAG}`);
   assert.match(s, new RegExp(`<a class="mk-zeit" href="/kalender/termin\\?datum=${MONTAG}&zeit=08:00&dauer_min=30" data-hilfe="kalender.suche.zeit">08:00</a>`));
