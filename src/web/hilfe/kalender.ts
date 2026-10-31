@@ -3,7 +3,7 @@ import { NICHTS, KEIN_RUECKWEG, AUSKUNFT, type HilfeEintrag } from './basis.ts';
 
 export const KALENDER: Record<string, HilfeEintrag> = {
   'uebersicht.kalender': { seite: 'Cockpit', titel: '→ Kalender',
-    loest_aus: 'Öffnet die Kalenderseite mit allen Terminen eines Tages oder einer Woche.', bezug: 'Termine aus der Kartei.', aendert: NICHTS, ergebnis: 'Der heutige Tag; oben Wechsel auf Woche.', rueckweg: 'Zurück zum Cockpit.' },
+    loest_aus: 'Öffnet den Kalender in der Monatsansicht (W124) – von dort Tag oder Woche.', bezug: 'Termine aus der Kartei, freie Zeiten, Lücken.', aendert: NICHTS, ergebnis: 'Der laufende Monat mit Zählern der freien Termine; ein Tag öffnet die Tagesansicht.', rueckweg: 'Zurück zum Cockpit.' },
   'kalender.tag': { seite: 'Kalender', titel: 'Tag',
     loest_aus: 'Der Tagesname öffnet diesen Tag in der Tagesansicht.', bezug: 'Alle Termine der Kartei an diesem Tag; die Zahl ist die Anzahl.', aendert: NICHTS, ergebnis: 'Heute hat einen farbigen Rahmen.', rueckweg: KEIN_RUECKWEG },
   'kalender.oeffnung': { seite: 'Kalender', titel: 'Öffnungszeit des Tages', loest_aus: AUSKUNFT, bezug: 'Die Fenster aus Konfiguration › „Kalender: Öffnungszeiten und Pausen“ (W112); „geschlossen“ = keine Vorschläge und keine Buchungen an diesem Wochentag.', aendert: NICHTS, ergebnis: 'Zur Orientierung über den Terminen.', rueckweg: KEIN_RUECKWEG },

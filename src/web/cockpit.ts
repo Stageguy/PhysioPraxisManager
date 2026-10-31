@@ -240,7 +240,7 @@ ${entwuerfe}${fahrt}
       <div class="kacheln">${PATIENTEN.map(kachelHtml).join('')}</div></section>
   </div>
   <section class="uebersicht" aria-labelledby="b-ue"><h2 id="b-ue" class="spaltenkopf" data-hilfe="bereich.uebersicht" tabindex="0">${symbol('auge')} Heute im Blick
-      <a class="kopf-kalender" href="/kalender" data-hilfe="uebersicht.kalender" aria-label="Kalender öffnen">→ ${symbol('kalender', { groesse: 22 })}</a></h2>
+      <a class="kopf-kalender" href="/kalender?ansicht=monat" data-hilfe="uebersicht.kalender" aria-label="Kalender öffnen (Monatsansicht)">→ ${symbol('kalender', { groesse: 22 })}</a></h2>
     ${schnell}${termine}${rechnungen}${anfragen}</section>
   ${log}
 </div>`,
