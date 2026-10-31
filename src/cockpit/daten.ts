@@ -256,11 +256,13 @@ export interface EntwuerfeStand {
 export async function entwuerfeStand(db: Db | undefined, graph: Pick<GraphClient, 'get'> | undefined): Promise<Quelle<EntwuerfeStand>> {
   if (!graph) return { stand: 'nicht-verbunden', hinweis: 'Kein Postfach verbunden – ob PPM-Mails in „Entwürfe“ warten, lässt sich nicht sagen.' };
   try {
-    const antwort = await graph.get<{ value?: { id: string; categories?: string[] }[] }>('/me/mailFolders/drafts/messages?$select=id,categories&$top=100');
+    // Rechnungs-Entwürfe kennt die Kartei an ihrer unveränderlichen Kennung (W122) – deshalb die Liste mit denselben Kennungen holen
+    const bekannt = new Set(db ? (await db.query<{ id: string }>("SELECT versand_entwurf_id AS id FROM rechnung WHERE versand_entwurf_id IS NOT NULL AND status = 'in_lexware'")).rows.map((r) => r.id) : []);
+    const antwort = await graph.get<{ value?: { id: string; categories?: string[] }[] }>('/me/mailFolders/drafts/messages?$select=id,categories&$top=100', { Prefer: 'IdType="ImmutableId"' });
     const test = umgebung() === 'test';
-    const gesamt = (antwort.value ?? []).filter((m) => (m.categories ?? []).includes(PPM_KATEGORIE) && (m.categories ?? []).includes(TEST_KATEGORIE) === test).length;
-    const rechnungen = db ? Number((await db.query<{ n: string }>("SELECT count(*)::text AS n FROM rechnung WHERE versand_entwurf_id IS NOT NULL AND status = 'in_lexware'")).rows[0]?.n ?? 0) : 0;
-    return { stand: 'ok', daten: { gesamt, rechnungen, link: 'https://outlook.office.com/mail/drafts' } };
+    // Zählt: Entwürfe mit Kategorie PPM dieser Umgebung – und Rechnungs-Entwürfe, die die Kartei kennt (auch ältere ohne Kategorie)
+    const entwuerfe = (antwort.value ?? []).filter((m) => bekannt.has(m.id) || ((m.categories ?? []).includes(PPM_KATEGORIE) && (m.categories ?? []).includes(TEST_KATEGORIE) === test));
+    return { stand: 'ok', daten: { gesamt: entwuerfe.length, rechnungen: entwuerfe.filter((m) => bekannt.has(m.id)).length, link: 'https://outlook.office.com/mail/drafts' } };
   } catch (err) {
     console.warn(`Entwürfe: ${(err as Error).message.slice(0, 160)}`);
     return { stand: 'fehler', hinweis: 'Das Postfach war gerade nicht erreichbar.' };
