@@ -12,6 +12,7 @@ import { ADRESSE_TYP_TEXT, ADRESSE_TYPEN } from '../kartei/hausbesuche.ts';
 import { VORLAGEN } from '../nachrichten/vorlagen.ts';
 import { SEKTION_REIHE, SEKTIONEN, type Terminart } from '../kartei/terminarten.ts';
 import { rezeptKachel, serieKachel, serienPlus } from './rezepte.ts';
+import { routeHtml } from './cockpit.ts';
 import { esc, seite } from './layout.ts';
 import { datumText, datumZeitText, euroText, zeitText } from '../format.ts';
 import { datumBerlin, heuteBerlin, zeitBerlin } from '../zeit.ts';
@@ -408,7 +409,7 @@ export function patientSeite(d: PatientSeiteDaten, o: Rahmen & { vorwahl?: { vor
     const menue = offen ? plusMenue(`${waTermin(t.id)}${form('termin_status', `<input type="hidden" name="termin_id" value="${t.id}"><select name="status" data-hilfe="termin.status" data-auto-senden><option value="">ändern …</option><option value="abgesagt_patient">abgesagt (Patient)</option><option value="abgesagt_praxis">abgesagt (Praxis)</option><option value="nicht_erschienen">nicht erschienen</option></select><button class="knopf klein nur-ohne-js">ok</button>`, { id: p.id, zurueck })}`, 'termin.plus', { klein: true, label: 'Aktionen zum Termin' }) : '';
     return `<article class="tk${t.verordnungId ? ' rezept' : ''}${offen ? ' mit-plus' : ''}" data-hilfe="termine.kachel">
     <b>${datumZeitText(t.beginn, { jahr: true })}</b><span class="hint">bis ${zeitText(t.ende)} · ${esc(t.art)}</span>
-    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span>${t.behandlungsort === 'hausbesuch' ? `<span class="marke hausbesuch" data-hilfe="termin.hausbesuch" tabindex="0">${symbol('haus', { groesse: 12 })} Hausbesuch${t.ort ? ` · ${esc(t.ort)}` : ''}</span>` : ''}<span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}</span>
+    <span class="pat-fuss"><span class="marke${t.verordnungId ? ' jetzt' : ''}">${t.verordnungId ? 'Rezept' : 'Individual'}</span>${t.behandlungsort === 'hausbesuch' ? `<span class="marke hausbesuch" data-hilfe="termin.hausbesuch" tabindex="0">${symbol('haus', { groesse: 12 })} Hausbesuch${t.ort ? ` · ${esc(t.ort)}` : ''}</span>${t.fahrtVorMin || t.fahrtNachMin ? `<span class="hint" data-hilfe="termin.fahrt-kachel" tabindex="0">${symbol('auto', { groesse: 12 })} ${t.fahrtVorMin ?? 0} Min. davor · ${t.fahrtNachMin ?? 0} Min. danach</span>` : ''}${t.adresse ? `<span class="hint">${routeHtml(t.adresse, 'termin.route', { klein: true })}</span>` : ''}` : ''}<span class="chip ${t.status === 'bestaetigt' ? 'preset4' : 'preset12'}">${esc(TERMIN_STATUS[t.status] ?? t.status)}</span>${t.imKalender ? `<span class="marke" data-hilfe="termin.kalender" tabindex="0">${symbol('kalender', { groesse: 12 })} Kalender</span>` : ''}</span>
     ${menue}${offen ? stift(`/patienten/${p.id}/termine/${t.id}/bearbeiten`, 'termin.bearbeiten', { fenster: 'Termin bearbeiten', text: 'Termin bearbeiten' }) : ''}
   </article>`;
   }).join('');
@@ -551,7 +552,7 @@ export const terminartOptionen = (arten: Terminart[], gewaehlt?: string | null) 
 }).join('');
 
 /** Ein Formular für „Neuer Termin“ und „Termin bearbeiten“ (W115) */
-export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminDetail; vorbelegung?: { datum?: string; zeit?: string; dauerMin?: number } }): string {
+export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminDetail; vorbelegung?: { datum?: string; zeit?: string; dauerMin?: number; ort?: string } }): string {
   const p = d.patient;
   const t = o.termin;
   const v = o.vorbelegung ?? {};
@@ -561,6 +562,11 @@ export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminD
   const art = (wert: string, text: string) => `<option value="${wert}"${(t?.art ?? 'behandlung') === wert ? ' selected' : ''}>${text}</option>`;
   const dauer = t ? Math.max(5, Math.round((Date.parse(t.ende) - Date.parse(t.beginn)) / 60_000)) : (v.dauerMin && v.dauerMin > 0 ? v.dauerMin : 30);
   const titel = t ? 'Termin bearbeiten' : 'Neuer Termin';
+  // Behandlungsort (W129): beim Bearbeiten der des Termins; neu aus dem Link (Schnelltermin, Kalender-Lücke) oder wie beim letzten Termin des Patienten
+  const vorgabe = d.hausbesuchVorgabe;
+  const ortWahl = t ? (t.behandlungsort === 'hausbesuch' ? (t.adresseId ? `adresse:${t.adresseId}` : 'rechnung_kopieren') : 'praxis') : (v.ort ?? vorgabe?.wert ?? 'praxis');
+  const ortHinweis = !t && vorgabe?.behandlungsort === 'hausbesuch' && ortWahl === vorgabe.wert
+    ? `<p class="hint" data-hilfe="termin.ort-vorgabe">${symbol('haus', { groesse: 14 })} Vorgewählt wie zuletzt: Hausbesuch${vorgabe.ort ? ` in ${esc(vorgabe.ort)}` : ''} – rund ${vorgabe.fahrtMin} Min. Fahrt davor und danach werden automatisch geblockt.</p>` : '';
   return seite({
     titel, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: formular({
@@ -573,7 +579,7 @@ export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminD
     <label>Art<select name="art">${art('behandlung', 'Behandlung')}${art('erstgespraech', 'Erstgespräch')}${art('sonstige', 'Sonstiges')}</select></label></div>
   <label>Rezept<select name="verordnung_id"><option value="">kein Rezept (Individualtermin)</option>${rezepte}</select></label>
   <label>Terminart <span class="hint">(Farbe und Symbol im Kalender)</span><select name="terminart_id" data-hilfe="termin.terminart"><option value="">– aus Rezept bzw. Fall –</option>${terminartOptionen(d.terminarten, t?.terminartId)}</select></label>
-  ${behandlungsortFeld(p, t?.behandlungsort === 'hausbesuch' ? (t.adresseId ? `adresse:${t.adresseId}` : 'rechnung_kopieren') : 'praxis')}
+  ${behandlungsortFeld(p, ortWahl)}${ortHinweis}
   <div class="zwei"><label>Fahrt davor (Minuten) <span class="hint">nur Hausbesuch</span><input type="number" name="fahrt_vor_min" min="0" max="240" step="5" value="${t?.fahrtManuell ? t.fahrtVorMin : ''}" placeholder="${t?.behandlungsort === 'hausbesuch' && !t.fahrtManuell ? `automatisch: ${t.fahrtVorMin}` : 'automatisch'}" data-hilfe="termin.fahrt"></label>
     <label>Fahrt danach (Minuten)<input type="number" name="fahrt_nach_min" min="0" max="240" step="5" value="${t?.fahrtManuell ? t.fahrtNachMin : ''}" placeholder="${t?.behandlungsort === 'hausbesuch' && !t.fahrtManuell ? `automatisch: ${t.fahrtNachMin}` : 'automatisch'}" data-hilfe="termin.fahrt"></label></div>`,
       hinweis: 'Der Termin steht in der Kartei und wird in den Kalender des Postfachs gespiegelt – dort mit Kategorie „Praxis-Termin“, Betreff nur Initialen und Patientennummer (Testumgebung: Kalender „Praxis-Test“). Hausbesuch: Fahrtzeiten leer lassen, dann schätzt der Kalender sie aus der Konfiguration und blockt sie mit.',

@@ -99,6 +99,8 @@ export interface SlotRegeln {
   gesperrt?: Set<string>;
   /** Wochenenden nie buchbar, auch wenn ein Öffnungsfenster für Sa/So eingetragen ist */
   wochenendeGesperrt?: boolean;
+  /** Hausbesuch (W129): so viele Minuten Fahrt müssen vor dem Beginn und nach dem Ende zusätzlich frei sein */
+  fahrtMin?: number;
 }
 
 export interface Slot {
@@ -126,6 +128,8 @@ export function freieSlots(o: { ab: string; tage: number; belegt: Belegt[]; rege
   const raster = (o.regeln.rasterMin ?? 15) * 60_000;
   const dauer = o.regeln.dauerMin * 60_000;
   const puffer = o.regeln.pufferMin * 60_000;
+  // Hausbesuch (W129): Hinfahrt vor dem Beginn und Rückfahrt nach dem Ende müssen ebenfalls frei sein
+  const fahrt = Math.max(0, o.regeln.fahrtMin ?? 0) * 60_000;
   const abMs = new Date(o.ab).getTime();
   const belegt = o.belegt.map((b) => ({ von: new Date(b.beginn).getTime() - puffer, bis: new Date(b.ende).getTime() })).sort((a, b) => a.von - b.von);
   const slots: Slot[] = [];
@@ -134,13 +138,13 @@ export function freieSlots(o: { ab: string; tage: number; belegt: Belegt[]; rege
     if (tagGesperrt(datum, o.regeln)) continue;
     const wt = wochentag(datum);
     for (const fenster of o.regeln.oeffnungszeiten.filter((f) => f.tag === wt)) {
-      const von = new Date(berlinZeitUtc(datum, fenster.von)).getTime();
-      const bis = new Date(berlinZeitUtc(datum, fenster.bis)).getTime();
-      let t = Math.max(von, Math.ceil(abMs / raster) * raster);
+      const von = new Date(berlinZeitUtc(datum, fenster.von)).getTime() + fahrt;
+      const bis = new Date(berlinZeitUtc(datum, fenster.bis)).getTime() - fahrt;
+      let t = Math.max(Math.ceil(von / raster) * raster, Math.ceil(abMs / raster) * raster);
       while (t + dauer <= bis) {
-        const konflikt = belegt.find((b) => b.von < t + dauer && b.bis > t);
+        const konflikt = belegt.find((b) => b.von < t + dauer + fahrt && b.bis > t - fahrt);
         if (konflikt) {
-          t = Math.max(t + raster, Math.ceil(konflikt.bis / raster) * raster);
+          t = Math.max(t + raster, Math.ceil((konflikt.bis + fahrt) / raster) * raster);
           continue;
         }
         slots.push({ beginn: new Date(t).toISOString(), ende: new Date(t + dauer).toISOString() });

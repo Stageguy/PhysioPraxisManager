@@ -598,7 +598,9 @@ export function praxisDienst(opt: DienstOptionen): Server {
       const n = await d.neuAktion(id);
       if (!n) return senden(res, 404, 'text/plain', 'Diesen Patienten gibt es nicht');
       const qv = (name: string) => adresse.searchParams.get(name) ?? undefined;
-      const html = neu === 'termin' ? terminNeuSeite(n, { ...r, vorbelegung: { datum: qv('datum'), zeit: qv('zeit'), dauerMin: /^\d{1,3}$/.test(qv('dauer_min') ?? '') ? Number(qv('dauer_min')) : undefined } }) : neu === 'behandlung' ? behandlungNeuSeite(n, r)
+      // Vorbelegung aus Schnelltermin, Kalender-Lücke oder Terminsuche: Datum, Uhrzeit, Dauer und – bei Hausbesuch-Patienten (W129) – der Behandlungsort
+      const ort = /^(praxis|adresse:\d{1,12}|rechnung_kopieren)$/.test(qv('ort') ?? '') ? qv('ort') : undefined;
+      const html = neu === 'termin' ? terminNeuSeite(n, { ...r, vorbelegung: { datum: qv('datum'), zeit: qv('zeit'), dauerMin: /^\d{1,3}$/.test(qv('dauer_min') ?? '') ? Number(qv('dauer_min')) : undefined, ort } }) : neu === 'behandlung' ? behandlungNeuSeite(n, r)
         : neu === 'direktzugang' ? serieNeuSeite(n, 'direktzugang', r) : neu === 'wellness' ? serieNeuSeite(n, 'praevention', r)
         : neu === 'rechnung' ? rechnungNeuSeite(n.patient, r)
         : rezeptNeuSeite(n, { ...r, vorgaenger: adresse.searchParams.get('vorgaenger') ?? undefined });

@@ -40,7 +40,7 @@ export function rezeptTermineSeite(d: RezeptTermineDaten, o: Rahmen): string {
   ${d.vorschlaege.length < d.offen ? `<p class="warn">Nur ${d.vorschlaege.length} von ${d.offen} Terminen gefunden – die übrigen später planen.</p>` : ''}
   <ul class="tv-wochen">${[...wochen].map(([montag, slots]) => `<li><b>Woche ab ${datumText(montag)}</b><ul>${slots.map(zeile).join('')}</ul></li>`).join('')}</ul>
   <p class="hint">Haken weg = Vorschlag auslassen. Die Termine kommen in die Kartei und in den Kalender des Postfachs – dort nur mit Initialen und Patientennummer.</p>
-  ${behandlungsortFeld(p, 'praxis', 'rezept-termine.behandlungsort')}
+  ${behandlungsortFeld(p, d.hausbesuchVorgabe.wert, 'rezept-termine.behandlungsort')}${d.hausbesuchVorgabe.behandlungsort === 'hausbesuch' ? `<p class="hint" data-hilfe="termin.ort-vorgabe">${symbol('haus', { groesse: 14 })} Vorgewählt wie zuletzt: Hausbesuch${d.hausbesuchVorgabe.ort ? ` in ${esc(d.hausbesuchVorgabe.ort)}` : ''} – die Vorschläge lassen rund ${d.hausbesuchVorgabe.fahrtMin} Min. Fahrt davor und danach frei, beim Anlegen wird sie geblockt.</p>` : ''}
   <button class="knopf primaer" data-hilfe="rezept-termine.anlegen">${symbol('kalender', { groesse: 18 })} Angehakte Termine anlegen</button>`, { id: p.id, zurueck: pfad, klasse: 'formular' });
   return seite({
     titel: 'Termine zum Rezept', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,

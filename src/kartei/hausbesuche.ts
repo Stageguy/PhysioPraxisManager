@@ -103,6 +103,36 @@ export async function fahrtRegeln(db: Db): Promise<FahrtRegeln> {
 
 export interface Ortsangabe { ort: string | null; plz: string | null }
 
+/** Vorgabe für einen neuen Termin des Patienten (W129): Praxis oder Hausbesuch mit Adresse, Ort und geschätzter Fahrt */
+export interface HausbesuchVorgabe {
+  behandlungsort: Behandlungsort;
+  adresseId: string | null;
+  ort: string | null;
+  /** Wert für das Feld „Behandlungsort“: „praxis“ oder „adresse:<id>“ */
+  wert: string;
+  /** geschätzte Fahrt Praxis ↔ Ort in Minuten – 0 bei Praxis */
+  fahrtMin: number;
+}
+
+/**
+ * Wie beim letzten Termin des Patienten (W129): war er ein Hausbesuch, wieder diese Adresse; gab es noch keinen, seine
+ * Hausbesuchadresse; sonst die Praxis. Damit rechnen Schnelltermin und Kalender-Lücken die Fahrt gleich ein und das
+ * Terminformular wählt den Hausbesuch vor – Lilli muss nicht daran denken.
+ */
+export async function hausbesuchVorgabe(db: Db, patientId: string): Promise<HausbesuchVorgabe> {
+  const praxis: HausbesuchVorgabe = { behandlungsort: 'praxis', adresseId: null, ort: null, wert: 'praxis', fahrtMin: 0 };
+  type Zeile = { id: string | null; ort: string | null; plz: string | null; hausbesuch: boolean };
+  const letzter = (await db.query<Zeile>(
+    `SELECT t.adresse_id::text AS id, pa.ort, pa.plz, (t.behandlungsort = 'hausbesuch') AS hausbesuch
+     FROM termin t LEFT JOIN patient_adresse pa ON pa.id = t.adresse_id
+     WHERE t.patient_id = $1 AND t.status NOT IN ('abgesagt_patient', 'abgesagt_praxis', 'verschoben') ORDER BY t.beginn DESC LIMIT 1`, [patientId],
+  )).rows[0];
+  let adresse: Zeile | undefined = letzter;
+  if (!letzter) adresse = (await db.query<Zeile>("SELECT id::text, ort, plz, true AS hausbesuch FROM patient_adresse WHERE patient_id = $1 AND typ = 'hausbesuch' ORDER BY id LIMIT 1", [patientId])).rows[0];
+  if (!adresse?.hausbesuch || !adresse.id) return praxis;
+  return { behandlungsort: 'hausbesuch', adresseId: adresse.id, ort: adresse.ort, wert: `adresse:${adresse.id}`, fahrtMin: fahrtzeitNach(adresse, await fahrtRegeln(db)) };
+}
+
 /** Fahrtzeit Praxis → Ort: Zeile zur PLZ, sonst zum Ort, sonst der Standard */
 export function fahrtzeitNach(o: Ortsangabe, regeln: FahrtRegeln): number {
   const plz = schluessel(o.plz);

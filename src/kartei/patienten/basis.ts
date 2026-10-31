@@ -132,6 +132,10 @@ export interface TerminKurz {
   /** Praxis oder Hausbesuch (W113) – beim Hausbesuch der Ort der Adresse */
   behandlungsort: Behandlungsort;
   ort: string | null;
+  /** Hausbesuch (W129): Adresse in einer Zeile für die Wegbeschreibung und die geblockten Fahrtminuten */
+  adresse?: string | null;
+  fahrtVorMin?: number;
+  fahrtNachMin?: number;
 }
 
 export type VerordnungArt = 'erst' | 'folge_unveraendert' | 'folge_angepasst' | 'wiederaufnahme' | 'korrektur';

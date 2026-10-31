@@ -6,7 +6,7 @@ import { oeffnungszeitenLesen, wochentag } from '../src/anfragen/slots.ts';
 import type { Db } from '../src/db/index.ts';
 import { karteiDienst } from '../src/kartei/dienst.ts';
 import { einstellungSetzen } from '../src/kartei/konfiguration.ts';
-import { verordnungAnlegen, verordnungen } from '../src/kartei/patienten.ts';
+import { adresseSpeichern, verordnungAnlegen, verordnungen } from '../src/kartei/patienten.ts';
 import { aufFuenf, dauerFuer, regelzeitLesen, regelzeiten, regelzeitenSicherstellen, regelzeitenUebernehmen, regelzeitSetzen } from '../src/kartei/regelzeiten.ts';
 import { proWocheAusFrequenz, serieVorschlagen, terminWerte } from '../src/kartei/rezept-termine.ts';
 import { praxisDienst } from '../src/server.ts';
@@ -163,6 +163,19 @@ test('Seite: Vorschläge nach Rezept (6 Behandlungen, 2× pro Woche, 25 Minuten)
   const kachel2 = await seite(`/patienten/${pid}`);
   assert.match(kachel2, /0 von 6 · 6 geplant/);
   assert.doesNotMatch(kachel2, /Termine planen/);
+});
+
+test('Hausbesuch-Patient (W129): die Vorschläge der Serie lassen die Fahrt frei, der Hausbesuch ist vorgewählt', async () => {
+  await einstellungSetzen(db, 'fahrtzeit_orte', 'Türkheim = 15', 'x');
+  const hid = /\/patienten\/(\d+)/.exec(ziel(await post({ aktion: 'anlegen', vorname: 'Hugo', nachname: 'Heim' })))![1]!;
+  const aid = await adresseSpeichern(db, hid, { bezeichnung: 'Zuhause', strasse: 'Bahnhofstraße', hausnummer: '3', plz: '86842', ort: 'Türkheim', typ: 'hausbesuch' }, 'x');
+  const hv = await verordnungAnlegen(db, t, hid, { ausgestelltAm: '2026-10-01', massnahme: 'Krankengymnastik', leistungNummer: '20501', anzahl: 2, frequenz: '1× pro Woche' }, 'x');
+  const html = await seite(`/patienten/${hid}/rezepte/${hv}/termine`);
+  assert.match(html, new RegExp(`<option value="adresse:${aid}" selected>`), 'Hausbesuchadresse vorgewählt');
+  assert.match(html, /data-hilfe="termin.ort-vorgabe">.*Vorgewählt wie zuletzt: Hausbesuch in Türkheim – die Vorschläge lassen rund 15 Min\. Fahrt davor und danach frei/);
+  const zeiten = [...html.matchAll(/name="termin" value="([^"]+)"/g)].map((m) => m[1]!.slice(11));
+  assert.equal(zeiten.length, 2);
+  assert.ok(zeiten.every((z) => z >= '08:15' && z <= '11:15'), `Öffnung 08–12 minus 15 Fahrt an beiden Enden: ${zeiten.join(', ')}`);
 });
 
 test('Neues Rezept führt direkt zu den Terminvorschlägen; Korrektur nicht', async () => {

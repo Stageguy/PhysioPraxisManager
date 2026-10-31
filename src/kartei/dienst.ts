@@ -29,6 +29,7 @@ import { rezeptTermineDaten, type RezeptTermineDaten } from './rezept-termine.ts
 import { outlookBloecke, type KalenderBlock } from './outlook-termine.ts';
 import { freieWoche, monatsPlan, type MonatsPlan, type TagesPlan, type WochenSuche, mittagspausenZeitraum } from './terminplan.ts';
 import { schnelltermin, schnellDauern, schnellPatientFinden, type Schnelltermin } from './schnelltermin.ts';
+import { hausbesuchVorgabe, type HausbesuchVorgabe } from './hausbesuche.ts';
 import { nummernKonflikt, type NummernKonflikt } from './lexware-rechnungen.ts';
 import type { MittagspauseTag } from './mittagspause.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
@@ -97,6 +98,8 @@ export interface NeuAktionDaten {
   wellness: WellnessLeistung[];
   /** Terminarten (W94) – Farbe und Symbol des Termins im Kalender */
   terminarten: Terminart[];
+  /** Behandlungsort für einen neuen Termin (W129): wie beim letzten Termin bzw. nach der Hausbesuchadresse */
+  hausbesuchVorgabe?: HausbesuchVorgabe;
 }
 
 export interface RezepteDaten {
@@ -261,6 +264,7 @@ export function karteiDienst(q: DienstQuellen): KarteiDienst {
       return {
         patient, faelle: await offeneFaelle(db, t, id), verordnungen: alle.filter((v) => v.status === 'aktiv'), alleVerordnungen: alle,
         termine: await termine(db, id), wellness: await wellnessLeistungen(db), terminarten: await terminarten(db),
+        hausbesuchVorgabe: await hausbesuchVorgabe(db, id),
       };
     },
     async terminBearbeiten(patientId, terminId) {

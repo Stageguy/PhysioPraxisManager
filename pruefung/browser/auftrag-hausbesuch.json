@@ -1,0 +1,13 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 1200,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "schnell-hausbesuch", "pfad": "/?schnell=45&patient=T-1051" },
+    { "name": "termin-hausbesuch", "pfad": "/patienten/116/neu/termin?datum=2026-11-05&zeit=10:00&dauer_min=45&ort=adresse:137" },
+    { "name": "patient-116", "pfad": "/patienten/116" },
+    { "name": "tag-0311", "pfad": "/kalender?ansicht=tag&tag=2026-11-03&namen=1" }
+  ]
+}

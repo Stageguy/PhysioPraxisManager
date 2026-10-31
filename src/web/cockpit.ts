@@ -235,6 +235,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
     <h2 id="t-sc">${symbol('blitz')} Schnelltermin</h2>
     <div class="schnell-kreise">${dauern.map((m) => `<a class="kreis${s?.dauer === m ? ' aktiv' : ''}" href="/?schnell=${m}${namenParam}${patientParam}#t-sc" data-hilfe="schnell.dauer" aria-label="${m} Minuten">${m}</a>`).join('')}<span class="hint">Minuten – die nächsten drei freien Zeiten</span></div>
     ${patientFeld}
+    ${s?.hausbesuch ? `<p class="hint" data-hilfe="schnell.hausbesuch">${symbol('haus', { groesse: 14 })} Hausbesuch${s.hausbesuch.ort ? ` in ${esc(s.hausbesuch.ort)}` : ''}: ${s.hausbesuch.fahrtMin} Min. Fahrt davor und danach sind in den Zeiten eingerechnet – „Direkt buchen“ wählt den Hausbesuch vor.</p>` : ''}
     ${s ? (s.zeiten.length
       ? `${s.einladungFehler ? '<p class="meldung fehler">Die Buchungsseite kennt die Einladung nicht – die Links gehen, nur ohne vorbelegte Angaben.</p>' : ''}<details class="schnell-direkt"><summary class="knopf primaer" data-hilfe="schnell.direkt">${symbol('kalender', { groesse: 18 })} Direkt buchen${s.patient ? ` für ${esc(s.patient.name)}` : ''}</summary>
       <div class="knopfreihe">${s.zeiten.map((z) => `<a class="knopf" href="${esc(z.direkt)}" data-fenster="${esc(s.patient ? `Neuer Termin – ${s.patient.name}` : 'Neuer Termin')}" data-hilfe="schnell.direkt-zeit">${esc(z.text)}</a>`).join('')}</div></details>

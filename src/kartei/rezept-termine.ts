@@ -10,6 +10,7 @@ import { belegteZeiten } from '../anfragen/kalender.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
 import { freieSlots, wochentag, type Belegt, type Slot, type SlotRegeln } from '../anfragen/slots.ts';
 import { berlinMitternachtUtc, datumBerlin, heuteBerlin, tagPlus, zeitBerlin } from '../zeit.ts';
+import { hausbesuchVorgabe, type HausbesuchVorgabe } from './hausbesuche.ts';
 import { einstellungen } from './konfiguration.ts';
 import { KarteiFehler, patientLesen, termine, verordnungen, type Patient, type TerminKurz, type VerordnungKurz } from './patienten.ts';
 import { dauerFuer } from './regelzeiten.ts';
@@ -133,6 +134,8 @@ export interface RezeptTermineDaten {
   ab: string;
   tageszeit: Tageszeit | null;
   vorschlaege: Slot[];
+  /** Behandlungsort wie beim letzten Termin bzw. nach der Hausbesuchadresse (W129) – die Vorschläge lassen dann die Fahrt frei */
+  hausbesuchVorgabe: HausbesuchVorgabe;
 }
 
 type LeseGraph = Pick<GraphClient, 'get' | 'paginate' | 'post'>;
@@ -158,13 +161,15 @@ export async function rezeptTermineDaten(
   const heute = datumBerlin(jetzt.toISOString());
   const abTag = o.ab && /^\d{4}-\d{2}-\d{2}$/.test(o.ab) && o.ab >= heute ? o.ab : tagPlus(heute, 1);
   let vorschlaege: Slot[] = [];
+  // Hausbesuch-Patient (W129): die Vorschläge lassen Hin- und Rückfahrt frei, das Formular wählt den Hausbesuch vor
+  const vorgabe = await hausbesuchVorgabe(db, patientId);
   if (offen > 0) {
     const regeln = await slotRegeln(db);
     const wochen = Math.ceil(offen / proWoche) + 6;
     const belegt = await belegteZeiten(graph, db, berlinMitternachtUtc(abTag), berlinMitternachtUtc(tagPlus(abTag, wochen * 7 + 7)), { pufferMin: regeln.pufferMin });
-    vorschlaege = serieVorschlagen({ anzahl: offen, proWoche, dauerMin, ab: berlinMitternachtUtc(abTag), belegt, regeln, tageszeit: tageszeit ?? undefined, wochen });
+    vorschlaege = serieVorschlagen({ anzahl: offen, proWoche, dauerMin, ab: berlinMitternachtUtc(abTag), belegt, regeln: { ...regeln, fahrtMin: vorgabe.fahrtMin }, tageszeit: tageszeit ?? undefined, wochen });
   }
-  return { patient, verordnung, geplant, offen, dauerMin: dauerMin === standard.dauerMin ? standard.dauerMin : dauerMin, dauerHerkunft: o.dauerMin && o.dauerMin !== standard.dauerMin ? 'von Hand geändert' : standard.herkunft, proWoche, frequenzErkannt, ab: abTag, tageszeit, vorschlaege };
+  return { patient, verordnung, geplant, offen, dauerMin: dauerMin === standard.dauerMin ? standard.dauerMin : dauerMin, dauerHerkunft: o.dauerMin && o.dauerMin !== standard.dauerMin ? 'von Hand geändert' : standard.herkunft, proWoche, frequenzErkannt, ab: abTag, tageszeit, vorschlaege, hausbesuchVorgabe: vorgabe };
 }
 
 /** Aus dem Formular: Beginne als „JJJJ-MM-TTTHH:MM“ (Berliner Zeit) → Datum/Zeit-Paare, geprüft */

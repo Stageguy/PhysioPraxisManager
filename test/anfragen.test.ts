@@ -59,6 +59,9 @@ test('Freie Zeiten: Öffnungszeiten, Belegtes, Puffer, Feiertag, Zeitumstellung'
   assert.deepEqual(freieSlots({ ab: '2026-10-26T00:00:00Z', tage: 1, belegt, regeln: REGELN }).map((x) => x.beginn).slice(0, 2), ['2026-10-26T07:45:00.000Z', '2026-10-26T08:00:00.000Z']);
   // Pause (W116a): die Pause eines Blocks steckt in seinem Ende, vor dem Block bleibt die Pause des neuen Termins frei – nach dem Block geht es ab 08:45 weiter
   assert.equal(freieSlots({ ab: '2026-10-26T00:00:00Z', tage: 1, belegt, regeln: { ...REGELN, pufferMin: 10 } })[0]!.beginn, '2026-10-26T07:45:00.000Z');
+  // Hausbesuch (W129): 15 Min. Fahrt vor und nach – Montag 08:00–10:00 erst ab 08:15, zuletzt 09:15; nach dem Block 08:10–08:40 erst 09:00 (08:40 + Fahrt → Raster)
+  assert.deepEqual(freieSlots({ ab: '2026-10-26T00:00:00Z', tage: 1, belegt: [], regeln: { ...REGELN, fahrtMin: 15 } }).map((x) => x.beginn), ['2026-10-26T07:15:00.000Z', '2026-10-26T07:30:00.000Z', '2026-10-26T07:45:00.000Z', '2026-10-26T08:00:00.000Z', '2026-10-26T08:15:00.000Z']);
+  assert.deepEqual(freieSlots({ ab: '2026-10-26T00:00:00Z', tage: 1, belegt, regeln: { ...REGELN, fahrtMin: 15 } }).map((x) => x.beginn), ['2026-10-26T08:00:00.000Z', '2026-10-26T08:15:00.000Z']);
   // Feiertag: Freitag 25.12.2026 fällt weg
   assert.equal(freieSlots({ ab: '2026-12-25T00:00:00Z', tage: 1, belegt: [], regeln: REGELN }).length, 0);
   // Ganztägig belegt

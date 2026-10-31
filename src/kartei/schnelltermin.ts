@@ -20,7 +20,8 @@ import { datumZeitText } from '../format.ts';
 import { praxisName } from '../praxis.ts';
 import { datumBerlin, zeitBerlin } from '../zeit.ts';
 import { angebotErstellen } from '../buchung/abgleich.ts';
-import { anfangszeiten, type Einladung } from '../buchung/angebot.ts';
+import { anfangszeiten, type Einladung, type Fenster } from '../buchung/angebot.ts';
+import { hausbesuchVorgabe } from './hausbesuche.ts';
 import type { Patient } from './patienten.ts';
 import { terminarten } from './terminarten.ts';
 
@@ -81,6 +82,8 @@ export interface Schnelltermin {
   buchung: boolean;
   /** Der Patient, für den die Vorlage ist (W117b) – null ohne */
   patient: SchnellPatient | null;
+  /** Der Patient bekommt Hausbesuche (W129): Ort, eingerechnete Fahrt und der Wert für „Behandlungsort“ – null bei Praxis oder ohne Patient */
+  hausbesuch: { ort: string | null; fahrtMin: number; wert: string } | null;
   /** Die Einladung konnte nicht zum Buchungsdienst – die Links gehen, nur ohne Vorbelegung */
   einladungFehler?: string;
 }
@@ -105,6 +108,11 @@ export function dreiZeiten(tage: { datum: string; zeiten: string[] }[], anzahl =
 /** Link auf die Buchungsseite mit Dauer und Zeit – die Seite wählt Behandlung, Tag und Uhrzeit vor; kurz gehalten („2026-11-02T10:30Z“), damit er in WhatsApp lesbar bleibt. Mit Einladungskennung (W117b) belegt die Seite Name, Telefon und Mail vor */
 export const buchungsLink = (url: string, dauer: number, beginn: string, kennung?: string | null): string =>
   `${url.replace(/\/$/, '')}/?dauer=${dauer}&zeit=${beginn.replace(/:\d{2}(\.\d{3})?Z$/, 'Z')}${kennung ? `&e=${kennung}` : ''}`;
+
+/** Freie Fenster um die Fahrt an beiden Enden verkleinern (W129): ein Hausbesuch braucht vor dem Beginn die Hinfahrt und nach dem Ende die Rückfahrt */
+export const fahrtRand = (fenster: Fenster[], fahrtMin: number): Fenster[] => (fahrtMin <= 0 ? fenster : fenster
+  .map((f) => ({ beginn: new Date(Date.parse(f.beginn) + fahrtMin * 60_000).toISOString(), ende: new Date(Date.parse(f.ende) - fahrtMin * 60_000).toISOString() }))
+  .filter((f) => f.beginn < f.ende));
 
 /** Anrede für die Vorlage: „Frau Müller“ bzw. „Herr Müller“, sonst Vor- und Nachname */
 export const anredeText = (p: Pick<Patient, 'anrede' | 'vorname' | 'nachname'>): string =>
@@ -165,8 +173,11 @@ export async function schnelltermin(
   const dauern = await schnellDauern(db);
   const dauer = naechsteDauer(dauern, Number.isFinite(o.dauer) ? o.dauer : 30);
   const angebot = await angebotErstellen(db, graph, { jetzt: o.jetzt });
-  const tage = angebot.tage.map((t) => ({ datum: t.datum, zeiten: anfangszeiten(t.fenster, dauer, angebot.rasterMin) })).filter((t) => t.zeiten.length);
   const p = o.patient;
+  // Hausbesuch-Patient (W129): die Zeiten lassen Hin- und Rückfahrt frei, „Direkt buchen“ wählt den Hausbesuch vor
+  const vorgabe = p ? await hausbesuchVorgabe(db, p.id) : undefined;
+  const hausbesuch = vorgabe?.behandlungsort === 'hausbesuch' ? { ort: vorgabe.ort, fahrtMin: vorgabe.fahrtMin, wert: vorgabe.wert } : null;
+  const tage = angebot.tage.map((t) => ({ datum: t.datum, zeiten: anfangszeiten(fahrtRand(t.fenster, hausbesuch?.fahrtMin ?? 0), dauer, angebot.rasterMin) })).filter((t) => t.zeiten.length);
   let kennung: string | null = null;
   let einladungFehler: string | undefined;
   if (p && o.buchungUrl) {
@@ -185,11 +196,11 @@ export async function schnelltermin(
     beginn, ende: new Date(Date.parse(beginn) + dauer * 60_000).toISOString(), text: `${datumZeitText(beginn, { wochentag: true })} Uhr`,
     link: o.buchungUrl ? buchungsLink(o.buchungUrl, dauer, beginn, kennung) : null,
     direkt: p
-      ? `/patienten/${p.id}/neu/termin?datum=${datumBerlin(beginn)}&zeit=${zeitBerlin(beginn)}&dauer_min=${dauer}`
+      ? `/patienten/${p.id}/neu/termin?datum=${datumBerlin(beginn)}&zeit=${zeitBerlin(beginn)}&dauer_min=${dauer}${hausbesuch ? `&ort=${hausbesuch.wert}` : ''}`
       : `/kalender/termin?datum=${datumBerlin(beginn)}&zeit=${zeitBerlin(beginn)}&dauer_min=${dauer}`,
   }));
   return {
-    dauer, dauern, zeiten, vorlage: vorlageText(dauer, zeiten, praxisName(), p ? anredeText(p) : undefined), betreff: `Terminvorschläge (${dauer} Minuten) – ${praxisName()}`, buchung: Boolean(o.buchungUrl),
+    dauer, dauern, zeiten, vorlage: vorlageText(dauer, zeiten, praxisName(), p ? anredeText(p) : undefined), betreff: `Terminvorschläge (${dauer} Minuten) – ${praxisName()}`, buchung: Boolean(o.buchungUrl), hausbesuch,
     patient: p ? {
       id: p.id, name: `${p.vorname} ${p.nachname}`, patientennummer: p.patientennummer,
       email: p.email ? { id: p.email.id, adresse: p.email.normiert } : null, whatsapp: p.whatsapp ? { id: p.whatsapp.id, nummer: p.whatsapp.normiert } : null,

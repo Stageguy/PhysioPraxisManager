@@ -53,7 +53,7 @@ const VERORDNUNG = { id: '1', patientId: '1', patientName: 'Anna Test', art: 'er
   anzahlVerordnet: 6, abgehakt: 2, bestaetigt: 1, geplant: 1, status: 'aktiv', arzt: 'Dr. B', fallId: '1', fallNummer: 1, vorgaengerId: null, zweitschriftAm: '2026-10-05', notiz: 'x' };
 const SERIE = { id: '2', patientId: '1', patientName: 'Anna Test', nummer: 2, grundlage: 'praevention' as const, bezeichnung: 'Entspannung', wellness: { id: '1', bezeichnung: 'Wellnessmassage 60', preis: 65 }, begonnenAm: '2026-10-01', abgeschlossenAm: null, behandlungen: 2, letzteAm: '2026-10-20' };
 const WELLNESS = { id: '1', code: 'WM60', bezeichnung: 'Wellnessmassage 60', dauerMin: 60, preis: 65, aktiv: true };
-const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true, behandlungsort: 'hausbesuch' as const, ort: 'Türkheim' };
+const TERMIN = { id: '7', beginn: '2026-11-02T08:00:00Z', ende: '2026-11-02T08:30:00Z', art: 'behandlung', status: 'bestaetigt', verordnungId: '1', imKalender: true, behandlungsort: 'hausbesuch' as const, ort: 'Türkheim', adresse: 'Bahnhofstraße 3, 86842 Türkheim', fahrtVorMin: 15, fahrtNachMin: 15 };
 const RK = { id: '1', art: 'einzel', steuerklasse: 'heilbehandlung_steuerfrei', datum: '2026-10-01', faelligAm: '2026-10-15', nummer: 'R-1', betrag: 46.27, status: 'gesendet', statusText: 'Versendet', statusFarbe: 'preset4', gemahnt: false, positionen: 2, versandArt: 'email', lexwareAbweichung: null,
   quelle: 'ppm' as const, bezahltAm: null, storniertAm: null, dateiName: null, lexwareStatus: null, lexwareInvoiceId: null, zahlungen: [] as { datum: string | null; betrag: number; art: string }[], pdf: false, versandEntwurf: false };
 const PATIENT_DATEN = {
@@ -130,7 +130,7 @@ const DATEN: CockpitDaten = {
   fahrt: { art: 'hin', beginn: '2026-11-02T11:45:00Z', bis: '2026-11-02T12:00:00Z', ziel: 'Bahnhofstraße 3, 86842 Türkheim', zielText: 'Hausbesuch H. H. · Türkheim', patientId: '1', jetzt: true },
   patienten: [{ id: '1', name: 'Anna Test', patientennummer: 'P-1001' }],
   entwuerfe: { stand: 'ok' as const, daten: { gesamt: 2, rechnungen: 1, link: 'https://outlook.office.com/mail/drafts' } },
-  schnell: { dauer: 30, dauern: [20, 30, 40, 60], buchung: true, patient: { id: '1', name: 'Anna Test', patientennummer: 'P-1001', email: { id: '3', adresse: 'a@example.org' }, whatsapp: null }, vorlage: 'Guten Tag', betreff: 'Terminvorschläge', zeiten: [{ beginn: '2026-11-02T08:45:00Z', ende: '2026-11-02T09:15:00Z', text: 'Mo., 02.11., 09:45 Uhr', link: 'https://b/?dauer=30&zeit=x', direkt: '/kalender/termin?datum=2026-11-02&zeit=09:45&dauer_min=30' }] },
+  schnell: { dauer: 30, dauern: [20, 30, 40, 60], buchung: true, hausbesuch: { ort: 'Türkheim', fahrtMin: 15, wert: 'adresse:5' }, patient: { id: '1', name: 'Anna Test', patientennummer: 'P-1001', email: { id: '3', adresse: 'a@example.org' }, whatsapp: null }, vorlage: 'Guten Tag', betreff: 'Terminvorschläge', zeiten: [{ beginn: '2026-11-02T08:45:00Z', ende: '2026-11-02T09:15:00Z', text: 'Mo., 02.11., 09:45 Uhr', link: 'https://b/?dauer=30&zeit=x', direkt: '/kalender/termin?datum=2026-11-02&zeit=09:45&dauer_min=30' }] },
   heute: '2026-10-20', namenZeigen: false, rechnungen: STAND,
   termine: { stand: 'ok', daten: [{ beginn: '09:00', ende: '09:30', ganztags: false, titel: 'M. K.', frei: false, link: '/patienten/1#termine', leistung: 'MT', rezept: true, sektion: 'rezept' as const }, { beginn: '11:00', ende: '12:00', ganztags: false, titel: 'Z. L.', frei: false, hausbesuch: true }] },
   anfragen: { stand: 'ok' as const, daten: { neu: 1, vorgeschlagen: 1, neueste: [ANFRAGE, ANFRAGE_MIT] } },
@@ -216,7 +216,8 @@ const seiten = () => [
   textbausteinFormularSeite(undefined, R),
   anfrageNeuSeite({ terminarten: TERMINARTEN }, R),
   rezeptTermineSeite({ patient: PAT, verordnung: VERORDNUNG, geplant: [TERMIN], offen: 3, dauerMin: 25, dauerHerkunft: 'Regelbehandlungszeit 15–25 Min. (MT, Position 21201)', proWoche: 2, frequenzErkannt: true, ab: '2026-11-02', tageszeit: null,
-    vorschlaege: [{ beginn: '2026-11-02T07:00:00Z', ende: '2026-11-02T07:25:00Z' }, { beginn: '2026-11-05T07:00:00Z', ende: '2026-11-05T07:25:00Z' }, { beginn: '2026-11-09T07:00:00Z', ende: '2026-11-09T07:25:00Z' }] }, R),
+    vorschlaege: [{ beginn: '2026-11-02T07:00:00Z', ende: '2026-11-02T07:25:00Z' }, { beginn: '2026-11-05T07:00:00Z', ende: '2026-11-05T07:25:00Z' }, { beginn: '2026-11-09T07:00:00Z', ende: '2026-11-09T07:25:00Z' }],
+    hausbesuchVorgabe: { behandlungsort: 'hausbesuch', adresseId: '5', ort: 'Türkheim', wert: 'adresse:5', fahrtMin: 15 } }, R),
   behandlungNeuSeite(NEU_AKTION, R),
   rezeptNeuSeite(NEU_AKTION, { ...R, vorgaenger: '1' }),
   rezepteSeite({ verordnungen: [VERORDNUNG], serien: [SERIE], filter: 'aktiv' }, R),

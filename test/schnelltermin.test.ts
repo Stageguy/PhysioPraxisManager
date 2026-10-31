@@ -8,7 +8,8 @@ import { cockpitDaten } from '../src/cockpit/daten.ts';
 import type { Db } from '../src/db/index.ts';
 import { karteiDienst } from '../src/kartei/dienst.ts';
 import { einstellungSetzen } from '../src/kartei/konfiguration.ts';
-import { patientAnlegen, terminAnlegen } from '../src/kartei/patienten.ts';
+import { adresseSpeichern, patientAnlegen, terminAnlegen } from '../src/kartei/patienten.ts';
+import { hausbesuchVorgabe } from '../src/kartei/hausbesuche.ts';
 import type { Einladung } from '../src/buchung/angebot.ts';
 import { anredeText, buchungsLink, dreiZeiten, einladungPatient, naechsteDauer, neueKennung, schnellDauern, schnellPatientFinden, schnelltermin, vorlageText } from '../src/kartei/schnelltermin.ts';
 import { patientLesen } from '../src/kartei/patienten.ts';
@@ -190,4 +191,36 @@ test('Dauern aus den aktiven Terminarten (W117d): Kreise, nächste Dauer, Feld �
   } finally {
     await db.query("UPDATE terminart SET aktiv = false WHERE code IN ('P4', 'P8', 'W1')");
   }
+});
+
+test('Hausbesuch-Patient (W129): Vorgabe aus Hausbesuchadresse bzw. letztem Termin, Zeiten mit Fahrt davor und danach, Direkt buchen und Formular mit Hausbesuch, Kachel mit Fahrt und Wegbeschreibung', async () => {
+  await einstellungSetzen(db, 'fahrtzeit_orte', 'Türkheim = 15', 'x');
+  const hanna = (await db.query<{ id: string }>("SELECT id::text FROM patient WHERE nachname = 'Müller'")).rows[0]!;
+  assert.equal((await hausbesuchVorgabe(db, hanna.id)).behandlungsort, 'praxis', 'ohne Hausbesuchadresse und ohne Termine: Praxis');
+  const adresseId = await adresseSpeichern(db, hanna.id, { bezeichnung: 'Zuhause', strasse: 'Bahnhofstraße', hausnummer: '3', plz: '86842', ort: 'Türkheim', typ: 'hausbesuch' }, 'x');
+  assert.deepEqual(await hausbesuchVorgabe(db, hanna.id), { behandlungsort: 'hausbesuch', adresseId, ort: 'Türkheim', wert: `adresse:${adresseId}`, fahrtMin: 15 }, 'Hausbesuchadresse → Hausbesuch mit Fahrt aus der Ortszeile');
+  const patient = (await patientLesen(db, t, hanna.id))!;
+  const s = await schnelltermin(db, undefined, { dauer: 30, buchungUrl: 'https://buchung.example.org', patient, wer: 'lilli' });
+  assert.deepEqual(s.hausbesuch, { ort: 'Türkheim', fahrtMin: 15, wert: `adresse:${adresseId}` });
+  assert.deepEqual(s.zeiten.map((z) => [datumBerlin(z.beginn), zeitBerlin(z.beginn)]), [[MONTAG, '09:00'], [tagPlus(MONTAG, 1), '08:15'], [tagPlus(MONTAG, 2), '08:15']], 'Montag frei ab 08:40 + 15 Fahrt = 08:55 → Raster 09:00; sonst 08:00 + 15 Fahrt');
+  assert.equal(s.zeiten[0]!.direkt, `/patienten/${hanna.id}/neu/termin?datum=${MONTAG}&zeit=09:00&dauer_min=30&ort=adresse:${adresseId}`, '„Direkt buchen“ bringt den Hausbesuch mit');
+  const ohne = await schnelltermin(db, undefined, { dauer: 30 });
+  assert.equal(zeitBerlin(ohne.zeiten[0]!.beginn), '08:45', 'ohne Patient keine Fahrt');
+  // Cockpit sagt es; das Terminformular wählt den Hausbesuch vor – aus dem Link, ohne Link wie zuletzt, „praxis“ per Link
+  assert.match(await seite(`/?schnell=30&patient=${hanna.id}`), /<p class="hint" data-hilfe="schnell.hausbesuch">.*Hausbesuch in Türkheim: 15 Min\. Fahrt davor und danach sind in den Zeiten eingerechnet/);
+  const form = await seite(`/patienten/${hanna.id}/neu/termin?datum=${MONTAG}&zeit=09:00&dauer_min=30&ort=adresse:${adresseId}`);
+  assert.match(form, new RegExp(`<option value="adresse:${adresseId}" selected>`));
+  assert.match(form, /data-hilfe="termin.ort-vorgabe">.*Vorgewählt wie zuletzt: Hausbesuch in Türkheim – rund 15 Min\. Fahrt davor und danach/);
+  assert.match(await seite(`/patienten/${hanna.id}/neu/termin`), new RegExp(`<option value="adresse:${adresseId}" selected>`), 'auch ohne Link');
+  const praxis = await seite(`/patienten/${hanna.id}/neu/termin?ort=praxis`);
+  assert.match(praxis, /<option value="praxis" selected>/);
+  assert.ok(!praxis.includes('termin.ort-vorgabe'), 'bei Praxis kein Hinweis');
+  // Termin angelegt: die Kachel zeigt Fahrt und Wegbeschreibung; der letzte Termin bestimmt die nächste Vorgabe
+  await terminAnlegen(db, hanna.id, { datum: tagPlus(MONTAG, 1), zeit: '08:15', dauerMin: 30, behandlungsort: `adresse:${adresseId}` }, 'x');
+  const kachel = await seite(`/patienten/${hanna.id}`);
+  assert.match(kachel, /Hausbesuch · Türkheim<\/span><span class="hint" data-hilfe="termin.fahrt-kachel" tabindex="0">.*15 Min\. davor · 15 Min\. danach<\/span><span class="hint"><a class="route" href="https:\/\/maps\.apple\.com\/\?daddr=Bahnhofstra/);
+  assert.match(kachel, /google\.com\/maps\/dir\/\?api=1&amp;destination=Bahnhofstra[^"]*T%C3%BCrkheim&amp;travelmode=driving" target="_blank" rel="noopener" data-hilfe="termin.route">Google Maps<\/a>/);
+  await terminAnlegen(db, hanna.id, { datum: tagPlus(MONTAG, 2), zeit: '09:00', dauerMin: 30, behandlungsort: 'praxis' }, 'x');
+  assert.equal((await hausbesuchVorgabe(db, hanna.id)).behandlungsort, 'praxis', 'der letzte Termin zählt – auch mit Hausbesuchadresse');
+  assert.equal((await schnelltermin(db, undefined, { dauer: 30, patient: (await patientLesen(db, t, hanna.id))! })).hausbesuch, null);
 });

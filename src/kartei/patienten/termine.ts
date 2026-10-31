@@ -12,12 +12,12 @@ import { adresseSpeichern } from './stammdaten.ts';
 
 export async function termine(db: Db, patientId: string, o: { kommend?: boolean } = {}): Promise<TerminKurz[]> {
   const { rows } = await db.query<Record<string, unknown>>(
-    `SELECT t.id::text, t.beginn, t.ende, t.art::text, t.status::text, t.verordnung_id::text, t.exchange_event_id, t.behandlungsort, pa.ort
+    `SELECT t.id::text, t.beginn, t.ende, t.art::text, t.status::text, t.verordnung_id::text, t.exchange_event_id, t.behandlungsort, pa.ort, ${ADRESSE_ZEILE_SQL} AS adresse, t.fahrt_vor_min, t.fahrt_nach_min
      FROM termin t LEFT JOIN patient_adresse pa ON pa.id = t.adresse_id WHERE t.patient_id = $1 ${o.kommend ? 'AND t.ende >= now()' : ''} ORDER BY t.beginn ${o.kommend ? '' : 'DESC'} LIMIT 50`, [patientId],
   );
   return rows.map((r) => ({
     id: String(r.id), beginn: iso(r.beginn)!, ende: iso(r.ende)!, art: String(r.art), status: String(r.status), verordnungId: text(r.verordnung_id), imKalender: r.exchange_event_id != null,
-    behandlungsort: r.behandlungsort === 'hausbesuch' ? 'hausbesuch' : 'praxis', ort: text(r.ort),
+    behandlungsort: r.behandlungsort === 'hausbesuch' ? 'hausbesuch' : 'praxis', ort: text(r.ort), adresse: text(r.adresse), fahrtVorMin: Number(r.fahrt_vor_min ?? 0), fahrtNachMin: Number(r.fahrt_nach_min ?? 0),
   }));
 }
 
