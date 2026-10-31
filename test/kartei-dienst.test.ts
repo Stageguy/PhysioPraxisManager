@@ -183,7 +183,7 @@ test('Testdaten: nur einmal, erfundene Adressen, verschiedene Kachelzustände', 
   assert.ok(e.behandlungen > 10 && e.termine > 30 && e.rechnungen > 8);
   assert.ok((await testdatenAnlegen(db2, t, { adresse: 'shopping@2late.de', wer: 'test' })).uebersprungen);
   const mails = (await db2.query<{ normiert: string }>("SELECT normiert FROM patient_kontakt WHERE art = 'email'")).rows.map((r) => r.normiert);
-  assert.ok(mails.every((m) => /^shopping\+[a-z]+@2late\.de$/.test(m)), mails.join(','));
+  assert.ok(mails.length >= 10 && mails.every((m) => m === 'shopping@2late.de'), `alle Testpatienten mit der einen Testadresse (W132): ${mails.join(',')}`);
   const tel = (await db2.query<{ normiert: string }>("SELECT normiert FROM patient_kontakt WHERE art IN ('mobil','telefon','whatsapp')")).rows.map((r) => r.normiert);
   assert.ok(tel.every((n) => n.startsWith('+493023125')), 'nur Nummern aus dem Fernsehblock');
   const d = karteiDienst({ db: db2, tresor: t });
