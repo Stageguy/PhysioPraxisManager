@@ -86,7 +86,11 @@ export async function entwurfAnlegen(
   let id = m.id;
   if (optionen.unveraenderlicheKennung && graph.get) {
     // Die unveränderliche Kennung überlebt das Verschieben nach „Gesendete Elemente“; klappt das nicht, hilft später der Faden
-    try { id = (await graph.get<{ id: string }>(`/me/messages/${encodeURIComponent(m.id)}?$select=id`, { Prefer: 'IdType="ImmutableId"' })).id; } catch { /* normale Kennung behalten */ }
+    try {
+      id = (await graph.get<{ id: string }>(`/me/messages/${encodeURIComponent(m.id)}?$select=id`, { Prefer: 'IdType="ImmutableId"' })).id;
+    } catch (err) {
+      console.warn(`Entwurf: unveränderliche Kennung nicht bekommen – ${(err as Error).message.slice(0, 120)}; der Faden hilft beim Wiederfinden`);
+    }
   }
   return { angelegt: true, id, webLink: m.webLink, conversationId: m.conversationId, messageId: m.internetMessageId };
 }
