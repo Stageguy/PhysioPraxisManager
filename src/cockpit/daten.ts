@@ -17,7 +17,8 @@ import { naechsteFahrt, type Fahrt } from '../kartei/hausbesuche.ts';
 import type { Schnelltermin } from '../kartei/schnelltermin.ts';
 import { einstellungen } from '../kartei/konfiguration.ts';
 import { praxisName } from '../praxis.ts';
-import { kalenderBasis } from '../umgebung.ts';
+import { kalenderBasis, TEST_KATEGORIE, umgebung } from '../umgebung.ts';
+import { PPM_KATEGORIE } from '../mail/entwurf.ts';
 import { berlinMitternachtUtc, datumBerlin, OUTLOOK_ZONE, tagPlus } from '../zeit.ts';
 
 export type Quelle<T> = { stand: 'ok'; daten: T } | { stand: 'nicht-verbunden'; hinweis: string } | { stand: 'fehler'; hinweis: string };
@@ -79,6 +80,8 @@ export interface CockpitDaten {
   fahrt?: Fahrt | null;
   /** Schnelltermin (W117): die nächsten drei freien Zeiten der gewählten Dauer mit Vorlage – nur nach Tipp auf eine Dauer */
   schnell?: Schnelltermin;
+  /** PPM-Mails, die in Outlook unter „Entwürfe“ noch nicht gesendet sind (W123) – beim Laden aus dem Postfach gezählt */
+  entwuerfe?: Quelle<EntwuerfeStand>;
   /** Aktive Patienten für die Wahl „Für Patient“ im Schnelltermin (W117b): Name und Nummer */
   patienten?: { id: string; name: string; patientennummer: string }[];
   /** Was im Feld „Für Patient“ stand – bleibt stehen, wenn niemand eindeutig passte */
@@ -240,6 +243,30 @@ async function fahrtHeute(db: Db | undefined, heute: string, jetzt: Date, namenZ
   }
 }
 
+export interface EntwuerfeStand {
+  /** Entwürfe mit Kategorie PPM in dieser Umgebung (Test: nur mit TEST, Produktion: ohne TEST); höchstens 100 gezählt */
+  gesamt: number;
+  /** davon Rechnungs-Mails laut Kartei (W122) */
+  rechnungen: number;
+  /** Entwürfe-Ordner in Outlook im Web */
+  link: string;
+}
+
+/** PPM-Entwürfe im Postfach zählen (W123): Kategorie PPM, je Umgebung mit oder ohne TEST – dasselbe Postfach für beide */
+export async function entwuerfeStand(db: Db | undefined, graph: Pick<GraphClient, 'get'> | undefined): Promise<Quelle<EntwuerfeStand>> {
+  if (!graph) return { stand: 'nicht-verbunden', hinweis: 'Kein Postfach verbunden – ob PPM-Mails in „Entwürfe“ warten, lässt sich nicht sagen.' };
+  try {
+    const antwort = await graph.get<{ value?: { id: string; categories?: string[] }[] }>('/me/mailFolders/drafts/messages?$select=id,categories&$top=100');
+    const test = umgebung() === 'test';
+    const gesamt = (antwort.value ?? []).filter((m) => (m.categories ?? []).includes(PPM_KATEGORIE) && (m.categories ?? []).includes(TEST_KATEGORIE) === test).length;
+    const rechnungen = db ? Number((await db.query<{ n: string }>("SELECT count(*)::text AS n FROM rechnung WHERE versand_entwurf_id IS NOT NULL AND status = 'in_lexware'")).rows[0]?.n ?? 0) : 0;
+    return { stand: 'ok', daten: { gesamt, rechnungen, link: 'https://outlook.office.com/mail/drafts' } };
+  } catch (err) {
+    console.warn(`Entwürfe: ${(err as Error).message.slice(0, 160)}`);
+    return { stand: 'fehler', hinweis: 'Das Postfach war gerade nicht erreichbar.' };
+  }
+}
+
 export async function cockpitDaten(q: {
   db?: Db;
   graph?: Pick<GraphClient, 'paginate' | 'get' | 'post'>;
@@ -249,15 +276,16 @@ export async function cockpitDaten(q: {
   anfragen?: () => Promise<AnfragenStand>;
 }): Promise<CockpitDaten> {
   const heute = datumBerlin((q.jetzt ?? new Date()).toISOString());
-  const [rechnungen, termine, anfragen, log, freie, fahrt] = await Promise.all([
+  const [rechnungen, termine, anfragen, log, freie, fahrt, entwuerfe] = await Promise.all([
     rechnungsstand(q.db),
     termineHeute(q.graph, heute, q.namenZeigen, q.db),
     anfragenStand(q.anfragen),
     protokoll(q.db),
     freieZeiten(q.db, q.graph, q.jetzt),
     fahrtHeute(q.db, heute, q.jetzt ?? new Date(), q.namenZeigen),
+    entwuerfeStand(q.db, q.graph),
   ]);
-  return { heute, rechnungen, termine, anfragen, protokoll: log, namenZeigen: q.namenZeigen, freie, fahrt };
+  return { heute, rechnungen, termine, anfragen, protokoll: log, namenZeigen: q.namenZeigen, freie, fahrt, entwuerfe };
 }
 
 const FREIE_FORMAT = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });

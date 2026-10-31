@@ -221,10 +221,17 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
   </section>`;
   // Nächste Fahrt (W113c): steht sie unmittelbar bevor, fragt die Zeile nach der Karten-App – Start ist der Standort des Handys
   const fahrt = d.fahrt ? `<p class="meldung fahrt${d.fahrt.jetzt ? ' jetzt' : ''}" data-hilfe="termine.fahrt">${symbol('auto', { groesse: 20 })}<span><b>${d.fahrt.jetzt ? 'Gleich Fahrt' : 'Nächste Fahrt'} ${zeitText(d.fahrt.beginn)}</b> → ${esc(d.fahrt.zielText)}${d.fahrt.art === 'weiter' ? ' <span class="hint">(weiter vom Hausbesuch)</span>' : ''}${d.fahrt.jetzt ? '<br>Wegbeschreibung öffnen mit: ' : ' · '}${routeHtml(d.fahrt.ziel, 'termine.route', { klein: !d.fahrt.jetzt })}</span></p>` : '';
+  // PPM-Mails in „Entwürfe“ (W123): beim Laden aus dem Postfach gezählt – was noch nicht gesendet ist, steht ganz oben
+  const e = d.entwuerfe;
+  const entwuerfe = !e ? '' : e.stand === 'ok'
+    ? `<p class="meldung entwuerfe${e.daten.gesamt ? ' offen' : ''}" data-hilfe="cockpit.entwuerfe">${symbol('email', { groesse: 20 })}<span>${e.daten.gesamt
+      ? `<b>${e.daten.gesamt >= 100 ? '100 oder mehr' : e.daten.gesamt} PPM-Mail${e.daten.gesamt === 1 ? '' : 's'}</b> wart${e.daten.gesamt === 1 ? 'et' : 'en'} in Outlook unter „Entwürfe“${e.daten.rechnungen ? ` – davon ${e.daten.rechnungen} Rechnung${e.daten.rechnungen === 1 ? '' : 'en'}` : ''}. Dort prüfen und senden.`
+      : 'Keine PPM-Mail in „Entwürfe“ – alles gesendet.'} <a class="knopf klein" href="${esc(e.daten.link)}" target="_blank" rel="noopener" data-hilfe="cockpit.entwuerfe-outlook">${symbol('email', { groesse: 16 })} Entwürfe in Outlook</a></span></p>`
+    : `<p class="meldung entwuerfe" data-hilfe="cockpit.entwuerfe">${symbol('email', { groesse: 20 })}<span class="hint">PPM-Mails in „Entwürfe“: ${esc(e.hinweis)}</span></p>`;
   return seite({
     titel: 'Praxis-Cockpit', aktiv: 'cockpit', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
     inhalt: `<header class="kopf"><h1>Praxis-Cockpit</h1><p>${esc(heute)}</p></header>
-${fahrt}
+${entwuerfe}${fahrt}
 <div class="cockpit">
   <div class="bereiche">
     <section class="bereich" aria-labelledby="b-fi"><h2 id="b-fi" data-hilfe="bereich.finanzen" tabindex="0">${symbol('euro')} Finanzen</h2>

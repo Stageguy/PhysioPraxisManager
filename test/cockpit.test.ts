@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
-import { cockpitDaten, initialen, protokoll, rechnungsstand } from '../src/cockpit/daten.ts';
+import { cockpitDaten, entwuerfeStand, initialen, protokoll, rechnungsstand } from '../src/cockpit/daten.ts';
+import { patientAnlegen } from '../src/kartei/patienten.ts';
+import { rechnungAnlegen } from '../src/kartei/rechnungen.ts';
+import { neuerHauptschluessel, tresor } from '../src/tresor.ts';
 import { praxisDienst } from '../src/server.ts';
 import { cockpitSeite } from '../src/web/cockpit.ts';
 import { testDb } from './testdb.ts';
@@ -112,4 +115,35 @@ test('Termine heute: Klarname und Link aus der Kartei, wenn der Kalendereintrag 
   ], 'Kurzbezeichnung aus dem Rezept (ohne aktive Preisliste die Maßnahme)');
   const diskret = await cockpitDaten({ db, graph, namenZeigen: false, jetzt });
   assert.deepEqual((diskret.termine.stand === 'ok' ? diskret.termine.daten : []).map((x) => x.titel), ['K. Z.', 'Z. L.', 'K. Z.']);
+});
+
+test('PPM-Mails in „Entwürfe“ (W123): Kategorie PPM zählt, Produktion ohne TEST, Testumgebung nur TEST; Rechnungs-Mails aus der Kartei; ohne Postfach „nicht verbunden“', async () => {
+  const graph = {
+    async get<T>(): Promise<T> { return { value: [{ id: 'd1', categories: ['PPM'] }, { id: 'd2', categories: ['PPM', 'TEST'] }, { id: 'd3', categories: [] }, { id: 'd4', categories: ['TEST'] }, { id: 'd5', categories: ['PPM'] }] } as T; },
+    async post<T>(): Promise<T> { return { id: 'kal' } as T; },
+    async *paginate<T>(): AsyncGenerator<T> { /* kein Termin */ },
+  };
+  assert.deepEqual(await entwuerfeStand(undefined, graph), { stand: 'ok', daten: { gesamt: 2, rechnungen: 0, link: 'https://outlook.office.com/mail/drafts' } }, 'Produktion: PPM ohne TEST');
+  const vorher = process.env.PRAXIS_UMGEBUNG;
+  process.env.PRAXIS_UMGEBUNG = 'test';
+  try {
+    assert.equal((await entwuerfeStand(undefined, graph) as { daten: { gesamt: number } }).daten.gesamt, 1, 'Testumgebung: nur PPM mit TEST');
+  } finally {
+    if (vorher === undefined) delete process.env.PRAXIS_UMGEBUNG; else process.env.PRAXIS_UMGEBUNG = vorher;
+  }
+  assert.equal((await entwuerfeStand(undefined, undefined)).stand, 'nicht-verbunden');
+  assert.equal((await entwuerfeStand(undefined, { async get<T>(): Promise<T> { throw new Error('503'); } })).stand, 'fehler');
+  // Rechnungs-Mails laut Kartei
+  const db = await testDb();
+  const t = tresor({ PRAXIS_TRESOR_SCHLUESSEL: neuerHauptschluessel() });
+  const pid = await patientAnlegen(db, t, { vorname: 'Anna', nachname: 'Test' }, 'x');
+  const rid = await rechnungAnlegen(db, pid, { steuerklasse: 'heilbehandlung_steuerfrei', art: 'einzel' }, 'x');
+  await db.query("UPDATE rechnung SET status = 'in_lexware', versand_entwurf_id = 'm1', versand_entwurf_am = now() WHERE id = $1", [rid]);
+  const d = await cockpitDaten({ db, graph, namenZeigen: false, jetzt: new Date('2026-10-31T10:00:00Z') });
+  assert.deepEqual(d.entwuerfe, { stand: 'ok', daten: { gesamt: 2, rechnungen: 1, link: 'https://outlook.office.com/mail/drafts' } });
+  const html = cockpitSeite(d, { wer: 'x', fassung: '0' });
+  assert.match(html, /<p class="meldung entwuerfe offen" data-hilfe="cockpit.entwuerfe">[\s\S]*<b>2 PPM-Mails<\/b> warten in Outlook unter „Entwürfe“ – davon 1 Rechnung\. Dort prüfen und senden\. <a class="knopf klein" href="https:\/\/outlook\.office\.com\/mail\/drafts" target="_blank" rel="noopener" data-hilfe="cockpit.entwuerfe-outlook">/);
+  const leer = cockpitSeite({ ...d, entwuerfe: { stand: 'ok', daten: { gesamt: 0, rechnungen: 0, link: 'x' } } }, { wer: 'x', fassung: '0' });
+  assert.match(leer, /<p class="meldung entwuerfe" data-hilfe="cockpit.entwuerfe">[\s\S]*Keine PPM-Mail in „Entwürfe“ – alles gesendet\./);
+  assert.match(cockpitSeite({ ...d, entwuerfe: { stand: 'fehler', hinweis: 'Das Postfach war gerade nicht erreichbar.' } }, { wer: 'x', fassung: '0' }), /PPM-Mails in „Entwürfe“: Das Postfach war gerade nicht erreichbar\./);
 });

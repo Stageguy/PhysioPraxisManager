@@ -144,6 +144,7 @@ h3{font-size:15px;margin:0 0 8px}
 .meldung{display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:10px;margin:12px 0}
 .meldung[hidden]{display:none}
 .meldung.ok{background:color-mix(in srgb,var(--ok) 14%,transparent)}.meldung.fehler{background:color-mix(in srgb,var(--fehler) 14%,transparent)}
+.meldung.entwuerfe{background:color-mix(in srgb,var(--grau) 10%,transparent)}.meldung.entwuerfe.offen{background:color-mix(in srgb,#e0a106 18%,var(--karte));border:1px solid #e0a106}.meldung.entwuerfe>span{min-width:0}.meldung.entwuerfe .knopf{margin-left:6px}
 .meldung.entwurf{align-items:flex-start}.meldung.entwurf>span{display:block;min-width:0}.meldung.entwurf .knopf{margin-top:8px}
 .entwurf-dialog{position:fixed;top:12vh;left:50%;transform:translateX(-50%);z-index:1300;margin:0;max-width:min(560px,calc(100vw - 24px))}.entwurf-dialog .knopfreihe form{display:inline}
 .meldung.abweichung{align-items:flex-start}.meldung.abweichung>span{display:block;min-width:0;overflow-wrap:anywhere}.meldung.abweichung form.inline{display:block;margin-top:8px}

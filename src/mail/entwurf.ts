@@ -44,6 +44,9 @@ export const anhangKoerper = (a: Anhang) => ({
   '@odata.type': '#microsoft.graph.fileAttachment', name: a.name, contentType: a.mime, contentBytes: Buffer.from(a.daten).toString('base64'),
 });
 
+/** Jeder Entwurf des PPM trägt diese Kategorie – so zählt das Cockpit, was in „Entwürfe“ noch nicht gesendet ist (W123) */
+export const PPM_KATEGORIE = 'PPM';
+
 /** Körper für POST /me/messages – legt einen Entwurf an, sendet nicht */
 export function entwurfKoerper(mail: NeueMail) {
   const empfaenger = (liste: string[] = []) => liste.map((address) => ({ emailAddress: { address } }));
@@ -52,8 +55,8 @@ export function entwurfKoerper(mail: NeueMail) {
     body: { contentType: 'Text', content: mail.text },
     toRecipients: empfaenger(mail.an),
     ccRecipients: empfaenger(mail.cc),
-    // Schranke 6: Entwürfe der Testumgebung sind in Outlook als „TEST“ erkennbar
-    categories: entwurfKategorien(),
+    // „PPM“ für die Zählung im Cockpit (W123); Schranke 6: Entwürfe der Testumgebung sind in Outlook zusätzlich als „TEST“ erkennbar
+    categories: [PPM_KATEGORIE, ...entwurfKategorien()],
   };
 }
 
@@ -66,8 +69,7 @@ const htmlZeilen = (text: string) => text.split('\n').map((z) => z.replace(/[&<>
 export async function antwortEntwurf(graph: Pick<GraphClient, 'post' | 'patch'>, nachrichtId: string, text: string, empfaenger: string): Promise<{ id: string; webLink?: string }> {
   pruefeEmpfaenger([empfaenger]);
   const m = await graph.post<{ id: string; webLink?: string }>(`/me/messages/${nachrichtId}/createReply`, { comment: htmlZeilen(text) });
-  const kategorien = entwurfKategorien();
-  if (kategorien.length) await graph.patch(`/me/messages/${m.id}`, { categories: kategorien });
+  await graph.patch(`/me/messages/${m.id}`, { categories: [PPM_KATEGORIE, ...entwurfKategorien()] });
   return m;
 }
 
