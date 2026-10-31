@@ -83,7 +83,7 @@ export function monatSeite(d: MonatSeiteDaten, o: Rahmen): string {
       <a class="knopf klein" href="${kalenderLink({ ...basis, monat: monatParam, suche: String(d.suche.dauer), woche: tagPlus(d.suche.wochenstart, -7) })}" data-hilfe="kalender.suche.woche" aria-label="Woche zurück">‹</a>
       <a class="knopf klein" href="${kalenderLink({ ...basis, monat: monatParam, suche: String(d.suche.dauer), woche: tagPlus(d.suche.wochenstart, 7) })}" data-hilfe="kalender.suche.woche" aria-label="Woche weiter">›</a></header>
     <div class="mk-woche">${d.suche.tage.map((t) => `<div class="mk-wtag"><b>${WOCHENTAG_KURZ[wochentag(t.datum) - 1]} ${datumText(t.datum).slice(0, 6)}</b>${t.zeiten.length
-    ? t.zeiten.map((z) => `<a class="mk-zeit" href="${terminZiel(d.patient, datumBerlin(z), zeitBerlin(z), d.suche!.dauer)}"${d.patient ? ' data-fenster="Neuer Termin"' : ''} data-hilfe="kalender.suche.zeit">${zeitText(z)}</a>`).join('')
+    ? t.zeiten.map((z) => `<a class="mk-zeit" href="${terminZiel(d.patient, datumBerlin(z), zeitBerlin(z), d.suche!.dauer)}"${d.patient ? ` data-fenster="Neuer Termin – ${esc(d.patient.name)}"` : ''} data-hilfe="kalender.suche.zeit">${zeitText(z)}</a>`).join('')
     : '<span class="hint">–</span>'}</div>`).join('')}</div></section>` : '';
   return seite({
     titel: 'Kalender – Monat', aktiv: 'cockpit', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline, breit: true,
@@ -140,7 +140,7 @@ export function terminAbsagenSeite(d: { patient: Patient; termin: TerminDetail }
   return seite({
     titel: 'Termin absagen', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: formular({
-      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel: 'Termin absagen', symbol: 'kreuz', aktion: 'termin_absagen', id: p.id,
+      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel: 'Termin absagen', symbol: 'kreuz', aktion: 'termin_absagen', id: p.id, bezug: `${name(p)} · ${p.patientennummer}`,
       zurueck: `/patienten/${p.id}/termine/${t.id}/absagen`, abbrechen: kalenderLink({ ansicht: 'tag', tag: datumBerlin(t.beginn) }),
       hilfe: 'termin.absagen.formular', knopf: 'Termin absagen', knopfHilfe: 'termin.absagen.speichern', oben: meldungen(o),
       felder: `<input type="hidden" name="termin_id" value="${t.id}">

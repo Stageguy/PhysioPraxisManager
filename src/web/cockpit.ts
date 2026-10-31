@@ -237,7 +237,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
     ${patientFeld}
     ${s ? (s.zeiten.length
       ? `${s.einladungFehler ? '<p class="meldung fehler">Die Buchungsseite kennt die Einladung nicht – die Links gehen, nur ohne vorbelegte Angaben.</p>' : ''}<details class="schnell-direkt"><summary class="knopf primaer" data-hilfe="schnell.direkt">${symbol('kalender', { groesse: 18 })} Direkt buchen${s.patient ? ` für ${esc(s.patient.name)}` : ''}</summary>
-      <div class="knopfreihe">${s.zeiten.map((z) => `<a class="knopf" href="${esc(z.direkt)}" data-fenster="Neuer Termin" data-hilfe="schnell.direkt-zeit">${esc(z.text)}</a>`).join('')}</div></details>
+      <div class="knopfreihe">${s.zeiten.map((z) => `<a class="knopf" href="${esc(z.direkt)}" data-fenster="${esc(s.patient ? `Neuer Termin – ${s.patient.name}` : 'Neuer Termin')}" data-hilfe="schnell.direkt-zeit">${esc(z.text)}</a>`).join('')}</div></details>
       <label class="schnell-vorlage">Vorlage für Mail oder WhatsApp${s.patient ? ` an ${esc(s.patient.name)}` : ''}${s.buchung ? '' : ' <span class="hint">(ohne Buchungsseite ohne Links)</span>'}<textarea id="schnell-text" class="ta-baustein" rows="${8 + s.zeiten.length * 2}" readonly data-hilfe="schnell.vorlage">${esc(s.vorlage)}</textarea></label>
       <div class="knopfreihe">${kontaktKnopf(s, 'email')}${kontaktKnopf(s, 'whatsapp')}<button type="button" class="knopf" data-kopieren="schnell-text" data-hilfe="schnell.kopieren">${symbol('brief', { groesse: 18 })} Text kopieren</button></div>`
       : `<p class="leer">In den nächsten Wochen ist keine Zeit mit ${s.dauer} Minuten frei – Öffnungszeiten und Kalender prüfen.</p>`) : ''}

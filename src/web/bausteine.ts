@@ -105,9 +105,11 @@ export function formular(o: {
   weitere?: string;
   /** Meldungen und Hinweise über dem Formular */
   oben?: string;
+  /** Wen oder was das Formular betrifft (z. B. „Hanna Müller · P-1001“) – steht in der Überschrift, denn die Pfadzeile fehlt im Seitenfenster (W128) */
+  bezug?: string;
 }): string {
   return `<p class="hint pfadzeile">${o.pfad.map((p) => `<a href="${esc(p.href)}">${esc(p.text)}</a> › `).join('')}${esc(o.titel)}</p>
-<h1>${symbol(o.symbol, { groesse: 26 })} ${esc(o.titel)}</h1>${o.oben ?? ''}
+<h1>${symbol(o.symbol, { groesse: 26 })} ${esc(o.titel)}${o.bezug ? ` <span class="hint bezug">${esc(o.bezug)}</span>` : ''}</h1>${o.oben ?? ''}
 <form method="post" action="${o.action ?? '/patienten/aktion'}" class="tafel formular" data-hilfe="${o.hilfe}">
   <input type="hidden" name="aktion" value="${esc(o.aktion)}">${o.id ? `<input type="hidden" name="id" value="${esc(o.id)}">` : ''}<input type="hidden" name="zurueck" value="${esc(o.zurueck)}">
   ${o.felder}

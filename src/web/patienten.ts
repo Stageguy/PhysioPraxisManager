@@ -305,7 +305,7 @@ export function bearbeitenSeite(d: { patient: Patient; preislisten: PatientSeite
   return seite({
     titel: `Stammdaten – ${name(p)}`, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: formular({
-      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel: 'Stammdaten bearbeiten', symbol: 'patient', aktion: 'stammdaten', id: p.id,
+      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel: 'Stammdaten bearbeiten', symbol: 'patient', aktion: 'stammdaten', id: p.id, bezug: `${name(p)} · ${p.patientennummer}`,
       zurueck: `/patienten/${p.id}/bearbeiten`, abbrechen: `/patienten/${p.id}`, hilfe: 'patient.bearbeiten.formular', knopf: 'Speichern', knopfHilfe: 'patient.speichern', oben: meldungen(o),
       felder: stammdatenFelder({ p, preislisten: d.preislisten }),
       weitere: p.status === 'archiviert'
@@ -322,7 +322,7 @@ export function adresseFormularSeite(p: Patient, a: Adresse | undefined, o: Rahm
   return seite({
     titel, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: formular({
-      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel, symbol: 'ordner', aktion: 'adresse_speichern', id: p.id,
+      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel, symbol: 'ordner', aktion: 'adresse_speichern', id: p.id, bezug: `${name(p)} · ${p.patientennummer}`,
       zurueck: a ? `/patienten/${p.id}/adressen/${a.id}` : `/patienten/${p.id}/adressen/neu`, abbrechen: `/patienten/${p.id}#adressen`,
       hilfe: 'adresse.formular', knopf: 'Adresse speichern', knopfHilfe: 'adresse.speichern', oben: meldungen(o),
       felder: `${a ? `<input type="hidden" name="adresse_id" value="${a.id}">` : ''}
@@ -355,7 +355,7 @@ export function rechnungNeuSeite(p: Patient, o: Rahmen): string {
   return seite({
     titel: 'Neue Rechnung', aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: formular({
-      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel: 'Neue Rechnung', symbol: 'euro', aktion: 'rechnung_neu', id: p.id,
+      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel: 'Neue Rechnung', symbol: 'euro', aktion: 'rechnung_neu', id: p.id, bezug: `${name(p)} · ${p.patientennummer}`,
       zurueck: `/patienten/${p.id}/neu/rechnung`, abbrechen: `/patienten/${p.id}#rechnungen`, hilfe: 'rechnung.neu.formular', knopf: 'Rechnungsentwurf anlegen', knopfHilfe: 'rechnung.neu.anlegen', oben: meldungen(o),
       felder: `<fieldset data-hilfe="rechnung.neu.art"><legend>Leistungsgruppe</legend>
     <label class="haken"><input type="radio" name="steuerklasse" value="heilbehandlung_steuerfrei" checked> Heilbehandlung – steuerfrei (§ 4 Nr. 14 UStG)</label>
@@ -564,7 +564,7 @@ export function terminNeuSeite(d: NeuAktionDaten, o: Rahmen & { termin?: TerminD
   return seite({
     titel, aktiv: 'patienten', wer: o.wer, fassung: o.fassung, skriptInline: o.skriptInline,
     inhalt: formular({
-      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel, symbol: 'kalender', aktion: t ? 'termin_aendern' : 'termin_anlegen', id: p.id,
+      pfad: [{ href: '/patienten', text: 'Patienten' }, { href: `/patienten/${p.id}`, text: name(p) }], titel, symbol: 'kalender', aktion: t ? 'termin_aendern' : 'termin_anlegen', id: p.id, bezug: `${name(p)} · ${p.patientennummer}`,
       zurueck: t ? `/patienten/${p.id}/termine/${t.id}/bearbeiten` : `/patienten/${p.id}/neu/termin`, abbrechen: `/patienten/${p.id}#termine`,
       hilfe: 'termin.formular', knopf: t ? 'Termin speichern' : 'Termin anlegen', knopfHilfe: t ? 'termin.aendern' : 'termin.anlegen', oben: meldungen(o),
       felder: `${t ? `<input type="hidden" name="termin_id" value="${t.id}">` : ''}

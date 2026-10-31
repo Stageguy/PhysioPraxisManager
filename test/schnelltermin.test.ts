@@ -139,7 +139,11 @@ test('Cockpit: vier Kreise, nach ?schnell=30 der gewählte gefüllt, Direkt-buch
   assert.match(fuer, new RegExp(`<datalist id="schnell-patienten">.*<option value="${hanna.patientennummer}">Hanna Müller</option>`));
   assert.match(fuer, /<b>Hanna Müller<\/b> <a href="\/\?schnell=20#t-sc" data-hilfe="schnell.ohne-patient">ohne Patient<\/a>/);
   assert.match(fuer, /Direkt buchen für Hanna Müller/);
-  assert.match(fuer, new RegExp(`href="/patienten/${hanna.id}/neu/termin\\?datum=${MONTAG}&amp;zeit=08:45&amp;dauer_min=20"`));
+  assert.match(fuer, new RegExp(`href="/patienten/${hanna.id}/neu/termin\\?datum=${MONTAG}&amp;zeit=08:45&amp;dauer_min=20" data-fenster="Neuer Termin – Hanna Müller"`), 'Seitenfenster mit Patientennamen (W128)');
+  assert.match(mit, new RegExp(`href="/kalender/termin\\?datum=${MONTAG}&amp;zeit=08:45&amp;dauer_min=30" data-fenster="Neuer Termin"`), 'ohne Patient ohne Namen');
+  const formular = await seite(`/patienten/${hanna.id}/neu/termin?datum=${MONTAG}&zeit=08:45&dauer_min=20`);
+  assert.match(formular, new RegExp(`<h1>.*Neuer Termin <span class="hint bezug">Hanna Müller · ${hanna.patientennummer}</span></h1>`), 'Name und Nummer in der Überschrift – auch im Seitenfenster sichtbar');
+  assert.match(formular, new RegExp(`name="datum" required value="${MONTAG}"[\\s\\S]*name="zeit" required value="08:45"[\\s\\S]*name="dauer_min" value="20"`), 'Datum, Uhrzeit und Dauer vorbelegt');
   assert.match(fuer, /readonly data-hilfe="schnell.vorlage">Guten Tag Frau Müller,/);
   assert.match(fuer, /&amp;e=[A-Za-z0-9]{12}/, 'Links mit Einladungskennung');
   // Mail- und WhatsApp-Knopf (W117c): Hanna hat eine Mailadresse, aber keine WhatsApp-Nummer; Zeilen im mailto-Text als CRLF (W117d)

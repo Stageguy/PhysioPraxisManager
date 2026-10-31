@@ -232,7 +232,7 @@ export const PATIENTENSEITE: Record<string, HilfeEintrag> = {
   'akte.neu': { seite: 'Akte', titel: 'Behandlung erfassen',
     loest_aus: 'Öffnet das Formular „Behandlung erfassen“.', bezug: 'Diese Akte.', aendert: 'Noch nichts.', ergebnis: 'Das Formular.', rueckweg: 'Zurück ohne Speichern.' },
   'termin.formular': { seite: 'Neuer Termin', titel: 'Terminformular',
-    loest_aus: 'Nichts, bis „Termin anlegen“ gedrückt wird.', bezug: 'Datum, Uhrzeit, Dauer, Art; wahlweise ein aktives Rezept – dann zählt der Termin zur Verordnung.',
+    loest_aus: 'Nichts, bis „Termin anlegen“ gedrückt wird.', bezug: 'Datum, Uhrzeit, Dauer, Art; wahlweise ein aktives Rezept – dann zählt der Termin zur Verordnung. Die Überschrift nennt den Patienten mit Nummer – auch im Seitenfenster, wo die Pfadzeile fehlt (W128); aus „Direkt buchen“, Kalender-Lücke oder Terminsuche kommen Datum, Uhrzeit und Dauer schon vorbelegt.',
     aendert: 'Beim Anlegen: ein Termin in der Kartei und ein Ereignis im Kalender des Postfachs mit Kategorie „Praxis-Termin“ (lila), Betreff nur Initialen und Patientennummer – Testumgebung: Kalender „Praxis-Test“ plus Kategorie „TEST“.', ergebnis: 'Die Kachel zeigt ihn als nächsten Termin; im Cockpit steht er unter „Termine heute“.', rueckweg: 'Auf der Patientenseite unter Termine „ändern …“ – eine Absage nimmt ihn auch aus dem Kalender.' },
   'termin.anlegen': { seite: 'Neuer Termin', titel: 'Termin anlegen',
     loest_aus: 'Speichert den Termin.', bezug: 'Das Formular.', aendert: 'Termin in der Kartei, Protokolleintrag.', ergebnis: 'Zurück zur Patientenseite, Abschnitt Termine.', rueckweg: 'Dort „ändern …“.' },

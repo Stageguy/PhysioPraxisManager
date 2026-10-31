@@ -162,7 +162,7 @@ test('Monatsansicht: Kästen mit Stand, „Mehr ›“, Zähler, Lücken sichtba
   assert.match(s, new RegExp(`href="/kalender\\?ansicht=monat&monat=${MONAT}&suche=30&woche=${tagPlus(MONTAG, 7)}" data-hilfe="kalender.suche.woche"`));
   const p = await seite(`/kalender?ansicht=monat&monat=${MONAT}&suche=30&woche=${MONTAG}&patient=${pid}`);
   assert.match(p, /Termin für <b>Kalle Kalender<\/b>/);
-  assert.match(p, new RegExp(`<a class="mk-zeit" href="/patienten/${pid}/neu/termin\\?datum=${MONTAG}&zeit=08:00&dauer_min=30" data-fenster="Neuer Termin"`));
+  assert.match(p, new RegExp(`<a class="mk-zeit" href="/patienten/${pid}/neu/termin\\?datum=${MONTAG}&zeit=08:00&dauer_min=30" data-fenster="Neuer Termin – Kalle Kalender"`), 'Seitenfenster mit Patientennamen im Titel (W128)');
   assert.equal(await status('/kalender?ansicht=monat&monat=2026-13'), 404);
 });
 
@@ -172,11 +172,12 @@ test('Tagesansicht: Lücken grün mit Link, Stift und Absage am Termin; Terminwa
   assert.match(html, new RegExp(`href="/patienten/${pid}/termine/${tid}/bearbeiten" data-fenster="Termin bearbeiten" data-hilfe="kalender.termin-stift"`));
   assert.match(html, new RegExp(`href="/patienten/${pid}/termine/${tid}/absagen" data-fenster="Termin absagen" data-hilfe="kalender.termin-absagen"`));
   const mit = await seite(`/kalender?ansicht=tag&tag=${MONTAG}&patient=${pid}`);
-  assert.match(mit, new RegExp(`<a class="kal-termin luecke" href="/patienten/${pid}/neu/termin\\?datum=${MONTAG}&zeit=10:00&dauer_min=30" data-fenster="Neuer Termin"`));
+  assert.match(mit, new RegExp(`<a class="kal-termin luecke" href="/patienten/${pid}/neu/termin\\?datum=${MONTAG}&zeit=10:00&dauer_min=30" data-fenster="Neuer Termin – Kalle Kalender"`));
   const wahl = await seite(`/kalender/termin?datum=${MONTAG}&zeit=10:00&dauer_min=40`);
   assert.match(wahl, new RegExp(`<input type="hidden" name="aktion" value="termin_anlegen">[\\s\\S]*<select name="id" required data-hilfe="termin.wahl.patient">[\\s\\S]*name="datum" required value="${MONTAG}"[\\s\\S]*name="zeit" required value="10:00"[\\s\\S]*name="dauer_min" value="40"`));
   const form = await seite(`/patienten/${pid}/neu/termin?datum=${MONTAG}&zeit=10:00&dauer_min=40`);
   assert.match(form, new RegExp(`name="datum" required value="${MONTAG}"[\\s\\S]*name="zeit" required value="10:00"[\\s\\S]*name="dauer_min" value="40"`));
+  assert.match(form, /<h1>.*Neuer Termin <span class="hint bezug">Kalle Kalender · [A-Z]-\d+<\/span><\/h1>/, 'der Patient steht in der Überschrift – die Pfadzeile fehlt im Seitenfenster (W128)');
   const r = await post({ aktion: 'termin_anlegen', id: pid, datum: MONTAG, zeit: '10:00', dauer_min: '40', zurueck: '/kalender/termin' });
   assert.match(ziel(r), new RegExp(`^/patienten/${pid}\\?meldung=Termin angelegt`));
   const danach = await monatsPlan(db, undefined, Number(MONAT.slice(0, 4)), Number(MONAT.slice(5, 7)));
