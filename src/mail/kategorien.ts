@@ -77,6 +77,11 @@ export const KATEGORIEN = {
     wann: 'Ein Termin der Sektion „Wellness & Ayurveda“ (W95); steht vor „Praxis-Termin“ und gibt dem Eintrag seine Farbe.',
     tun: 'Nichts – die Sektion kommt aus der Terminart bzw. der Wellness-Serie.', ab: 'jetzt',
   },
+  fahrt: {
+    name: 'Praxis-Fahrt', farbe: 'preset12', farbname: 'Grau',
+    wann: 'Die Fahrt zu einem Hausbesuch bzw. zurück zur Praxis (W130): die Praxis-Assistenz legt sie zum Hausbesuch an – mit dem Ziel als Ort und der Wegbeschreibung (Apple Karten, Google Maps) im Text.',
+    tun: 'Nichts – Fahrtzeiten ändern bitte am Termin in der Praxis-Assistenz. Die Erinnerung des Hausbesuchs kommt, wenn die Anfahrt beginnt.', ab: 'jetzt',
+  },
   test: {
     name: 'TEST', farbe: 'preset9', farbname: 'Cranberry',
     wann: 'Ein Entwurf aus der Testumgebung – adressiert an eine Testadresse, nie an echte Patienten.',

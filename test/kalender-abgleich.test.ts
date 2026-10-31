@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { alleTermineSpiegeln, ereignisKoerper, initialen, terminSpiegeln } from '../src/kartei/kalender.ts';
-import { patientAnlegen, terminAnlegen, terminStatus } from '../src/kartei/patienten.ts';
+import { alleTermineSpiegeln, ereignisKoerper, fahrtKoerper, initialen, terminSpiegeln } from '../src/kartei/kalender.ts';
+import { einstellungSetzen } from '../src/kartei/konfiguration.ts';
+import { adresseSpeichern, patientAnlegen, terminAnlegen, terminStatus } from '../src/kartei/patienten.ts';
 import { testdatenAnlegen, testdatenErweitert, testtermineAnlegen } from '../src/kartei/testdaten.ts';
 import { allePruefen } from '../src/preise/quellen.ts';
 import { neuerHauptschluessel, tresor } from '../src/tresor.ts';
@@ -43,6 +44,70 @@ test('Kalender: Termin wird mit Initialen, Kategorie und Ortszeit gespiegelt; Ab
   assert.ok(graph.aufrufe.some((a) => a.methode === 'DELETE' && a.pfad === '/me/events/neu-1'));
   assert.equal((await db.query<{ e: string | null }>('SELECT exchange_event_id AS e FROM termin WHERE id = $1', [tid])).rows[0]!.e, null);
   assert.equal(initialen('anna-lena', 'von berg'), 'A. V.');
+});
+
+test('Hausbesuch im Kalender (W130): Adresse als Ort, Erinnerung zum Beginn der Anfahrt, Wegbeschreibung, Fahrt hin und zurück als eigene Ereignisse; Nachbar ändert die Rückfahrt; Absage löscht alles', async () => {
+  const db = await testDb();
+  const graph = mitDelete(graphAttrappe({}));
+  await einstellungSetzen(db, 'fahrtzeit_orte', 'Türkheim = 15', 'x');
+  await einstellungSetzen(db, 'praxis_adresse', 'Kneippstraße 1, 86825 Bad Wörishofen', 'x');
+  const pid = await patientAnlegen(db, t, { vorname: 'Hanna', nachname: 'Heim' }, 'l');
+  const aid = await adresseSpeichern(db, pid, { bezeichnung: 'Zuhause', strasse: 'Bahnhofstraße', hausnummer: '3', plz: '86842', ort: 'Türkheim', typ: 'hausbesuch' }, 'l');
+  const tid = await terminAnlegen(db, pid, { datum: '2026-11-05', zeit: '10:00', dauerMin: 45, behandlungsort: `adresse:${aid}` }, 'l');
+  assert.equal(await terminSpiegeln(db, graph, tid, 'l'), 'angelegt');
+  const posts = graph.schreibende().filter((a) => a.methode === 'POST');
+  assert.equal(posts.length, 3, 'Hausbesuch, Fahrt hin, Fahrt zurück');
+  assert.ok(posts.every((a) => a.pfad === '/me/calendar/events'));
+  const hb = posts[0]!.body as ReturnType<typeof ereignisKoerper>;
+  const hin = posts[1]!.body as ReturnType<typeof fahrtKoerper>;
+  const zurueck = posts[2]!.body as ReturnType<typeof fahrtKoerper>;
+  assert.equal(hb.subject, 'H. H. P-1001');
+  assert.equal(hb.location.displayName, 'Bahnhofstraße 3, 86842 Türkheim', 'die genaue Adresse als Ort');
+  assert.deepEqual([hb.isReminderOn, hb.reminderMinutesBeforeStart], [true, 15], 'Erinnerung, wenn die Anfahrt beginnt');
+  assert.match(hb.body.content, /Behandlung · Hausbesuch · Termin Nr\./);
+  assert.match(hb.body.content, /<a href="https:\/\/maps\.apple\.com\/\?daddr=Bahnhofstra[^"]*">Apple Karten<\/a> · <a href="https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=Bahnhofstra[^"]*">Google Maps<\/a>/);
+  assert.doesNotMatch(JSON.stringify(posts), /Hanna|Heim/, 'kein Name im Kalender');
+  assert.deepEqual([hin.subject, hin.start.dateTime, hin.end.dateTime, hin.location.displayName, hin.categories, hin.showAs, hin.isReminderOn], ['Fahrt zum Hausbesuch H. H. P-1001', '2026-11-05T09:45:00', '2026-11-05T10:00:00', 'Bahnhofstraße 3, 86842 Türkheim', ['Praxis-Fahrt'], 'busy', false]);
+  assert.match(hin.body.content, /15 Min\.[\s\S]*Apple Karten[\s\S]*Google Maps/);
+  assert.deepEqual([zurueck.subject, zurueck.start.dateTime, zurueck.end.dateTime, zurueck.location.displayName], ['Rückfahrt zur Praxis', '2026-11-05T10:45:00', '2026-11-05T11:00:00', 'Kneippstraße 1, 86825 Bad Wörishofen']);
+  assert.match(zurueck.body.content, /daddr=Kneippstra/);
+  const ids = async (id = tid) => (await db.query<{ e: string | null; v: string | null; n: string | null }>('SELECT exchange_event_id AS e, fahrt_vor_event_id AS v, fahrt_nach_event_id AS n FROM termin WHERE id = $1', [id])).rows[0]!;
+  assert.deepEqual(await ids(), { e: 'neu-1', v: 'neu-2', n: 'neu-3' });
+  // Noch einmal: alles wird nachgezogen, nichts doppelt
+  graph.aufrufe.length = 0;
+  assert.equal(await terminSpiegeln(db, graph, tid, 'l'), 'aktualisiert');
+  assert.deepEqual(graph.schreibende().map((a) => [a.methode, a.pfad]), [['PATCH', '/me/events/neu-1'], ['PATCH', '/me/events/neu-2'], ['PATCH', '/me/events/neu-3']]);
+  // Ein zweiter Hausbesuch im selben Ort direkt danach: die Rückfahrt des ersten entfällt (die Fahrt gehört zum zweiten, innerorts 10 Min.) – sein Rückfahrt-Ereignis verschwindet
+  const tid2 = await terminAnlegen(db, pid, { datum: '2026-11-05', zeit: '11:00', dauerMin: 30, behandlungsort: `adresse:${aid}` }, 'l');
+  graph.aufrufe.length = 0;
+  assert.equal(await terminSpiegeln(db, graph, tid2, 'l'), 'angelegt');
+  const wege = graph.schreibende().map((a) => [a.methode, a.pfad]);
+  assert.ok(wege.some(([m, p]) => m === 'DELETE' && p === '/me/events/neu-3'), `Rückfahrt des ersten gelöscht: ${JSON.stringify(wege)}`);
+  assert.equal((await ids()).n, null);
+  const zweiter = await ids(tid2);
+  assert.equal((await db.query<{ vor: number }>('SELECT fahrt_vor_min AS vor FROM termin WHERE id = $1', [tid2])).rows[0]!.vor, 10, 'innerorts');
+  assert.ok(zweiter.e && zweiter.v && zweiter.n, 'zweiter Hausbesuch mit Fahrt hin (innerorts) und zurück');
+  // Absage des zweiten: seine drei Ereignisse weg, die Rückfahrt des ersten kommt wieder
+  await terminStatus(db, pid, tid2, 'abgesagt_patient', 'l');
+  graph.aufrufe.length = 0;
+  assert.equal(await terminSpiegeln(db, graph, tid2, 'l'), 'entfernt');
+  assert.equal(graph.schreibende().filter((a) => a.methode === 'DELETE').length, 3);
+  assert.deepEqual(await ids(tid2), { e: null, v: null, n: null });
+  assert.ok((await ids()).n, 'Rückfahrt des ersten wieder im Kalender');
+  // Praxistermin: Ort „Praxis“, keine Erinnerung, keine Fahrten
+  const praxis = await terminAnlegen(db, pid, { datum: '2026-11-06', zeit: '09:00', dauerMin: 30, behandlungsort: 'praxis' }, 'l');
+  graph.aufrufe.length = 0;
+  await terminSpiegeln(db, graph, praxis, 'l');
+  assert.equal(graph.schreibende().length, 1);
+  const pk = graph.schreibende()[0]!.body as ReturnType<typeof ereignisKoerper>;
+  assert.deepEqual([pk.location.displayName, pk.isReminderOn], ['Praxis', false]);
+  // Abgleich ergänzt fehlende Fahrten eines Hausbesuchs (z. B. aus der Zeit vor W130)
+  await db.query('UPDATE termin SET fahrt_vor_event_id = NULL WHERE id = $1', [tid]);
+  graph.aufrufe.length = 0;
+  const e = await alleTermineSpiegeln(db, graph, 'l');
+  assert.equal(e.fehler, 0);
+  assert.ok(graph.schreibende().some((a) => a.methode === 'POST' && (a.body as { subject: string }).subject.startsWith('Fahrt zum Hausbesuch')), 'Fahrt hin nachgetragen');
+  assert.ok((await ids()).v);
 });
 
 test('Testtermine: drei Patienten mit 12er-Rezept, zwölf Termine in den nächsten Wochen, mehrere pro Tag; Abgleich spiegelt alle künftigen', async () => {

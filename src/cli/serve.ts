@@ -12,6 +12,7 @@ import { loadEnv } from '../config.ts';
 import { GraphClient } from '../graph.ts';
 import { verbindungPruefen } from '../pruefung.ts';
 import { cockpitDaten } from '../cockpit/daten.ts';
+import { alleTermineSpiegeln } from '../kartei/kalender.ts';
 import { ladeEinstellungen } from '../einstellungen.ts';
 import { preislistenDienst } from '../preise/dienst.ts';
 import { karteiDienst } from '../kartei/dienst.ts';
@@ -147,6 +148,9 @@ if (db && schluessel && anfragen && takt > 0) {
       // Outlook → Kartei (W112): Praxis-Termine mit Patientennummer übernehmen, verschobene Zeiten nachziehen
       const ot = await outlookTermineUebernehmen(db, graph, 'system');
       if (ot.neu || ot.verschoben) console.log(`Kalender: ${ot.neu} Outlook-Termine in die Kartei übernommen, ${ot.verschoben} Zeiten nachgezogen${ot.unbekannt ? `, ${ot.unbekannt} ohne bekannte Patientennummer` : ''}`);
+      // Kartei → Kalender (W77, W130): was beim Anlegen nicht in den Kalender kam (Störung) oder dessen Fahrten fehlen, wird nachgetragen
+      const ks = await alleTermineSpiegeln(db, graph, 'system');
+      if (ks.angelegt || ks.aktualisiert || ks.fehler) console.log(`Kalender: ${ks.angelegt} Termine nachgetragen, ${ks.aktualisiert} ergänzt, ${ks.fehler} Fehler`);
     } catch (err) {
       console.warn(`Terminanfragen: ${(err as Error).message.slice(0, 200)}`);
     }

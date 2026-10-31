@@ -53,7 +53,8 @@ Entwurf – Ungefährliches (Termine) trägt der PPM direkt ein.
   **Grundregel (E30, klargestellt 31.10.2026):** der PPM erstellt (Entwurf), Outlook sendet, Lexware verbucht.
   Ungefährliches darf der PPM direkt senden oder eintragen (z. B. Termine in den Kalender). Rechnungs-Mail: E37 offen
   (heute direkt, Klick 2). Keine Vorgabe zur Zahl der Klicks – so wenig wie möglich (§4d).
-- **Keine Gesundheitsdaten außerhalb der Kartei:** nicht im Kalendertitel (nur Initialen + Patientennummer),
+- **Keine Gesundheitsdaten außerhalb der Kartei:** nicht im Kalendertitel (nur Initialen + Patientennummer; der Ort eines
+  Hausbesuchs trägt die Adresse, die Fahrten sind eigene Einträge „Praxis-Fahrt“ – E33, W130),
   nicht in Mails oder WhatsApp, nicht in Protokollen (Leitplanke 9). Gesundheitsbezogenes in der Datenbank
   nur verschlüsselt (`src/tresor.ts`, Kontext = Spaltenname).
 - **Testumgebung und Produktion** hängen am selben Postfach. Die Schranken stehen in `src/umgebung.ts`

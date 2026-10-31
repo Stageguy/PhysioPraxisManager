@@ -88,7 +88,11 @@ const patientZu = async (db: Db, nummer: string | null): Promise<string | null> 
 export async function outlookBloecke(db: Db, graph: LeseGraph, von: string, bis: string, fenster: Oeffnungszeit[]): Promise<KalenderBlock[]> {
   const ereignisse = await outlookEreignisse(graph, von, bis);
   if (!ereignisse.length) return [];
-  const bekannt = new Set((await db.query<{ e: string }>('SELECT exchange_event_id AS e FROM termin WHERE exchange_event_id = ANY($1)', [ereignisse.map((e) => e.id)])).rows.map((r) => r.e));
+  // Gespiegelte Termine und ihre Fahrten (W130) sind keine fremden Blöcke – der Praxiskalender zeigt sie schon
+  const ids = ereignisse.map((e) => e.id);
+  const bekannt = new Set((await db.query<{ e: string | null }>(
+    'SELECT unnest(ARRAY[exchange_event_id, fahrt_vor_event_id, fahrt_nach_event_id]) AS e FROM termin WHERE exchange_event_id = ANY($1) OR fahrt_vor_event_id = ANY($1) OR fahrt_nach_event_id = ANY($1)', [ids],
+  )).rows.map((r) => r.e).filter((e): e is string => Boolean(e)));
   const bloecke: KalenderBlock[] = [];
   for (const e of ereignisse) {
     if (bekannt.has(e.id) || !imOeffnungsfenster(e, fenster)) continue;
