@@ -78,7 +78,7 @@ export async function rechnungSenden(
     }
     let e: { id?: string; webLink?: string; conversationId?: string; messageId?: string };
     try {
-      e = await entwurfAnlegen(graph, mail, { ausfuehren: true, kopfzeilen: UNVERAENDERLICHE_KENNUNG });
+      e = await entwurfAnlegen(graph, mail, { ausfuehren: true, unveraenderlicheKennung: true });
     } catch (err) {
       if (err instanceof SchrankeVerletzt) throw new KarteiFehler(err.message);
       if (err instanceof GraphError) throw new KarteiFehler(`Postfach nicht erreichbar (${err.status}) – der Entwurf wurde nicht angelegt`);

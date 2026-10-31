@@ -74,17 +74,19 @@ export async function antwortEntwurf(graph: Pick<GraphClient, 'post' | 'patch'>,
 export async function entwurfAnlegen(
   graph: Pick<GraphClient, 'post'> & Partial<Pick<GraphClient, 'get'>>,
   mail: NeueMail,
-  optionen: { ausfuehren: boolean; /** z. B. `Prefer: IdType="ImmutableId"`, damit die Kennung das Senden überlebt (W122) */ kopfzeilen?: Record<string, string> },
-): Promise<{ angelegt: boolean; id?: string; webLink?: string; conversationId?: string; /** Internet-Message-ID – Apple Mail springt damit zur Nachricht (W122b) */ messageId?: string }> {
+  optionen: { ausfuehren: boolean; /** zusätzlich die unveränderliche Kennung holen, mit der sich der Entwurf nach dem Senden wiederfinden lässt (W122) */ unveraenderlicheKennung?: boolean },
+): Promise<{ angelegt: boolean; id?: string; webLink?: string; conversationId?: string; messageId?: string }> {
   pruefeMail(mail);
   // Schranke 2: die Testumgebung schreibt nur an Testadressen – auch im Probelauf geprüft
   pruefeEmpfaenger([...mail.an, ...(mail.cc ?? [])]);
   if (!optionen.ausfuehren) return { angelegt: false };
-  const m = await graph.post<{ id: string; webLink: string; conversationId?: string; internetMessageId?: string }>('/me/messages', entwurfKoerper(mail), optionen.kopfzeilen);
-  for (const a of mail.anhaenge ?? []) await graph.post(`/me/messages/${m.id}/attachments`, anhangKoerper(a), optionen.kopfzeilen);
-  let messageId = m.internetMessageId;
-  if (!messageId && graph.get) {
-    try { messageId = (await graph.get<{ internetMessageId?: string }>(`/me/messages/${encodeURIComponent(m.id)}?$select=internetMessageId`, optionen.kopfzeilen)).internetMessageId; } catch { /* dann ohne Apple-Mail-Sprung */ }
+  // Ohne Prefer-Kopfzeile: nur mit der normalen Kennung funktioniert der Web-Link in Outlook im Web
+  const m = await graph.post<{ id: string; webLink: string; conversationId?: string; internetMessageId?: string }>('/me/messages', entwurfKoerper(mail));
+  for (const a of mail.anhaenge ?? []) await graph.post(`/me/messages/${m.id}/attachments`, anhangKoerper(a));
+  let id = m.id;
+  if (optionen.unveraenderlicheKennung && graph.get) {
+    // Die unveränderliche Kennung überlebt das Verschieben nach „Gesendete Elemente“; klappt das nicht, hilft später der Faden
+    try { id = (await graph.get<{ id: string }>(`/me/messages/${encodeURIComponent(m.id)}?$select=id`, { Prefer: 'IdType="ImmutableId"' })).id; } catch { /* normale Kennung behalten */ }
   }
-  return { angelegt: true, id: m.id, webLink: m.webLink, conversationId: m.conversationId, messageId };
+  return { angelegt: true, id, webLink: m.webLink, conversationId: m.conversationId, messageId: m.internetMessageId };
 }

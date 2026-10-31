@@ -1,0 +1,9 @@
+{
+  "basis": "http://127.0.0.1:3301",
+  "kopfzeilen": { "Tailscale-User-Login": "mondre.net@icloud.com" },
+  "breiten": [393, 1440],
+  "hoehe": 900,
+  "ansichten": [
+    { "name": "rechnung-entwurf-dialog", "pfad": "/patienten/102/rechnungen/170?entwurf=1" }
+  ]
+}
