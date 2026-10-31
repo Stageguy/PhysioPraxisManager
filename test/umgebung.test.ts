@@ -61,10 +61,10 @@ test('Schranken 2 und 6 am Entwurf: fremde Empfänger nie, Testentwurf trägt �
   await assert.rejects(entwurfAnlegen(graph, { an: ['erika@example.org'], betreff: 'Termin', text: 'Hallo' }, { ausfuehren: false }), SchrankeVerletzt, 'auch im Probelauf');
   assert.equal(geschrieben.length, 0);
   await entwurfAnlegen(graph, { an: ['shopping+anna@2late.de'], betreff: 'Termin', text: 'Hallo' }, { ausfuehren: true });
-  assert.deepEqual((geschrieben[0] as { categories: string[] }).categories, ['TEST']);
+  assert.deepEqual((geschrieben[0] as { categories: string[] }).categories, ['PPM', 'TEST'], 'PPM für die Zählung im Cockpit (W123), TEST als Schranke 6');
   setze('prod');
   await entwurfAnlegen(graph, { an: ['erika@example.org'], betreff: 'Termin', text: 'Hallo' }, { ausfuehren: true });
-  assert.deepEqual((geschrieben[1] as { categories: string[] }).categories, []);
+  assert.deepEqual((geschrieben[1] as { categories: string[] }).categories, ['PPM'], 'Produktion: nur PPM');
 });
 
 test('Schranke 3: Test-Termine nur im Kalender „Praxis-Test“ – wird angelegt, wenn er fehlt', async () => {
