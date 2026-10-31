@@ -119,7 +119,7 @@ test('Termine heute: Klarname und Link aus der Kartei, wenn der Kalendereintrag 
 
 test('PPM-Mails in „Entwürfe“ (W123): Kategorie PPM zählt, Produktion ohne TEST, Testumgebung nur TEST; Rechnungs-Mails aus der Kartei; ohne Postfach „nicht verbunden“', async () => {
   const graph = {
-    async get<T>(): Promise<T> { return { value: [{ id: 'd1', categories: ['PPM'] }, { id: 'd2', categories: ['PPM', 'TEST'] }, { id: 'd3', categories: [] }, { id: 'd4', categories: ['TEST'] }, { id: 'd5', categories: ['PPM'] }, { id: 'm1', categories: ['TEST'] }] } as T; },
+    async get<T>(): Promise<T> { return { value: [{ id: 'd1', categories: ['PPM'] }, { id: 'd2', categories: ['PPM', 'TEST'] }, { id: 'd3', categories: [] }, { id: 'd4', categories: ['TEST'] }, { id: 'd5', categories: ['PPM'] }, { id: 'm1', categories: ['TEST'], conversationId: 'faden-1' }] } as T; },
     async post<T>(): Promise<T> { return { id: 'kal' } as T; },
     async *paginate<T>(): AsyncGenerator<T> { /* kein Termin */ },
   };
@@ -138,12 +138,12 @@ test('PPM-Mails in „Entwürfe“ (W123): Kategorie PPM zählt, Produktion ohne
   const t = tresor({ PRAXIS_TRESOR_SCHLUESSEL: neuerHauptschluessel() });
   const pid = await patientAnlegen(db, t, { vorname: 'Anna', nachname: 'Test' }, 'x');
   const rid = await rechnungAnlegen(db, pid, { steuerklasse: 'heilbehandlung_steuerfrei', art: 'einzel' }, 'x');
-  await db.query("UPDATE rechnung SET status = 'in_lexware', versand_entwurf_id = 'm1', versand_entwurf_am = now() WHERE id = $1", [rid]);
+  await db.query("UPDATE rechnung SET status = 'in_lexware', versand_entwurf_id = 'm1', versand_conversation_id = 'faden-1', versand_entwurf_am = now() WHERE id = $1", [rid]);
   const d = await cockpitDaten({ db, graph, namenZeigen: false, jetzt: new Date('2026-10-31T10:00:00Z') });
-  assert.deepEqual(d.entwuerfe, { stand: 'ok', daten: { gesamt: 3, rechnungen: 1, link: 'https://outlook.office.com/mail/drafts' } }, 'der Rechnungs-Entwurf m1 zählt über seine Kennung, auch ohne Kategorie PPM');
+  assert.deepEqual(d.entwuerfe, { stand: 'ok', daten: { gesamt: 3, rechnungen: 1, link: 'https://outlook.office.com/mail/drafts' } }, 'der Rechnungs-Entwurf zählt über seinen Faden, auch ohne Kategorie PPM');
   const html = cockpitSeite(d, { wer: 'x', fassung: '0' });
   assert.match(html, /<p class="meldung entwuerfe offen" data-hilfe="cockpit.entwuerfe">[\s\S]*<b>3 PPM-Mails<\/b> warten in Outlook unter „Entwürfe“ – davon 1 Rechnung\. Dort prüfen und senden\. <a class="knopf klein" href="https:\/\/outlook\.office\.com\/mail\/drafts" target="_blank" rel="noopener" data-hilfe="cockpit.entwuerfe-outlook">/);
-  await db.query("UPDATE rechnung SET versand_entwurf_id = 'weg' WHERE id = $1", [rid]);
+  await db.query("UPDATE rechnung SET versand_conversation_id = 'weg' WHERE id = $1", [rid]);
   assert.deepEqual((await cockpitDaten({ db, graph, namenZeigen: false })).entwuerfe, { stand: 'ok', daten: { gesamt: 2, rechnungen: 0, link: 'https://outlook.office.com/mail/drafts' } }, 'ein Rechnungs-Entwurf, der nicht mehr im Ordner liegt, zählt nicht');
   const leer = cockpitSeite({ ...d, entwuerfe: { stand: 'ok', daten: { gesamt: 0, rechnungen: 0, link: 'x' } } }, { wer: 'x', fassung: '0' });
   assert.match(leer, /<p class="meldung entwuerfe" data-hilfe="cockpit.entwuerfe">[\s\S]*Keine PPM-Mail in „Entwürfe“ – alles gesendet\./);
