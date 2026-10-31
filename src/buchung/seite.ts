@@ -85,6 +85,8 @@ select:focus,input:focus,textarea:focus,button:focus{outline:2px solid var(--bro
 <script>
 (function () {
   var ZONE = 'Europe/Berlin', RASTER = 15, angebot = null, wahl = { art: null, tag: null, zeit: null }, monat = null, start = Date.now(), einladung = null;
+  // Uhrzeit aus dem Link (ISO) – wird vorgewählt, sobald eine Behandlung feststeht, dann vergessen
+  var vorwahl = null;
   var $ = function (id) { return document.getElementById(id); };
   var fmtTag = new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   var fmtZeit = new Intl.DateTimeFormat('de-DE', { timeZone: ZONE, hour: '2-digit', minute: '2-digit' });
@@ -142,14 +144,29 @@ select:focus,input:focus,textarea:focus,button:focus{outline:2px solid var(--bro
     zeige('s-tag', !!wahl.art);
     if (wahl.art) { var k = Object.keys(freieTage()).sort(); var erst = k[0] ? new Date(k[0] + 'T12:00:00Z') : new Date(); monat = { j: erst.getUTCFullYear(), m: erst.getUTCMonth() }; zeichneMonat(); }
     zeichneZeiten();
+    zeitVorwaehlen();
+  }
+  // Tag und Uhrzeit aus dem Link vorwählen (Schnelltermin der Praxis, W117): gleich beim Laden, wenn der Link die Behandlung bestimmt,
+  // sonst sobald der Patient eine gewählt hat (W117d). Ist die Zeit weg, sagt die Seite es und zeigt den Tag
+  function zeitVorwaehlen() {
+    if (!vorwahl || !wahl.art) return;
+    var zeit = vorwahl; vorwahl = null;
+    var tag = tagVon(zeit), d0 = new Date(tag + 'T12:00:00Z');
+    monat = { j: d0.getUTCFullYear(), m: d0.getUTCMonth() };
+    var frei = freieTage()[tag];
+    if (frei && anfangszeiten(frei.fenster, wahl.art.dauerMin).indexOf(zeit) >= 0) { wahl.tag = tag; wahl.zeit = zeit; }
+    else { wahl.tag = frei ? tag : null; fehler('Die vorgeschlagene Zeit ist leider schon vergeben – bitte wählen Sie eine andere.'); }
+    zeichneMonat(); zeichneZeiten();
   }
   function laden() {
     fetch('api/angebot', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (a) {
       angebot = a; RASTER = a.rasterMin || 15;
       if (a.hinweis) $('hinweis').textContent = a.hinweis;
       // Vorwahl aus dem Link: ?terminart=<code> von der Website, ?dauer=30&zeit=<ISO> aus dem Schnelltermin der Praxis (W117) –
-      // dann stehen nur Behandlungen dieser Dauer zur Wahl, Tag und Uhrzeit sind vorgewählt, falls noch frei
+      // dann stehen nur Behandlungen dieser Dauer zur Wahl, die erste ist gewählt, Tag und Uhrzeit sind vorgewählt, falls noch frei.
+      // Hat keine Behandlung diese Dauer (alter Link, Terminarten geändert): alle zur Wahl, Tag und Uhrzeit folgen der Wahl (W117d)
       var params = new URLSearchParams(location.search), vor = params.get('terminart'), dauer = Number(params.get('dauer')), zeit = params.get('zeit');
+      if (zeit && !isNaN(new Date(zeit).getTime())) vorwahl = new Date(zeit).toISOString();
       // Einladung zum Schnelltermin (W117b): ?e=<Kennung> – die Praxis hat Name, Telefon und Mail hinterlegt, die Felder bleiben änderbar
       var e = params.get('e');
       if (e && /^[A-Za-z0-9_-]{8,40}$/.test(e)) fetch('api/einladung/' + e, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (p) {
@@ -159,7 +176,8 @@ select:focus,input:focus,textarea:focus,button:focus{outline:2px solid var(--bro
         if (p.telefon && !$('telefon').value) $('telefon').value = p.telefon;
         if (p.email && !$('email').value) $('email').value = p.email;
       }).catch(function () { /* ohne Vorbelegung geht es auch */ });
-      var liste = dauer && a.terminarten.some(function (t) { return t.dauerMin === dauer; }) ? a.terminarten.filter(function (t) { return t.dauerMin === dauer; }) : a.terminarten;
+      var passend = dauer > 0 && a.terminarten.some(function (t) { return t.dauerMin === dauer; });
+      var liste = passend ? a.terminarten.filter(function (t) { return t.dauerMin === dauer; }) : a.terminarten;
       var sel = $('terminart'), gruppen = {};
       liste.forEach(function (t) { (gruppen[t.sektion] = gruppen[t.sektion] || []).push(t); });
       ['rezept', 'selbstzahler', 'wellness'].forEach(function (s) {
@@ -169,16 +187,8 @@ select:focus,input:focus,textarea:focus,button:focus{outline:2px solid var(--bro
         sel.appendChild(g);
       });
       if (vor && liste.some(function (t) { return t.code === vor; })) { sel.value = vor; artGewaehlt(); }
-      else if (dauer && liste.length === 1) { sel.value = liste[0].code; artGewaehlt(); }
-      else if (dauer && liste.length && liste[0].dauerMin === dauer) { sel.value = liste[0].code; artGewaehlt(); }
-      if (zeit && wahl.art && !isNaN(new Date(zeit).getTime())) {
-        var tag = tagVon(zeit), d0 = new Date(tag + 'T12:00:00Z');
-        monat = { j: d0.getUTCFullYear(), m: d0.getUTCMonth() };
-        var frei = freieTage()[tag];
-        if (frei && anfangszeiten(frei.fenster, wahl.art.dauerMin).indexOf(new Date(zeit).toISOString()) >= 0) { wahl.tag = tag; wahl.zeit = new Date(zeit).toISOString(); }
-        else { wahl.tag = frei ? tag : null; fehler('Die vorgeschlagene Zeit ist leider schon vergeben – bitte wählen Sie eine andere.'); }
-        zeichneMonat(); zeichneZeiten();
-      }
+      else if (passend) { sel.value = liste[0].code; artGewaehlt(); }
+      else if (vorwahl) $('lang').textContent = 'Bitte wählen Sie Ihre Behandlung – Tag und Uhrzeit aus Ihrem Link sind dann vorgewählt.';
       hoehe();
     }).catch(function () { fehler('Die Terminwahl ist gerade nicht erreichbar – bitte rufen Sie uns an.'); });
   }

@@ -234,11 +234,15 @@ export function praxisDienst(opt: DienstOptionen): Server {
         const daten: CockpitDaten = opt.cockpit
           ? await opt.cockpit({ namenZeigen })
           : { heute: new Date().toISOString().slice(0, 10), rechnungen: NICHT_VERBUNDEN, termine: NICHT_VERBUNDEN, anfragen: NICHT_VERBUNDEN, protokoll: NICHT_VERBUNDEN, namenZeigen };
-        // Schnelltermin (W117): ?schnell=20|30|40|60 sucht die nächsten drei freien Zeiten dieser Dauer; &patient=<Kennung|Nummer|Name> für einen bekannten Patienten (W117b)
+        // Schnelltermin (W117): ?schnell=<Minuten> sucht die nächsten drei freien Zeiten dieser Dauer – die Dauern sind die der aktiven
+        // Terminarten (W117d), ein fremder Wert landet bei der nächsten; &patient=<Kennung|Nummer|Name> für einen bekannten Patienten (W117b)
         const schnell = adresse.searchParams.get('schnell') ?? '';
         const patientWahl = adresse.searchParams.get('patient')?.slice(0, 120) || undefined;
-        if (/^(20|30|40|60)$/.test(schnell) && opt.kartei) daten.schnell = await opt.kartei.schnelltermin(Number(schnell), wer, patientWahl);
-        if (opt.kartei) daten.patienten = await opt.kartei.patientenNamen();
+        if (/^\d{1,3}$/.test(schnell) && opt.kartei) daten.schnell = await opt.kartei.schnelltermin(Number(schnell), wer, patientWahl);
+        if (opt.kartei) {
+          daten.patienten = await opt.kartei.patientenNamen();
+          daten.schnellDauern = daten.schnell?.dauern ?? await opt.kartei.schnellDauern();
+        }
         daten.patientWahl = patientWahl;
         const jetzt = zeitText(new Date().toISOString());
         return senden(res, 200, 'text/html', cockpitSeite(daten, { wer, fassung: opt.fassung, jetzt }));

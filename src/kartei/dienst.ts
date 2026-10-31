@@ -28,7 +28,7 @@ import { regelzeiten, type Regelzeit } from './regelzeiten.ts';
 import { rezeptTermineDaten, type RezeptTermineDaten } from './rezept-termine.ts';
 import { outlookBloecke, type KalenderBlock } from './outlook-termine.ts';
 import { freieWoche, monatsPlan, type MonatsPlan, type TagesPlan, type WochenSuche, mittagspausenZeitraum } from './terminplan.ts';
-import { schnelltermin, schnellPatientFinden, type Schnelltermin } from './schnelltermin.ts';
+import { schnelltermin, schnellDauern, schnellPatientFinden, type Schnelltermin } from './schnelltermin.ts';
 import { nummernKonflikt, type NummernKonflikt } from './lexware-rechnungen.ts';
 import type { MittagspauseTag } from './mittagspause.ts';
 import { slotRegeln } from '../anfragen/dienst.ts';
@@ -160,6 +160,8 @@ export interface KarteiDienst {
   freieWoche(o: { dauer: number; wochenstart: string }): Promise<WochenSuche>;
   /** Schnelltermin (W117): die nächsten drei freien Zeiten einer Dauer samt Vorlage und Links; mit Patient (W117b: Kennung, Nummer oder eindeutiger Name) Einladung und Anrede */
   schnelltermin(dauer: number, wer: string, patientWahl?: string): Promise<Schnelltermin>;
+  /** Die Dauern der Schnelltermin-Kreise (W117d): aus den aktiven Terminarten */
+  schnellDauern(): Promise<number[]>;
   /** Aktive Patienten mit Name und Nummer – für die Wahl im Schnelltermin */
   patientenNamen(): Promise<{ id: string; name: string; patientennummer: string }[]>;
   /** Freigegebene, aktive Preislisten – für „Neuer Patient“ (W115b) */
@@ -308,6 +310,7 @@ export function karteiDienst(q: DienstQuellen): KarteiDienst {
       const patient = patientId ? await patientLesen(db, t, patientId) : undefined;
       return schnelltermin(db, q.graph, { dauer, buchungUrl: q.buchung?.url, patient, wer, einladen: q.buchungClient ? (e) => q.buchungClient!.einladungenSenden([e]) : undefined });
     },
+    schnellDauern: () => schnellDauern(db),
     patientenNamen: async () => (await db.query<{ id: string; name: string; patientennummer: string }>(
       "SELECT id::text, vorname || ' ' || nachname AS name, patientennummer FROM patient WHERE status <> 'archiviert' ORDER BY lower(nachname), lower(vorname)",
     )).rows,

@@ -8,8 +8,11 @@
  * belegt damit Name, Telefon und Mail vor – nie im Klartext im Link –, und die Buchung kommt über die Kennung dem
  * Patienten sicher zugeordnet zurück. Die Vorlage spricht den Patienten mit Namen an, „Direkt buchen“ öffnet gleich
  * sein Terminformular.
+ *
+ * Die Dauern (W117d) sind die der aktiven Terminarten – nur so trifft jeder Link auf der Buchungsseite eine Behandlung
+ * und sie kann Behandlung, Tag und Uhrzeit vorwählen. Ohne aktive Terminarten bleiben 20 · 30 · 40 · 60.
  */
-import { randomBytes } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import type { Db } from '../db/index.ts';
 import { istId } from '../db/werte.ts';
 import type { GraphClient } from '../graph.ts';
@@ -19,12 +22,30 @@ import { datumBerlin, zeitBerlin } from '../zeit.ts';
 import { angebotErstellen } from '../buchung/abgleich.ts';
 import { anfangszeiten, type Einladung } from '../buchung/angebot.ts';
 import type { Patient } from './patienten.ts';
+import { terminarten } from './terminarten.ts';
 
 type LeseGraph = Pick<GraphClient, 'get' | 'paginate' | 'post' | 'patch' | 'delete'>;
 
+/** Dauern, wenn keine Terminart aktiv ist */
 export const SCHNELL_DAUERN = [20, 30, 40, 60] as const;
 /** So lange gilt eine Einladung – danach belegt die Buchungsseite nichts mehr vor */
 export const EINLADUNG_TAGE = 30;
+
+/** Die Dauern der Kreise im Cockpit: jede Dauer, die eine aktive Terminart hat – aufsteigend, ohne Doppel; ohne aktive Terminarten die Vorgabe */
+export async function schnellDauern(db: Db): Promise<number[]> {
+  const aktive = await terminarten(db, { nurAktiv: true });
+  const dauern = [...new Set(aktive.map((t) => t.dauerMin))].sort((a, b) => a - b);
+  return dauern.length ? dauern : [...SCHNELL_DAUERN];
+}
+
+/** Die angebotene Dauer, die der gewünschten am nächsten liegt (bei Gleichstand die kürzere) – für alte Links und fremde Werte */
+export const naechsteDauer = (dauern: number[], wunsch: number): number =>
+  dauern.reduce((best, d) => (Math.abs(d - wunsch) < Math.abs(best - wunsch) ? d : best), dauern[0] ?? 30);
+
+/** Zeichen ohne Verwechslung (kein 0/O, 1/l/I) und ohne Satzzeichen – ein Link-Erkenner in Mail oder WhatsApp schneidet so nichts ab */
+const KENNUNG_ZEICHEN = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+/** Eine neue Einladungskennung: 12 Zeichen, rund 70 Bit Zufall */
+export const neueKennung = (): string => Array.from({ length: 12 }, () => KENNUNG_ZEICHEN[randomInt(KENNUNG_ZEICHEN.length)]).join('');
 
 export interface SchnellZeit {
   beginn: string;
@@ -49,6 +70,8 @@ export interface SchnellPatient {
 
 export interface Schnelltermin {
   dauer: number;
+  /** Die angebotenen Dauern (Kreise) – aus den aktiven Terminarten (W117d) */
+  dauern: number[];
   zeiten: SchnellZeit[];
   /** Fertiger Text für Mail oder WhatsApp */
   vorlage: string;
@@ -107,7 +130,7 @@ export function vorlageText(dauer: number, zeiten: SchnellZeit[], praxis: string
 
 /** Eine Einladung für den Patienten anlegen (Kennung in der Kartei) – was der Buchungsdienst davon bekommt: Kennung, Name, Telefon, Mail, Gültigkeit */
 export async function einladungAnlegen(db: Db, p: Patient, dauer: number, wer: string, jetzt = new Date()): Promise<Einladung> {
-  const kennung = randomBytes(9).toString('base64url');
+  const kennung = neueKennung();
   const bis = new Date(jetzt.getTime() + EINLADUNG_TAGE * 86_400_000).toISOString();
   await db.query('INSERT INTO schnelltermin_einladung (kennung, patient_id, dauer_min, erstellt_von, gueltig_bis) VALUES ($1, $2, $3, $4, $5)', [kennung, p.id, dauer, wer, bis]);
   const telefon = p.kontakte.find((k) => k.art === 'mobil' && k.primaer) ?? p.kontakte.find((k) => k.art === 'mobil') ?? p.telefon;
@@ -139,7 +162,8 @@ export async function schnelltermin(
   db: Db, graph: LeseGraph | undefined,
   o: { dauer: number; buchungUrl?: string; jetzt?: Date; anzahl?: number; patient?: Patient; wer?: string; einladen?: (e: Einladung) => Promise<void> },
 ): Promise<Schnelltermin> {
-  const dauer = (SCHNELL_DAUERN as readonly number[]).includes(o.dauer) ? o.dauer : 30;
+  const dauern = await schnellDauern(db);
+  const dauer = naechsteDauer(dauern, Number.isFinite(o.dauer) ? o.dauer : 30);
   const angebot = await angebotErstellen(db, graph, { jetzt: o.jetzt });
   const tage = angebot.tage.map((t) => ({ datum: t.datum, zeiten: anfangszeiten(t.fenster, dauer, angebot.rasterMin) })).filter((t) => t.zeiten.length);
   const p = o.patient;
@@ -165,7 +189,7 @@ export async function schnelltermin(
       : `/kalender/termin?datum=${datumBerlin(beginn)}&zeit=${zeitBerlin(beginn)}&dauer_min=${dauer}`,
   }));
   return {
-    dauer, zeiten, vorlage: vorlageText(dauer, zeiten, praxisName(), p ? anredeText(p) : undefined), betreff: `Terminvorschläge (${dauer} Minuten) – ${praxisName()}`, buchung: Boolean(o.buchungUrl),
+    dauer, dauern, zeiten, vorlage: vorlageText(dauer, zeiten, praxisName(), p ? anredeText(p) : undefined), betreff: `Terminvorschläge (${dauer} Minuten) – ${praxisName()}`, buchung: Boolean(o.buchungUrl),
     patient: p ? {
       id: p.id, name: `${p.vorname} ${p.nachname}`, patientennummer: p.patientennummer,
       email: p.email ? { id: p.email.id, adresse: p.email.normiert } : null, whatsapp: p.whatsapp ? { id: p.whatsapp.id, nummer: p.whatsapp.normiert } : null,

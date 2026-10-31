@@ -26,8 +26,9 @@ function kontaktKnopf(s: Schnelltermin, art: 'email' | 'whatsapp'): string {
   if (!p || !kontakt) {
     return `<span class="knopf aus" aria-disabled="true" data-hilfe="${hilfe}" title="${!p ? 'Erst einen Patienten wählen' : art === 'email' ? 'Keine Mailadresse hinterlegt' : 'Keine WhatsApp-Nummer hinterlegt'}">${symbol(art, { groesse: 18 })} ${text}</span>`;
   }
+  // Zeilenumbrüche im mailto-Text als CRLF (RFC 6068) – sonst zieht manches Mailprogramm die Zeilen zusammen und klebt den Link an die nächste Zeile
   const href = art === 'email'
-    ? `mailto:${p.email!.adresse}?subject=${encodeURIComponent(s.betreff)}&body=${encodeURIComponent(s.vorlage)}`
+    ? `mailto:${p.email!.adresse}?subject=${encodeURIComponent(s.betreff)}&body=${encodeURIComponent(s.vorlage.replace(/\r?\n/g, '\r\n'))}`
     : waLink(p.whatsapp!.nummer, s.vorlage);
   return `<a class="knopf" href="${esc(href)}"${art === 'whatsapp' ? ' target="_blank" rel="noopener"' : ''} data-anruf="${p.id}" data-kontakt="${kontakt.id}" data-hilfe="${hilfe}">${symbol(art, { groesse: 18 })} ${text}</a>`;
 }
@@ -215,13 +216,15 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
       : '<p class="leer">In den letzten sieben Tagen hat sich nichts geändert.</p>')}
   </section>`;
 
-  // Schnelltermin (W117): vier Kreise, ein Tipp sucht die nächsten drei freien Zeiten; Vorlage nur zum Kopieren, nie senden (Leitplanke 3)
+  // Schnelltermin (W117): ein Kreis je Dauer der aktiven Terminarten (W117d), ein Tipp sucht die nächsten drei freien Zeiten;
+  // Vorlage nur zum Kopieren, nie senden (Leitplanke 3)
   const namenParam = d.namenZeigen ? '&namen=1' : '';
   const s = d.schnell;
+  const dauern = s?.dauern ?? d.schnellDauern ?? [...SCHNELL_DAUERN];
   // Für einen bekannten Patienten (W117b): Kennung in den Kreisen, Feld mit Vorschlagsliste (Name oder Nummer), Anrede in der Vorlage
   const patientParam = s?.patient ? `&patient=${s.patient.id}` : '';
   const patientFeld = d.patienten ? `<form method="get" action="/" class="schnell-patient" data-hilfe="schnell.patient">
-      <input type="hidden" name="schnell" value="${s?.dauer ?? 30}">${d.namenZeigen ? '<input type="hidden" name="namen" value="1">' : ''}
+      <input type="hidden" name="schnell" value="${s?.dauer ?? (dauern.includes(30) ? 30 : dauern[0])}">${d.namenZeigen ? '<input type="hidden" name="namen" value="1">' : ''}
       <label><span>Für Patient <span class="hint">(optional)</span></span><input name="patient" list="schnell-patienten" value="${esc(s?.patient ? s.patient.patientennummer : d.patientWahl ?? '')}" placeholder="Name oder Nummer" autocomplete="off" maxlength="120"></label>
       <datalist id="schnell-patienten">${d.patienten.map((p) => `<option value="${esc(p.patientennummer)}">${esc(p.name)}</option>`).join('')}</datalist>
       <button class="knopf klein">Übernehmen</button>
@@ -230,7 +233,7 @@ export function cockpitSeite(d: CockpitDaten, o: { wer: string; fassung: string;
     </form>` : '';
   const schnell = `<section class="tafel schnell" data-hilfe="schnell.abschnitt" aria-labelledby="t-sc">
     <h2 id="t-sc">${symbol('blitz')} Schnelltermin</h2>
-    <div class="schnell-kreise">${SCHNELL_DAUERN.map((m) => `<a class="kreis${s?.dauer === m ? ' aktiv' : ''}" href="/?schnell=${m}${namenParam}${patientParam}#t-sc" data-hilfe="schnell.dauer" aria-label="${m} Minuten">${m}</a>`).join('')}<span class="hint">Minuten – die nächsten drei freien Zeiten</span></div>
+    <div class="schnell-kreise">${dauern.map((m) => `<a class="kreis${s?.dauer === m ? ' aktiv' : ''}" href="/?schnell=${m}${namenParam}${patientParam}#t-sc" data-hilfe="schnell.dauer" aria-label="${m} Minuten">${m}</a>`).join('')}<span class="hint">Minuten – die nächsten drei freien Zeiten</span></div>
     ${patientFeld}
     ${s ? (s.zeiten.length
       ? `${s.einladungFehler ? '<p class="meldung fehler">Die Buchungsseite kennt die Einladung nicht – die Links gehen, nur ohne vorbelegte Angaben.</p>' : ''}<details class="schnell-direkt"><summary class="knopf primaer" data-hilfe="schnell.direkt">${symbol('kalender', { groesse: 18 })} Direkt buchen${s.patient ? ` für ${esc(s.patient.name)}` : ''}</summary>

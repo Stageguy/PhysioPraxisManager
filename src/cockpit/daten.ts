@@ -80,6 +80,8 @@ export interface CockpitDaten {
   fahrt?: Fahrt | null;
   /** Schnelltermin (W117): die nächsten drei freien Zeiten der gewählten Dauer mit Vorlage – nur nach Tipp auf eine Dauer */
   schnell?: Schnelltermin;
+  /** Die Dauern der Schnelltermin-Kreise (W117d): aus den aktiven Terminarten; fehlt sie, die Vorgabe 20 · 30 · 40 · 60 */
+  schnellDauern?: number[];
   /** PPM-Mails, die in Outlook unter „Entwürfe“ noch nicht gesendet sind (W123) – beim Laden aus dem Postfach gezählt */
   entwuerfe?: Quelle<EntwuerfeStand>;
   /** Aktive Patienten für die Wahl „Für Patient“ im Schnelltermin (W117b): Name und Nummer */

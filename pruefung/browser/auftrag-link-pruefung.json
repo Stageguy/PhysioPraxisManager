@@ -1,0 +1,12 @@
+{
+  "basis": "http://127.0.0.1:3311",
+  "beruehrung": true,
+  "breiten": [393],
+  "hoehe": 1600,
+  "ganzeSeite": true,
+  "ansichten": [
+    { "name": "link-30", "pfad": "/?dauer=30&zeit=2026-11-02T13:45Z&e=Nw_AfhTTvQYr", "warte": "#s-daten" },
+    { "name": "link-20", "pfad": "/?dauer=20&zeit=2026-11-02T13:45Z&e=Nw_AfhTTvQYr" },
+    { "name": "link-ohne", "pfad": "/" }
+  ]
+}
